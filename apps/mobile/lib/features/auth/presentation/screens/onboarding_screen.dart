@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
@@ -10,7 +9,6 @@ import '../../../../core/design_system/radius.dart';
 import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
 import '../../../../core/design_system/animations.dart';
-import '../../../../core/design_system/icons.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -43,8 +41,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentSlide = _slides[_currentPage];
-
     return Scaffold(
       backgroundColor: AuraColors.background,
       body: Stack(

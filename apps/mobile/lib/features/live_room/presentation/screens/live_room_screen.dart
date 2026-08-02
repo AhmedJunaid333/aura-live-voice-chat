@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../../../core/design_system/colors.dart';
 import '../../../../core/design_system/typography.dart';
@@ -107,8 +106,8 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AuraColors.primary.withOpacity(0.1),
-                boxShadow: [BoxShadow(color: AuraColors.primary.withOpacity(0.2), blurRadius: 80)],
+                color: AuraColors.primary.withValues(alpha: 0.1),
+                boxShadow: [BoxShadow(color: AuraColors.primary.withValues(alpha: 0.2), blurRadius: 80)],
               ),
             ),
           ),
@@ -120,8 +119,8 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AuraColors.secondary.withOpacity(0.15),
-                boxShadow: [BoxShadow(color: AuraColors.secondary.withOpacity(0.25), blurRadius: 80)],
+                color: AuraColors.secondary.withValues(alpha: 0.15),
+                boxShadow: [BoxShadow(color: AuraColors.secondary.withValues(alpha: 0.25), blurRadius: 80)],
               ),
             ),
           ),
@@ -161,7 +160,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
                                     border: Border.all(
                                       color: isSpeaking
                                           ? AuraColors.primary
-                                          : (isActive ? AuraColors.primary.withOpacity(0.4) : AuraColors.border),
+                                          : (isActive ? AuraColors.primary.withValues(alpha: 0.4) : AuraColors.border),
                                       width: isSpeaking ? 2.5 : 1.5,
                                     ),
                                     boxShadow: isSpeaking
@@ -175,7 +174,7 @@ class _LiveRoomScreenState extends State<LiveRoomScreen> {
                                             fit: BoxFit.cover,
                                           ),
                                         )
-                                      : Icon(Iconsax.add, color: AuraColors.textSecondary.withOpacity(0.5), size: 20),
+                                      : Icon(Iconsax.add, color: AuraColors.textSecondary.withValues(alpha: 0.5), size: 20),
                                 ),
                     
                                 // Speaker Wave Animation Pill

@@ -6,8 +6,6 @@ import '../typography.dart';
 import '../spacing.dart';
 import '../radius.dart';
 import '../shadows.dart';
-import '../gradients.dart';
-import '../animations.dart';
 
 class AuraTextField extends StatefulWidget {
   final String hintText;

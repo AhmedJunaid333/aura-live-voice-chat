@@ -1,6 +1,4 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:iconsax/iconsax.dart';
 import '../colors.dart';
 import '../typography.dart';
 import '../spacing.dart';
@@ -8,7 +6,6 @@ import '../radius.dart';
 import '../shadows.dart';
 import '../gradients.dart';
 import '../animations.dart';
-import '../icons.dart';
 
 class AuraGradientButton extends StatelessWidget {
   final String text;

@@ -285,7 +285,7 @@ class _WalletScreenState extends State<WalletScreen> with SingleTickerProviderSt
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: isIn ? AuraColors.success.withOpacity(0.1) : AuraColors.error.withOpacity(0.1),
+                          color: isIn ? AuraColors.success.withValues(alpha: 0.1) : AuraColors.error.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(isIn ? Iconsax.arrow_down : Iconsax.arrow_up_2, color: isIn ? AuraColors.success : AuraColors.error, size: 18),

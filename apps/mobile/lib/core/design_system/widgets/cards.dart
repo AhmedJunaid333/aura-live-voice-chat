@@ -7,9 +7,6 @@ import '../spacing.dart';
 import '../radius.dart';
 import '../shadows.dart';
 import '../gradients.dart';
-import '../animations.dart';
-import '../icons.dart';
-import 'badges.dart'; // To use AuraLiveBadge or VIP badge if needed
 
 class AuraGlassCard extends StatelessWidget {
   final Widget child;
@@ -113,7 +110,7 @@ class AuraLiveCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Iconsax.eye, color: AuraColors.white, size: 12),
-                    AuraSpacing.hXs ?? const SizedBox(width: 4),
+                    AuraSpacing.hXs,
                     Text('$viewerCount', style: AuraTypography.badge.copyWith(color: AuraColors.white)),
                   ],
                 ),
@@ -295,7 +292,7 @@ class AuraAgencyCard extends StatelessWidget {
             child: Row(
               children: [
                 const Icon(Iconsax.profile_2user, color: AuraColors.primary, size: 16),
-                AuraSpacing.hXs ?? const SizedBox(width: 4),
+                AuraSpacing.hXs,
                 Text('$members', style: AuraTypography.labelMedium),
               ],
             ),

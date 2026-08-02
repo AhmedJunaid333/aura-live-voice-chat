@@ -9,7 +9,6 @@ import '../../../../core/design_system/radius.dart';
 import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
 import '../../../../core/design_system/animations.dart';
-import '../../../../core/design_system/icons.dart';
 import '../../../../core/widgets/aura_bottom_nav.dart';
 
 class ExploreScreen extends StatefulWidget {

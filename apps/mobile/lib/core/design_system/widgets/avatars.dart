@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import '../colors.dart';
 import '../typography.dart';
-import '../spacing.dart';
 import '../radius.dart';
-import '../shadows.dart';
 import '../gradients.dart';
 
 class AuraAvatar extends StatelessWidget {

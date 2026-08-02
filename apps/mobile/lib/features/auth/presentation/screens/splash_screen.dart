@@ -1,7 +1,5 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:iconsax/iconsax.dart';
 import 'dart:async';
 
 import '../../../../core/design_system/colors.dart';
@@ -11,7 +9,6 @@ import '../../../../core/design_system/radius.dart';
 import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
 import '../../../../core/design_system/animations.dart';
-import '../../../../core/design_system/icons.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -73,7 +70,7 @@ class _SplashScreenState extends State<SplashScreen> {
               height: 320,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AuraColors.primary.withOpacity(0.15),
+                color: AuraColors.primary.withValues(alpha: 0.15),
                 boxShadow: AuraShadows.neonViolet,
               ),
             ),

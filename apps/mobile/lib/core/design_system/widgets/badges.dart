@@ -57,7 +57,7 @@ class AuraCoinWidget extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const Icon(Iconsax.coin1, color: AuraColors.gold, size: 16),
-        AuraSpacing.hXs ?? const SizedBox(width: 4),
+        AuraSpacing.hXs,
         Text(
           '$amount',
           style: AuraTypography.coinAmount.copyWith(color: AuraColors.gold),
@@ -87,7 +87,7 @@ class AuraVipBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Iconsax.crown1, color: AuraColors.white, size: 12),
-          AuraSpacing.hXs ?? const SizedBox(width: 4),
+          AuraSpacing.hXs,
           Text(
             tier.toUpperCase(),
             style: AuraTypography.badge.copyWith(color: AuraColors.white),

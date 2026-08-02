@@ -8,7 +8,6 @@ import '../../../../core/design_system/spacing.dart';
 import '../../../../core/design_system/radius.dart';
 import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
-import '../../../../core/design_system/animations.dart';
 
 class BagScreen extends StatefulWidget {
   const BagScreen({super.key});

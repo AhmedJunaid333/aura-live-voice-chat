@@ -1,16 +1,13 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../core/design_system/colors.dart';
 import '../../core/design_system/typography.dart';
 import '../../core/design_system/spacing.dart';
 import '../../core/design_system/radius.dart';
 import '../../core/design_system/shadows.dart';
-import '../../core/design_system/gradients.dart';
 import '../../core/design_system/animations.dart';
-import '../../core/design_system/icons.dart';
 import '../../core/widgets/aura_bottom_nav.dart';
 
 class LeaderboardScreen extends StatefulWidget {
@@ -122,7 +119,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 padding: const EdgeInsets.only(top: 24, bottom: 32, left: 16, right: 16),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [AuraColors.primary.withOpacity(0.1), AuraColors.background],
+                    colors: [AuraColors.primary.withValues(alpha: 0.1), AuraColors.background],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
@@ -403,9 +400,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
             decoration: BoxDecoration(
-              color: AuraColors.primary.withOpacity(0.2),
+              color: AuraColors.primary.withValues(alpha: 0.2),
               borderRadius: AuraRadius.brSm,
-              border: Border.all(color: AuraColors.primary.withOpacity(0.4)),
+              border: Border.all(color: AuraColors.primary.withValues(alpha: 0.4)),
             ),
             child: Text(
               badge.toUpperCase(),

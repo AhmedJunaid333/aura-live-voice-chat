@@ -52,7 +52,7 @@ class SeatGridWidget extends StatelessWidget {
                       else
                         Icon(
                           seat.status == SeatStatus.requested ? Iconsax.timer_1 : Iconsax.add,
-                          color: AuraColors.textSecondary.withOpacity(0.5),
+                          color: AuraColors.textSecondary.withValues(alpha: 0.5),
                           size: 28,
                         ),
                       AuraSpacing.vXs,

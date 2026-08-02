@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../colors.dart';
 import '../typography.dart';
-import '../animations.dart';
 
 class AuraGiftAnimation extends StatefulWidget {
   final String giftName;

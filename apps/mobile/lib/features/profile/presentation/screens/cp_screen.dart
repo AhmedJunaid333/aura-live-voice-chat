@@ -240,9 +240,9 @@ class _CpScreenState extends State<CpScreen> {
                                       Container(
                                         padding: const EdgeInsets.all(10),
                                         decoration: BoxDecoration(
-                                          color: AuraColors.error.withOpacity(0.1),
+                                          color: AuraColors.error.withValues(alpha: 0.1),
                                           shape: BoxShape.circle,
-                                          boxShadow: [BoxShadow(color: AuraColors.error.withOpacity(0.3), blurRadius: 10)],
+                                          boxShadow: [BoxShadow(color: AuraColors.error.withValues(alpha: 0.3), blurRadius: 10)],
                                         ),
                                         child: Icon(Iconsax.heart5, color: AuraColors.error, size: 28),
                                       ),

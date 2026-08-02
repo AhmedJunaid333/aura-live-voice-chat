@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'colors.dart';
 
 /// Auralive Design System — Luxury Gradients
 abstract final class AuraGradients {

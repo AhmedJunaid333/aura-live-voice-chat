@@ -1,16 +1,13 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import '../colors.dart';
 import '../typography.dart';
 import '../spacing.dart';
 import '../radius.dart';
-import '../shadows.dart';
 import '../gradients.dart';
 import 'avatars.dart';
 import 'buttons.dart';
 import 'bottom_sheets.dart';
-import 'chips.dart';
 
 class AuraProfileHeader extends StatelessWidget {
   final String name;

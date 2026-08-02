@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../../../core/design_system/colors.dart';
 import '../../../../core/design_system/typography.dart';
@@ -9,7 +8,6 @@ import '../../../../core/design_system/spacing.dart';
 import '../../../../core/design_system/radius.dart';
 import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
-import '../../../../core/design_system/animations.dart';
 
 class GoLiveSheet extends StatefulWidget {
   const GoLiveSheet({super.key});
@@ -68,7 +66,7 @@ class _GoLiveSheetState extends State<GoLiveSheet> {
             border: Border(top: BorderSide(color: AuraColors.glassBorder)),
             boxShadow: [
               BoxShadow(
-                color: AuraColors.background.withOpacity(0.8),
+                color: AuraColors.background.withValues(alpha: 0.8),
                 blurRadius: 30,
                 offset: const Offset(0, -10),
               )
@@ -143,7 +141,7 @@ class _GoLiveSheetState extends State<GoLiveSheet> {
                                 child: Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: isSelected ? AuraColors.primary.withOpacity(0.2) : AuraColors.surfaceLight,
+                                    color: isSelected ? AuraColors.primary.withValues(alpha: 0.2) : AuraColors.surfaceLight,
                                     borderRadius: AuraRadius.brLg,
                                     border: Border.all(
                                       color: isSelected ? AuraColors.primary : AuraColors.border,
@@ -257,7 +255,7 @@ class _GoLiveSheetState extends State<GoLiveSheet> {
                                     margin: const EdgeInsets.only(right: 8),
                                     padding: const EdgeInsets.symmetric(vertical: 14),
                                     decoration: BoxDecoration(
-                                      color: isSelected ? AuraColors.primary.withOpacity(0.2) : AuraColors.surfaceLight,
+                                      color: isSelected ? AuraColors.primary.withValues(alpha: 0.2) : AuraColors.surfaceLight,
                                       borderRadius: AuraRadius.brLg,
                                       border: Border.all(
                                         color: isSelected ? AuraColors.primary : AuraColors.border,

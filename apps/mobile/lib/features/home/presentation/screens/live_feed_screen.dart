@@ -9,7 +9,6 @@ import '../../../../core/design_system/radius.dart';
 import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
 import '../../../../core/design_system/animations.dart';
-import '../../../../core/design_system/icons.dart';
 import '../../../../core/widgets/aura_bottom_nav.dart';
 
 class LiveFeedScreen extends StatefulWidget {
@@ -134,7 +133,7 @@ class _LiveFeedScreenState extends State<LiveFeedScreen> {
                         border: isSelected
                             ? Border(bottom: BorderSide(color: AuraColors.primary, width: 2))
                             : null,
-                        boxShadow: isSelected ? [BoxShadow(color: AuraColors.primary.withOpacity(0.5), blurRadius: 4, offset: const Offset(0, 2))] : [],
+                        boxShadow: isSelected ? [BoxShadow(color: AuraColors.primary.withValues(alpha: 0.5), blurRadius: 4, offset: const Offset(0, 2))] : [],
                       ),
                       child: Text(
                         tab,

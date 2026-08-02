@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../../../core/design_system/colors.dart';
 import '../../../../core/design_system/typography.dart';
@@ -9,7 +8,6 @@ import '../../../../core/design_system/spacing.dart';
 import '../../../../core/design_system/radius.dart';
 import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
-import '../../../../core/design_system/animations.dart';
 
 class AudioMeetupScreen extends StatefulWidget {
   final int initialSeatCount;
@@ -664,9 +662,9 @@ class ChatMessageWidget extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: AuraColors.warning.withOpacity(0.1),
+            color: AuraColors.warning.withValues(alpha: 0.1),
             borderRadius: AuraRadius.brSm,
-            border: Border.all(color: AuraColors.warning.withOpacity(0.3)),
+            border: Border.all(color: AuraColors.warning.withValues(alpha: 0.3)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -688,9 +686,9 @@ class ChatMessageWidget extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: AuraColors.primary.withOpacity(0.1),
+          color: AuraColors.primary.withValues(alpha: 0.1),
           borderRadius: AuraRadius.brSm,
-          border: Border.all(color: AuraColors.primary.withOpacity(0.3)),
+          border: Border.all(color: AuraColors.primary.withValues(alpha: 0.3)),
         ),
         child: Text(
           '🎁 ${message['sender']} ${message['text']}',

@@ -1,16 +1,13 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../core/design_system/colors.dart';
 import '../../core/design_system/typography.dart';
 import '../../core/design_system/spacing.dart';
 import '../../core/design_system/radius.dart';
 import '../../core/design_system/shadows.dart';
-import '../../core/design_system/gradients.dart';
 import '../../core/design_system/animations.dart';
-import '../../core/design_system/icons.dart';
 
 class AgencyPanelScreen extends StatefulWidget {
   const AgencyPanelScreen({super.key});
@@ -48,9 +45,9 @@ class _AgencyPanelScreenState extends State<AgencyPanelScreen> {
   ];
 
   final List<Map<String, dynamic>> _tools = [
-    {'title': 'Recruit Hosts', 'icon': Iconsax.user_add, 'color': AuraColors.primary, 'bg': AuraColors.primary.withOpacity(0.2)},
-    {'title': 'Payout Records', 'icon': Iconsax.wallet, 'color': AuraColors.primary, 'bg': AuraColors.primary.withOpacity(0.2)},
-    {'title': 'Agency Rules', 'icon': Iconsax.document, 'color': AuraColors.error, 'bg': AuraColors.error.withOpacity(0.2)},
+    {'title': 'Recruit Hosts', 'icon': Iconsax.user_add, 'color': AuraColors.primary, 'bg': AuraColors.primary.withValues(alpha: 0.2)},
+    {'title': 'Payout Records', 'icon': Iconsax.wallet, 'color': AuraColors.primary, 'bg': AuraColors.primary.withValues(alpha: 0.2)},
+    {'title': 'Agency Rules', 'icon': Iconsax.document, 'color': AuraColors.error, 'bg': AuraColors.error.withValues(alpha: 0.2)},
     {'title': 'Support', 'icon': Iconsax.headphone, 'color': AuraColors.textPrimary, 'bg': AuraColors.surfaceLight},
   ];
 
@@ -142,7 +139,7 @@ class _AgencyPanelScreenState extends State<AgencyPanelScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AuraColors.primary.withOpacity(0.2),
+                            color: AuraColors.primary.withValues(alpha: 0.2),
                             borderRadius: AuraRadius.brSm,
                             border: Border.all(color: AuraColors.primary),
                           ),

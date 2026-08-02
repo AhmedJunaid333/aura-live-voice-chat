@@ -112,7 +112,7 @@ class _VipScreenState extends State<VipScreen> {
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       borderRadius: AuraRadius.brXl,
-                      border: Border.all(color: AuraColors.primary.withOpacity(0.5)),
+                      border: Border.all(color: AuraColors.primary.withValues(alpha: 0.5)),
                       gradient: AuraGradients.primary,
                       boxShadow: AuraShadows.neonViolet,
                     ),
@@ -320,7 +320,7 @@ class _VipScreenState extends State<VipScreen> {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [AuraColors.background, AuraColors.background.withOpacity(0.8), Colors.transparent],
+                  colors: [AuraColors.background, AuraColors.background.withValues(alpha: 0.8), Colors.transparent],
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                 ),

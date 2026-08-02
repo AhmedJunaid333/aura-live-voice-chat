@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
@@ -444,7 +443,7 @@ class _MyRoomsHubScreenState extends State<MyRoomsHubScreen> with SingleTickerPr
                         decoration: BoxDecoration(
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                           gradient: LinearGradient(
-                            colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
+                            colors: [Colors.transparent, Colors.black.withValues(alpha: 0.8)],
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                           ),
@@ -788,7 +787,7 @@ class _MyRoomsHubScreenState extends State<MyRoomsHubScreen> with SingleTickerPr
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: AuraColors.surfaceLight,
-                  border: Border.all(color: AuraColors.primary.withOpacity(0.4), width: 2),
+                  border: Border.all(color: AuraColors.primary.withValues(alpha: 0.4), width: 2),
                   boxShadow: AuraShadows.neonViolet,
                 ),
                 child: const Icon(

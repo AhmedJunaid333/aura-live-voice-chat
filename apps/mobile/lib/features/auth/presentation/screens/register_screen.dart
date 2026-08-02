@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/design_system/colors.dart';
 import '../../../../core/design_system/typography.dart';
@@ -31,7 +33,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _referralController = TextEditingController();
 
   String _selectedGender = 'PREFER_NOT_TO_SAY';
-  String? _selectedAvatarUrl;
+  File? _selectedImageFile;   // Real device image file
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   bool _isLoading = false;
@@ -42,13 +44,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool? _isUsernameAvailable;
   String? _usernameStatusText;
 
-  final List<String> _sampleGalleryImages = [
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop&auto=format',
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&auto=format',
-    'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=400&fit=crop&auto=format',
-    'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&h=400&fit=crop&auto=format',
-    'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=400&fit=crop&auto=format',
-  ];
+  // Real image picker instance
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -89,7 +86,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() {
         _isCheckingUsername = false;
         _isUsernameAvailable = false;
-        _usernameStatusText = '4–20 chars (letters, numbers, _ only, no spaces)';
+        _usernameStatusText = '4–20 chars (letters, numbers, _ only)';
       });
       return;
     }
@@ -97,10 +94,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() {
       _isCheckingUsername = true;
       _isUsernameAvailable = null;
-      _usernameStatusText = 'Checking availability...';
+      _usernameStatusText = 'Checking...';
     });
 
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+    _debounceTimer = Timer(const Duration(milliseconds: 600), () {
       if (!mounted) return;
       final takenUsernames = ['admin', 'aura_live', 'ahmed123', 'joe_live', 'superstar'];
       final isAvailable = !takenUsernames.contains(username.toLowerCase());
@@ -108,9 +105,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
       setState(() {
         _isCheckingUsername = false;
         _isUsernameAvailable = isAvailable;
-        _usernameStatusText = isAvailable ? '✅ Username Available' : '❌ Username Already Taken';
+        _usernameStatusText = isAvailable ? '✅ Available' : '❌ Already Taken';
       });
     });
+  }
+
+  // ─── Real Image Picker ───────────────────────────────────────────────────────
+
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final XFile? photo = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      if (photo != null && mounted) {
+        setState(() => _selectedImageFile = File(photo.path));
+        _showSnack('📸 Photo captured successfully!', isSuccess: true);
+      }
+    } catch (e) {
+      _showSnack('Camera error: ${e.toString()}', isSuccess: false);
+    }
+  }
+
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      if (image != null && mounted) {
+        setState(() => _selectedImageFile = File(image.path));
+        _showSnack('🖼️ Photo selected from gallery!', isSuccess: true);
+      }
+    } catch (e) {
+      _showSnack('Gallery error: ${e.toString()}', isSuccess: false);
+    }
+  }
+
+  void _showSnack(String message, {required bool isSuccess}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: isSuccess ? AuraColors.success : AuraColors.error,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: AuraRadius.brMd),
+    ));
   }
 
   void _openAvatarPickerSheet() {
@@ -118,75 +161,115 @@ class _RegisterScreenState extends State<RegisterScreen> {
       context: context,
       backgroundColor: AuraColors.surfaceLight,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: AuraColors.border, borderRadius: AuraRadius.brPill)),
-              AuraSpacing.vMd,
-              Text('Choose Photo', style: AuraTypography.titleLarge),
-              AuraSpacing.vSm,
-              Text('Pick from device camera or mobile photo gallery', style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary)),
-              AuraSpacing.vLg,
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: AuraColors.primary.withValues(alpha: 0.2), shape: BoxShape.circle),
-                  child: const Icon(Iconsax.camera, color: AuraColors.primary),
-                ),
-                title: Text('Take Photo with Camera', style: AuraTypography.titleMedium),
-                subtitle: Text('Capture, crop to square, & compress photo', style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary)),
-                onTap: () {
-                  Navigator.pop(context);
-                  setState(() => _selectedAvatarUrl = _sampleGalleryImages[0]);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Camera photo captured, cropped & compressed! 📸')));
-                },
-              ),
-              const Divider(color: AuraColors.border),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: AuraColors.secondary.withValues(alpha: 0.2), shape: BoxShape.circle),
-                  child: const Icon(Iconsax.gallery, color: AuraColors.secondary),
-                ),
-                title: Text('Select from Gallery', style: AuraTypography.titleMedium),
-                subtitle: Text('Pick single image from gallery & crop', style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary)),
-                onTap: () {
-                  Navigator.pop(context);
-                  setState(() => _selectedAvatarUrl = _sampleGalleryImages[1]);
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gallery photo selected, cropped & compressed! 🖼️')));
-                },
-              ),
-              if (_selectedAvatarUrl != null) ...[
-                const Divider(color: AuraColors.border),
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: AuraColors.error.withValues(alpha: 0.2), shape: BoxShape.circle),
-                    child: const Icon(Iconsax.trash, color: AuraColors.error),
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AuraColors.border,
+                    borderRadius: AuraRadius.brPill,
                   ),
-                  title: Text('Remove Photo', style: AuraTypography.titleMedium.copyWith(color: AuraColors.error)),
+                ),
+                AuraSpacing.vMd,
+                Text('Choose Photo', style: AuraTypography.titleLarge),
+                AuraSpacing.vXs,
+                Text(
+                  'Select your profile photo from camera or gallery',
+                  style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary),
+                  textAlign: TextAlign.center,
+                ),
+                AuraSpacing.vLg,
+
+                // Camera Option
+                _buildPickerOption(
+                  icon: Iconsax.camera,
+                  color: AuraColors.primary,
+                  title: 'Take Photo',
+                  subtitle: 'Use camera to capture a new photo',
                   onTap: () {
                     Navigator.pop(context);
-                    setState(() => _selectedAvatarUrl = null);
+                    _pickImageFromCamera();
                   },
                 ),
+
+                const Divider(color: AuraColors.border, height: 1),
+
+                // Gallery Option
+                _buildPickerOption(
+                  icon: Iconsax.gallery,
+                  color: AuraColors.secondary,
+                  title: 'Choose from Gallery',
+                  subtitle: 'Select existing photo from your gallery',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImageFromGallery();
+                  },
+                ),
+
+                // Remove option if photo selected
+                if (_selectedImageFile != null) ...[
+                  const Divider(color: AuraColors.border, height: 1),
+                  _buildPickerOption(
+                    icon: Iconsax.trash,
+                    color: AuraColors.error,
+                    title: 'Remove Photo',
+                    subtitle: 'Reset to default avatar',
+                    onTap: () {
+                      Navigator.pop(context);
+                      setState(() => _selectedImageFile = null);
+                    },
+                  ),
+                ],
+
+                AuraSpacing.vSm,
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'Cancel',
+                    style: AuraTypography.labelLarge.copyWith(color: AuraColors.textSecondary),
+                  ),
+                ),
               ],
-              AuraSpacing.vSm,
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Cancel', style: AuraTypography.labelLarge.copyWith(color: AuraColors.textSecondary)),
-              ),
-            ],
+            ),
           ),
         );
       },
     );
   }
+
+  Widget _buildPickerOption({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      leading: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.15),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: color, size: 22),
+      ),
+      title: Text(title, style: AuraTypography.titleMedium),
+      subtitle: Text(subtitle, style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary)),
+      onTap: onTap,
+    );
+  }
+
+  // ─── Sign Up Handler ─────────────────────────────────────────────────────────
 
   void _handleSignUp() {
     final username = _usernameController.text.trim();
@@ -197,84 +280,66 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final country = _countryController.text.trim();
 
     final usernameRegExp = RegExp(r'^[a-zA-Z0-9_]{4,20}$');
-    // Password Rule: Min 8 chars, 1 Uppercase, 1 Lowercase, 1 Number, 1 Special Char
     final passwordRegExp = RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&_#^()\-+=]).{8,}$');
 
     if (username.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a username'), backgroundColor: AuraColors.error));
+      _showSnack('Please enter a username', isSuccess: false);
       return;
     }
-
     if (!usernameRegExp.hasMatch(username)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Username must be 4–20 characters (A-Z, a-z, 0-9, _ with no spaces)'), backgroundColor: AuraColors.error));
+      _showSnack('Username: 4–20 chars (A-Z, a-z, 0-9, _)', isSuccess: false);
       return;
     }
-
     if (_isUsernameAvailable == false) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please choose an available username'), backgroundColor: AuraColors.error));
+      _showSnack('Please choose an available username', isSuccess: false);
       return;
     }
-
     if (displayName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a Display Name'), backgroundColor: AuraColors.error));
+      _showSnack('Please enter a Display Name', isSuccess: false);
       return;
     }
-
     if (email.isNotEmpty && !email.contains('@')) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address'), backgroundColor: AuraColors.error));
+      _showSnack('Please enter a valid email address', isSuccess: false);
       return;
     }
-
     if (password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a password'), backgroundColor: AuraColors.error));
+      _showSnack('Please enter a password', isSuccess: false);
       return;
     }
-
     if (!passwordRegExp.hasMatch(password)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Password must be 8+ chars with Uppercase, Lowercase, Number, and Special Character (!@#\$%^&*)'),
-        backgroundColor: AuraColors.error,
-      ));
+      _showSnack('Password: 8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 special char', isSuccess: false);
       return;
     }
-
     if (password != confirmPassword) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Confirm password must match password'), backgroundColor: AuraColors.error));
+      _showSnack('Passwords do not match', isSuccess: false);
       return;
     }
-
     if (country.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter your country'), backgroundColor: AuraColors.error));
+      _showSnack('Please enter your country', isSuccess: false);
       return;
     }
 
     setState(() => _isLoading = true);
 
-    // POST /auth/signup -> Initializes Production User Account with 40 Rules
     Future.delayed(const Duration(milliseconds: 1200), () async {
-      if (mounted) {
-        final newUser = await UserSessionService().initializeNewAccount(
-          username: username,
-          displayName: displayName,
-          email: email.isNotEmpty ? email : null,
-          avatarUrl: _selectedAvatarUrl,
-          gender: _selectedGender,
-          country: country,
-          dob: _dobController.text.trim().isNotEmpty ? _dobController.text.trim() : null,
-        );
+      if (!mounted) return;
+      final newUser = await UserSessionService().initializeNewAccount(
+        username: username,
+        displayName: displayName,
+        email: email.isNotEmpty ? email : null,
+        avatarUrl: _selectedImageFile?.path,
+        gender: _selectedGender,
+        country: country,
+        dob: _dobController.text.trim().isNotEmpty ? _dobController.text.trim() : null,
+      );
 
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Welcome @${newUser.username}! Account #${newUser.numericId} & Live Wallet initialized! 🎉'),
-            backgroundColor: AuraColors.success,
-          ),
-        );
-        // Direct navigation to Home Page
-        context.go('/home');
-      }
+      setState(() => _isLoading = false);
+      _showSnack('Welcome @${newUser.username}! ID: ${newUser.numericId} 🎉', isSuccess: true);
+      if (mounted) context.go('/home');
     });
   }
+
+  // ─── Build ───────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -297,35 +362,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
       body: Stack(
         children: [
-          // Animated Ambient Atmospheric Background
+          // Ambient background blobs
           Positioned(
-            top: -50,
-            left: -50,
+            top: -60,
+            left: -60,
             child: Container(
-              width: 350,
-              height: 350,
+              width: 320,
+              height: 320,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AuraColors.primary.withValues(alpha: 0.15),
-                boxShadow: [BoxShadow(color: AuraColors.primary.withValues(alpha: 0.3), blurRadius: 100)],
+                color: AuraColors.primary.withValues(alpha: 0.12),
+                boxShadow: [BoxShadow(color: AuraColors.primary.withValues(alpha: 0.25), blurRadius: 100)],
               ),
             ),
           ),
           Positioned(
-            bottom: -50,
-            right: -50,
+            bottom: -60,
+            right: -60,
             child: Container(
-              width: 300,
-              height: 300,
+              width: 280,
+              height: 280,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AuraColors.secondary.withValues(alpha: 0.15),
-                boxShadow: [BoxShadow(color: AuraColors.secondary.withValues(alpha: 0.3), blurRadius: 80)],
+                color: AuraColors.secondary.withValues(alpha: 0.12),
+                boxShadow: [BoxShadow(color: AuraColors.secondary.withValues(alpha: 0.25), blurRadius: 80)],
               ),
             ),
           ),
 
-          // Main Viewport Canvas
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -333,7 +397,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // 3. Large Animated Avatar Picker
+
+                    // ── Avatar Picker ──────────────────────────────────────────
                     AuraScaleIn(
                       child: GestureDetector(
                         onTap: _openAvatarPickerSheet,
@@ -341,38 +406,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           alignment: Alignment.center,
                           children: [
                             Container(
-                              width: 110,
-                              height: 110,
+                              width: 114,
+                              height: 114,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: AuraGradients.primary,
                                 boxShadow: AuraShadows.neonViolet,
                                 border: Border.all(color: AuraColors.accent, width: 3),
                               ),
-                              child: _selectedAvatarUrl == null
-                                  ? Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        const Icon(Iconsax.camera, color: AuraColors.textPrimary, size: 28),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          'Upload Photo',
-                                          style: AuraTypography.labelSmall.copyWith(
-                                            color: AuraColors.textPrimary,
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
+                              child: ClipOval(
+                                child: _selectedImageFile != null
+                                    ? Image.file(_selectedImageFile!, fit: BoxFit.cover)
+                                    : Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(Iconsax.camera, color: AuraColors.textPrimary, size: 28),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Add Photo',
+                                            style: AuraTypography.labelSmall.copyWith(
+                                              color: AuraColors.textPrimary,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            textAlign: TextAlign.center,
                                           ),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ],
-                                    )
-                                  : ClipOval(
-                                      child: Image.network(_selectedAvatarUrl!, fit: BoxFit.cover),
-                                    ),
+                                        ],
+                                      ),
+                              ),
                             ),
                             Positioned(
-                              bottom: 0,
-                              right: 0,
+                              bottom: 2,
+                              right: 2,
                               child: Container(
                                 padding: const EdgeInsets.all(6),
                                 decoration: BoxDecoration(
@@ -394,14 +459,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         children: [
                           Text('Aura Live Registration', style: AuraTypography.displaySmall),
                           AuraSpacing.vXs,
-                          Text('Fill in details to set up your live streaming profile', style: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary)),
+                          Text(
+                            'Set up your live streaming profile',
+                            style: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary),
+                          ),
                         ],
                       ),
                     ),
-
                     AuraSpacing.vXl,
 
-                    // Form Inputs in Glass Card
+                    // ── Form Glass Card ────────────────────────────────────────
                     AuraSlideIn(
                       child: ClipRRect(
                         borderRadius: AuraRadius.brLg,
@@ -417,20 +484,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Username Field with Live Debounce Check
+
+                                // Username + live availability
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text('Username (Required)', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
+                                    Text('Username *', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
                                     if (_isCheckingUsername)
-                                      const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AuraColors.accent))
+                                      const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: AuraColors.accent),
+                                      )
                                     else if (_usernameStatusText != null)
                                       Flexible(
                                         child: Text(
                                           _usernameStatusText!,
                                           style: AuraTypography.labelSmall.copyWith(
                                             color: _isUsernameAvailable == true ? AuraColors.success : AuraColors.error,
-                                            fontSize: 10,
+                                            fontSize: 11,
                                           ),
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -443,67 +515,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 AuraSpacing.vMd,
 
                                 // Display Name
-                                Text('Display Name', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
+                                Text('Display Name *', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
                                 AuraSpacing.vXs,
                                 _buildGlassInput(_displayNameController, 'e.g. Ahmed Junaid', Iconsax.profile_circle),
 
                                 AuraSpacing.vMd,
 
-                                // Email (Optional)
-                                Text('Email Address (Optional)', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
+                                // Email
+                                Text('Email (Optional)', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
                                 AuraSpacing.vXs,
                                 _buildGlassInput(_emailController, 'user@example.com', Iconsax.sms),
 
                                 AuraSpacing.vMd,
 
                                 // Password
-                                Text('Password', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
+                                Text('Password *', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
                                 AuraSpacing.vXs,
-                                TextField(
+                                _buildPasswordInput(
                                   controller: _passwordController,
-                                  obscureText: !_showPassword,
-                                  style: AuraTypography.bodyMedium,
-                                  decoration: InputDecoration(
-                                    hintText: '8+ chars (1 upper, 1 lower, 1 num, 1 special)',
-                                    hintStyle: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary, fontSize: 11),
-                                    prefixIcon: const Icon(Iconsax.lock, color: AuraColors.primary, size: 20),
-                                    suffixIcon: IconButton(
-                                      icon: Icon(_showPassword ? Iconsax.eye_slash : Iconsax.eye, color: AuraColors.textSecondary, size: 20),
-                                      onPressed: () => setState(() => _showPassword = !_showPassword),
-                                    ),
-                                    filled: true,
-                                    fillColor: AuraColors.surfaceLight,
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                    border: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide.none),
-                                    enabledBorder: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide(color: AuraColors.border)),
-                                    focusedBorder: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide(color: AuraColors.primary)),
-                                  ),
+                                  hint: '8+ chars, 1 upper, 1 lower, 1 number, 1 special',
+                                  icon: Iconsax.lock,
+                                  show: _showPassword,
+                                  onToggle: () => setState(() => _showPassword = !_showPassword),
                                 ),
 
                                 AuraSpacing.vMd,
 
                                 // Confirm Password
-                                Text('Confirm Password', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
+                                Text('Confirm Password *', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
                                 AuraSpacing.vXs,
-                                TextField(
+                                _buildPasswordInput(
                                   controller: _confirmPasswordController,
-                                  obscureText: !_showConfirmPassword,
-                                  style: AuraTypography.bodyMedium,
-                                  decoration: InputDecoration(
-                                    hintText: 'Re-enter your password',
-                                    hintStyle: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary),
-                                    prefixIcon: const Icon(Iconsax.lock_1, color: AuraColors.primary, size: 20),
-                                    suffixIcon: IconButton(
-                                      icon: Icon(_showConfirmPassword ? Iconsax.eye_slash : Iconsax.eye, color: AuraColors.textSecondary, size: 20),
-                                      onPressed: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
-                                    ),
-                                    filled: true,
-                                    fillColor: AuraColors.surfaceLight,
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                    border: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide.none),
-                                    enabledBorder: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide(color: AuraColors.border)),
-                                    focusedBorder: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide(color: AuraColors.primary)),
-                                  ),
+                                  hint: 'Re-enter your password',
+                                  icon: Iconsax.lock_1,
+                                  show: _showConfirmPassword,
+                                  onToggle: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
                                 ),
 
                                 AuraSpacing.vMd,
@@ -553,14 +599,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                 AuraSpacing.vMd,
 
-                                // Referral Code (Optional)
+                                // Referral Code
                                 Text('Referral Code (Optional)', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
                                 AuraSpacing.vXs,
                                 _buildGlassInput(_referralController, 'e.g. AURA786', Iconsax.ticket),
 
                                 AuraSpacing.vXl,
 
-                                // Create Account Gradient Button
+                                // Create Account Button
                                 GestureDetector(
                                   onTap: _isLoading ? null : _handleSignUp,
                                   child: Container(
@@ -598,12 +644,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                     AuraSpacing.vLg,
 
-                    // Footer Link
+                    // Footer
                     AuraFadeIn(
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text('Already have an account? ', style: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary)),
+                          Text(
+                            'Already have an account? ',
+                            style: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary),
+                          ),
                           GestureDetector(
                             onTap: () => context.go('/login'),
                             child: Text('Login', style: AuraTypography.labelLarge.copyWith(color: AuraColors.primary)),
@@ -616,11 +665,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
             ),
-          )
+          ),
         ],
       ),
     );
   }
+
+  // ── Helper Widgets ────────────────────────────────────────────────────────────
 
   Widget _buildGlassInput(TextEditingController controller, String hint, IconData icon) {
     return TextField(
@@ -628,23 +679,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
       style: AuraTypography.bodyMedium,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary),
+        hintStyle: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary, fontSize: 12),
         prefixIcon: Icon(icon, color: AuraColors.primary, size: 20),
         filled: true,
         fillColor: AuraColors.surfaceLight,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: AuraRadius.brMd,
-          borderSide: BorderSide.none,
+        border: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide(color: AuraColors.border)),
+        focusedBorder: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide(color: AuraColors.primary)),
+      ),
+    );
+  }
+
+  Widget _buildPasswordInput({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    required bool show,
+    required VoidCallback onToggle,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: !show,
+      style: AuraTypography.bodyMedium,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary, fontSize: 12),
+        prefixIcon: Icon(icon, color: AuraColors.primary, size: 20),
+        suffixIcon: IconButton(
+          icon: Icon(show ? Iconsax.eye_slash : Iconsax.eye, color: AuraColors.textSecondary, size: 20),
+          onPressed: onToggle,
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: AuraRadius.brMd,
-          borderSide: BorderSide(color: AuraColors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: AuraRadius.brMd,
-          borderSide: BorderSide(color: AuraColors.primary),
-        ),
+        filled: true,
+        fillColor: AuraColors.surfaceLight,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide(color: AuraColors.border)),
+        focusedBorder: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide(color: AuraColors.primary)),
       ),
     );
   }

@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
@@ -9,7 +8,6 @@ import '../../../../core/design_system/radius.dart';
 import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
 import '../../../../core/design_system/animations.dart';
-import '../../../../core/widgets/aura_animator.dart' hide AuraPulse, AuraFloat;
 
 class CreateRoomWizardScreen extends StatefulWidget {
   const CreateRoomWizardScreen({super.key});
@@ -77,9 +75,6 @@ class _CreateRoomWizardScreenState extends State<CreateRoomWizardScreen> {
   // Step 10: Mic Settings
   String _micSetting = 'Public'; // 'Public', 'Approval Required', 'Locked'
 
-  // Step 11: Launch State
-  bool _isCreating = false;
-
   @override
   void dispose() {
     _nameController.dispose();
@@ -94,7 +89,6 @@ class _CreateRoomWizardScreenState extends State<CreateRoomWizardScreen> {
       // Trigger Creation Success Step
       setState(() {
         _currentStep = _totalSteps;
-        _isCreating = true;
       });
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) {
@@ -254,7 +248,7 @@ class _CreateRoomWizardScreenState extends State<CreateRoomWizardScreen> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: isSelected ? AuraColors.primary.withOpacity(0.15) : AuraColors.surfaceLight,
+                  color: isSelected ? AuraColors.primary.withValues(alpha: 0.15) : AuraColors.surfaceLight,
                   borderRadius: AuraRadius.brLg,
                   border: Border.all(color: isSelected ? AuraColors.primary : AuraColors.border, width: isSelected ? 2 : 1),
                   boxShadow: isSelected ? AuraShadows.neonViolet : [],
@@ -306,7 +300,7 @@ class _CreateRoomWizardScreenState extends State<CreateRoomWizardScreen> {
                   margin: const EdgeInsets.symmetric(horizontal: 4),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
-                    color: isSelected ? AuraColors.accent.withOpacity(0.15) : AuraColors.surfaceLight,
+                    color: isSelected ? AuraColors.accent.withValues(alpha: 0.15) : AuraColors.surfaceLight,
                     borderRadius: AuraRadius.brLg,
                     border: Border.all(color: isSelected ? AuraColors.accent : AuraColors.border, width: isSelected ? 2 : 1),
                     boxShadow: isSelected ? AuraShadows.neonGold : [],
@@ -488,7 +482,6 @@ class _CreateRoomWizardScreenState extends State<CreateRoomWizardScreen> {
         AuraSpacing.vLg,
         Column(
           children: _languages.map((lang) {
-            final isSelected = _selectedLanguage == lang;
             return RadioListTile<String>(
               value: lang,
               groupValue: _selectedLanguage,
@@ -513,7 +506,6 @@ class _CreateRoomWizardScreenState extends State<CreateRoomWizardScreen> {
         AuraSpacing.vLg,
         Column(
           children: _countries.map((c) {
-            final isSelected = _selectedCountry == c;
             return RadioListTile<String>(
               value: c,
               groupValue: _selectedCountry,
@@ -574,7 +566,6 @@ class _CreateRoomWizardScreenState extends State<CreateRoomWizardScreen> {
         AuraSpacing.vLg,
         Column(
           children: ['Public', 'Approval Required', 'Locked'].map((mode) {
-            final isSelected = _micSetting == mode;
             return RadioListTile<String>(
               value: mode,
               groupValue: _micSetting,

@@ -1,15 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../../../core/design_system/colors.dart';
 import '../../../../core/design_system/typography.dart';
 import '../../../../core/design_system/spacing.dart';
 import '../../../../core/design_system/radius.dart';
-import '../../../../core/design_system/shadows.dart';
-import '../../../../core/design_system/gradients.dart';
 import '../../../../core/design_system/animations.dart';
-import '../../../../core/design_system/icons.dart';
 
 class AiDiscoveryScreen extends StatelessWidget {
   const AiDiscoveryScreen({super.key});

@@ -6,9 +6,6 @@ import '../../../../core/design_system/colors.dart';
 import '../../../../core/design_system/typography.dart';
 import '../../../../core/design_system/spacing.dart';
 import '../../../../core/design_system/radius.dart';
-import '../../../../core/design_system/shadows.dart';
-import '../../../../core/design_system/gradients.dart';
-import '../../../../core/design_system/animations.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -101,7 +98,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
-                    side: BorderSide(color: AuraColors.error.withOpacity(0.5)),
+                    side: BorderSide(color: AuraColors.error.withValues(alpha: 0.5)),
                   ),
                 ),
                 child: Text('Log Out', style: AuraTypography.labelLarge.copyWith(color: AuraColors.error)),
