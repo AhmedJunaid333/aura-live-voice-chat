@@ -1,0 +1,31 @@
+# Node & Web
+node_modules/
+.next/
+dist/
+out/
+build/
+.cache/
+
+# Flutter & Mobile
+.dart_tool/
+.fvm/
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+
+# Android build artifacts
+apps/mobile/build/
+apps/mobile/.gradle/
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
+apps/mobile/android/app/build.gradle.d/
+
+# System & Local
+.DS_Store
+Thumbs.db
+*.log
+*.tmp

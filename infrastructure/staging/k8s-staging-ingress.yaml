@@ -1,0 +1,52 @@
+# Kubernetes Staging Ingress with Canary Deployment & TLS Termination
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aura-staging-ingress
+  namespace: aura-staging
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "15"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+spec:
+  tls:
+    - hosts:
+        - api-staging.auralive.app
+      secretName: aura-staging-tls
+  rules:
+    - host: api-staging.auralive.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: aura-api-service
+                port:
+                  number: 80
+---
+# Canary Ingress (5% Traffic Rollout Strategy with Auto-Rollback on 5xx Error Rate > 2%)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aura-canary-ingress
+  namespace: aura-staging
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "5" # 5% Canary Traffic
+spec:
+  rules:
+    - host: api-staging.auralive.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: aura-api-canary-service
+                port:
+                  number: 80

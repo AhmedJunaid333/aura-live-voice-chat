@@ -1,0 +1,42 @@
+groups:
+  - name: aura-production-alerts
+    rules:
+      - alert: HighCpuUsage
+        expr: container_cpu_usage_seconds_total > 0.80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod CPU usage exceeds 80%"
+
+      - alert: HighMemoryUsage
+        expr: container_memory_usage_bytes > 0.80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod RAM usage exceeds 80%"
+
+      - alert: HighApiErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.02
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API 5xx Error rate exceeds 2%"
+
+      - alert: RedisNodeDown
+        expr: redis_up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis Cluster node unreachable"
+
+      - alert: PostgresDown
+        expr: pg_stat_database_numbackends == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL Database connection lost"

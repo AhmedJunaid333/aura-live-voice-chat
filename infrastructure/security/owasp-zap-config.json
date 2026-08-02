@@ -1,0 +1,12 @@
+{
+  "env": {
+    "target": "https://api-staging.auralive.app",
+    "context": "Aura API Staging Context"
+  },
+  "scanners": {
+    "sql_injection": { "enabled": true, "threshold": "MEDIUM" },
+    "cross_site_scripting": { "enabled": true, "threshold": "MEDIUM" },
+    "cors_misconfiguration": { "enabled": true, "threshold": "HIGH" },
+    "jwt_weak_signature": { "enabled": true, "threshold": "HIGH" }
+  }
+}

@@ -1,0 +1,1210 @@
+// Aura Live Voice Room - Production Database Schema
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum LiveRoomStatus {
+  IDLE
+  WAITING
+  LIVE
+  ENDED
+}
+
+enum RoomMemberRole {
+  HOST
+  CO_HOST
+  MODERATOR
+  SPEAKER
+  LISTENER
+}
+
+enum SeatStatus {
+  EMPTY
+  REQUESTED
+  APPROVED
+  LIVE_SPEAKER
+  MUTED
+  LOCKED
+  RESERVED
+}
+
+enum OtpType {
+  REGISTER
+  LOGIN
+  PASSWORD_RESET
+  PHONE_VERIFY
+}
+
+enum NotificationType {
+  SYSTEM
+  FOLLOW
+  GIFT_RECEIVED
+  VIP_PURCHASED
+  LEVEL_UP
+  AGENCY
+  WITHDRAWAL
+  PK_INVITE
+  FAMILY_INVITE
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  AUDIO
+  SYSTEM
+}
+
+enum WalletTransactionType {
+  RECHARGE
+  SEND_GIFT
+  RECEIVE_GIFT
+  WITHDRAW
+  COMMISSION
+  VIP_PURCHASE
+  REFUND
+  RESELLER_TRANSFER
+}
+
+enum CurrencyType {
+  COIN
+  DIAMOND
+}
+
+enum ReferenceType {
+  RECHARGE_ORDER
+  GIFT_TRANSACTION
+  VIP_PURCHASE
+  WITHDRAWAL
+  COMMISSION_SETTLEMENT
+  PK_BATTLE_REWARD
+  FAMILY_TASK_REWARD
+}
+
+enum WithdrawalStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum RechargeStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum BanScope {
+  GLOBAL
+  ROOM
+}
+
+enum ModerationRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum PkStatus {
+  INVITED
+  COUNTDOWN
+  LIVE
+  FINISHED
+  CANCELLED
+}
+
+enum FamilyRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum PaymentProviderType {
+  STRIPE
+  GOOGLE_PLAY
+  APPLE_IAP
+  EASYPAISA
+  JAZZCASH
+}
+
+// ============================================================================
+// ADMIN & RBAC PERMISSION SYSTEM
+// ============================================================================
+
+model Admin {
+  id           String             @id @default(uuid())
+  username     String             @unique
+  email        String             @unique
+  passwordHash String
+  roleId       String
+  countryCode  String?
+  isActive     Boolean            @default(true)
+  twoFactorEnabled Boolean        @default(false)
+  lastLoginAt  DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  role         AdminRole          @relation(fields: [roleId], references: [id])
+  activityLogs AdminActivityLog[]
+  withdrawalsReviewed WithdrawalRequest[] @relation("ReviewedByAdmin")
+  countryManagerProfile CountryManager?
+
+  @@index([username])
+  @@index([email])
+  @@map("admins")
+}
+
+model AdminRole {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  code        String           @unique
+  description String?
+  createdAt   DateTime         @default(now())
+
+  admins      Admin[]
+  permissions RolePermission[]
+
+  @@map("admin_roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  module      String
+  description String?
+
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role         AdminRole  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model AdminActivityLog {
+  id         String   @id @default(uuid())
+  adminId    String
+  action     String
+  targetType String
+  targetId   String
+  oldValue   Json?
+  newValue   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  admin      Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("admin_activity_logs")
+}
+
+model CountryManager {
+  id          String   @id @default(uuid())
+  adminId     String   @unique
+  countryCode String
+  createdAt   DateTime @default(now())
+
+  admin       Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([countryCode])
+  @@map("country_managers")
+}
+
+// ============================================================================
+// AUTHENTICATION & USER MANAGEMENT
+// ============================================================================
+
+model User {
+  id               String       @id @default(uuid())
+  userTag          String       @unique
+  email            String?      @unique
+  phone            String?      @unique
+  passwordHash     String?
+  nickname         String
+  avatarUrl        String?
+  bio              String?
+  gender           Gender       @default(PREFER_NOT_TO_SAY)
+  countryCode      String       @default("US")
+  level            Int          @default(1)
+  xp               BigInt       @default(0)
+  vipTier          Int          @default(0)
+  status           UserStatus   @default(ACTIVE)
+  isVerifiedHost   Boolean      @default(false)
+  isWalletFrozen   Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
+
+  // Relations
+  sessions          UserSession[]
+  wallet            Wallet?
+  walletAccounts    WalletAccount[]
+  ledgerEntries     WalletLedgerEntry[]
+  rechargeOrders    RechargeOrder[]
+  withdrawalRequests WithdrawalRequest[]
+  vipSubscriptions  UserVip[]
+  xpLogs            UserXpLog[]
+  hostedRooms       LiveRoom[]          @relation("RoomHost")
+  roomMemberships   RoomMember[]
+  seats             SpeakerSeat[]
+  sentGifts         GiftTransaction[]   @relation("GiftSender")
+  receivedGifts     GiftTransaction[]   @relation("GiftReceiver")
+  followers         Follower[]          @relation("UserFollowing")
+  following         Follower[]          @relation("UserFollower")
+  notifications     Notification[]
+  sentMessages      Message[]           @relation("MessageSender")
+  receivedMessages  Message[]           @relation("MessageReceiver")
+  withdrawals       Withdrawal[]
+  agentProfile      Agent?
+  ownedAgency       Agency?             @relation("AgencyOwner")
+  reportsFiled      Report[]            @relation("ReportReporter")
+  reportsAgainst    Report[]            @relation("ReportTarget")
+  bansReceived      Ban[]               @relation("BannedUser")
+  bansIssued        Ban[]               @relation("BanningAdmin")
+  auditLogs         AuditLog[]          @relation("AuditActor")
+  interestProfile   UserInterestProfile?
+  behaviorEvents    UserBehaviorEvent[]
+  riskScore         RiskScore?
+  hostScore         HostScore?
+  familyMemberships FamilyMember[]
+  ownedFamilies     Family[]            @relation("FamilyOwner")
+  paymentOrders     PaymentOrder[]
+  resellerAccount   ResellerAccount?
+  dailyMissions     UserMissionProgress[]
+
+  @@index([userTag])
+  @@index([email])
+  @@index([phone])
+  @@index([countryCode])
+  @@index([status])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model UserSession {
+  id           String    @id @default(uuid())
+  userId       String
+  refreshToken String    @unique
+  deviceId     String?
+  ipAddress    String?
+  userAgent    String?
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshToken])
+  @@map("user_sessions")
+}
+
+model OtpVerification {
+  id         String   @id @default(uuid())
+  target     String
+  type       OtpType
+  code       String
+  isVerified Boolean  @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([target, type])
+  @@map("otp_verifications")
+}
+
+// ============================================================================
+// LIVE VOICE ROOM SYSTEM
+// ============================================================================
+
+model LiveRoom {
+  id           String         @id @default(uuid())
+  roomNumber   String         @unique
+  title        String
+  description  String?
+  coverUrl     String?
+  hostId       String
+  category     String         @default("Chat")
+  countryCode  String         @default("US")
+  isPrivate    Boolean        @default(false)
+  password     String?
+  status       LiveRoomStatus @default(IDLE)
+  maxSeats     Int            @default(9)
+  rtcChannelId String         @unique
+  totalViewers Int            @default(0)
+  peakViewers  Int            @default(0)
+  startedAt    DateTime?
+  endedAt      DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?
+
+  host         User           @relation("RoomHost", fields: [hostId], references: [id])
+  members      RoomMember[]
+  seats        SpeakerSeat[]
+  events       RoomEvent[]
+  gifts        GiftTransaction[]
+  reports      Report[]
+  bans         Ban[]
+  score        RoomScore?
+  voiceLogs    VoiceModerationLog[]
+  recommendationHistory RoomRecommendationHistory[]
+  pkHost1Battles PkBattle[]    @relation("PkRoom1")
+  pkHost2Battles PkBattle[]    @relation("PkRoom2")
+
+  @@index([hostId])
+  @@index([status])
+  @@index([category])
+  @@index([countryCode])
+  @@index([roomNumber])
+  @@map("live_rooms")
+}
+
+model RoomMember {
+  id        String         @id @default(uuid())
+  roomId    String
+  userId    String
+  role      RoomMemberRole @default(LISTENER)
+  isMuted   Boolean        @default(false)
+  joinedAt  DateTime       @default(now())
+  leftAt    DateTime?
+
+  room      LiveRoom       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+  @@map("room_members")
+}
+
+model SpeakerSeat {
+  id         String     @id @default(uuid())
+  roomId     String
+  seatIndex  Int
+  userId     String?
+  status     SeatStatus @default(EMPTY)
+  isLocked   Boolean    @default(false)
+  isMuted    Boolean    @default(false)
+  occupiedAt DateTime?
+  updatedAt  DateTime   @updatedAt
+
+  room       LiveRoom   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user       User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([roomId, seatIndex])
+  @@index([roomId])
+  @@index([userId])
+  @@map("speaker_seats")
+}
+
+model RoomEvent {
+  id        String   @id @default(uuid())
+  roomId    String
+  senderId  String?
+  type      String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  room      LiveRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@index([createdAt])
+  @@map("room_events")
+}
+
+// ============================================================================
+// SOCIAL SYSTEM
+// ============================================================================
+
+model Follower {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower    User     @relation("UserFollower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("followers")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  payload   Json?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+model Message {
+  id         String      @id @default(uuid())
+  senderId   String
+  receiverId String
+  content    String
+  type       MessageType @default(TEXT)
+  isRead     Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+
+  sender     User        @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User        @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+// ============================================================================
+// LEDGER-BASED VIRTUAL ECONOMY & SEPARATE CURRENCIES
+// ============================================================================
+
+model Wallet {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  coinBalance         BigInt   @default(0)
+  diamondBalance      BigInt   @default(0)
+  totalSpentCoins     BigInt   @default(0)
+  totalEarnedDiamonds BigInt   @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("wallets")
+}
+
+model WalletAccount {
+  id           String       @id @default(uuid())
+  userId       String
+  currencyType CurrencyType
+  balance      BigInt       @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledgerEntries WalletLedgerEntry[]
+
+  @@unique([userId, currencyType])
+  @@map("wallet_accounts")
+}
+
+model WalletLedgerEntry {
+  id             String         @id @default(uuid())
+  accountId      String
+  userId         String
+  currencyType   CurrencyType
+  amount         BigInt
+  type           WalletTransactionType
+  referenceType  ReferenceType
+  referenceId    String?
+  idempotencyKey String?        @unique
+  balanceBefore  BigInt
+  balanceAfter   BigInt
+  description    String?
+  createdAt      DateTime       @default(now())
+
+  account        WalletAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([accountId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("wallet_ledger_entries")
+}
+
+model WalletBalanceSnapshot {
+  id           String       @id @default(uuid())
+  userId       String
+  currencyType CurrencyType
+  balance      BigInt
+  snapshotAt   DateTime     @default(now())
+
+  @@index([userId, currencyType])
+  @@map("wallet_balance_snapshots")
+}
+
+model RechargeOrder {
+  id              String         @id @default(uuid())
+  userId          String
+  packageId       String
+  amountUsd       Decimal        @db.Decimal(10, 2)
+  coinsGranted    BigInt
+  paymentProvider String
+  status          RechargeStatus @default(PENDING)
+  transactionRef  String?        @unique
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("recharge_orders")
+}
+
+model CoinPackage {
+  id         String   @id @default(uuid())
+  title      String
+  coinsCount BigInt
+  bonusCoins BigInt   @default(0)
+  priceUsd   Decimal  @db.Decimal(10, 2)
+  currency   String   @default("USD")
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("coin_packages")
+}
+
+model Gift {
+  id             String   @id @default(uuid())
+  name           String
+  iconUrl        String
+  animationUrl   String?
+  coinPrice      BigInt
+  diamondReward  BigInt
+  category       String   @default("Normal")
+  levelRequired  Int      @default(1)
+  isVipOnly      Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  transactions GiftTransaction[]
+
+  @@index([category])
+  @@index([isActive])
+  @@map("gifts")
+}
+
+model GiftTransaction {
+  id               String   @id @default(uuid())
+  roomId           String
+  senderId         String
+  receiverId       String
+  giftId           String
+  giftCount        Int      @default(1)
+  totalCoins       BigInt
+  senderDiamonds   BigInt   @default(0)
+  receiverDiamonds BigInt
+  idempotencyKey   String?  @unique
+  createdAt        DateTime @default(now())
+
+  room             LiveRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender           User     @relation("GiftSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver         User     @relation("GiftReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  gift             Gift     @relation(fields: [giftId], references: [id])
+
+  @@index([roomId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+  @@map("gift_transactions")
+}
+
+model Withdrawal {
+  id             String           @id @default(uuid())
+  userId         String
+  diamondAmount  BigInt
+  usdAmount      Decimal          @db.Decimal(10, 2)
+  paymentMethod  String
+  accountDetails Json
+  status         WithdrawalStatus @default(PENDING)
+  processedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("withdrawals")
+}
+
+model WithdrawalRequest {
+  id             String           @id @default(uuid())
+  userId         String
+  diamondAmount  BigInt
+  usdAmount      Decimal          @db.Decimal(10, 2)
+  paymentMethod  String
+  accountDetails Json
+  status         WithdrawalStatus @default(PENDING)
+  riskScore      Int              @default(0)
+  reviewedById   String?
+  reviewedAt     DateTime?
+  rejectionReason String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy     Admin?           @relation("ReviewedByAdmin", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@map("withdrawal_requests")
+}
+
+// ============================================================================
+// SPRINT 7: REVENUE ENGINE, MULTI-PAYMENTS, PK BATTLES, FAMILIES & LEADERBOARDS
+// ============================================================================
+
+model PaymentOrder {
+  id             String              @id @default(uuid())
+  userId         String
+  amountUsd      Decimal             @db.Decimal(10, 2)
+  coinsGranted   BigInt
+  provider       PaymentProviderType
+  transactionRef String              @unique
+  status         RechargeStatus      @default(PENDING)
+  payload        Json?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("payment_orders")
+}
+
+model PkBattle {
+  id              String   @id @default(uuid())
+  room1Id         String
+  room2Id         String
+  host1Id         String
+  host2Id         String
+  score1          BigInt   @default(0)
+  score2          BigInt   @default(0)
+  status          PkStatus @default(INVITED)
+  winnerId        String?
+  durationSeconds Int      @default(300) // 5 minutes
+  startedAt       DateTime?
+  endedAt         DateTime?
+  createdAt       DateTime @default(now())
+
+  room1           LiveRoom @relation("PkRoom1", fields: [room1Id], references: [id], onDelete: Cascade)
+  room2           LiveRoom @relation("PkRoom2", fields: [room2Id], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("pk_battles")
+}
+
+model Family {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  badgeUrl    String
+  ownerId     String   @unique
+  level       Int      @default(1)
+  totalXp     BigInt   @default(0)
+  treasuryCoins BigInt @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner       User           @relation("FamilyOwner", fields: [ownerId], references: [id])
+  members     FamilyMember[]
+
+  @@map("families")
+}
+
+model FamilyMember {
+  id        String     @id @default(uuid())
+  familyId  String
+  userId    String
+  role      FamilyRole @default(MEMBER)
+  joinedAt  DateTime   @default(now())
+
+  family    Family     @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([familyId, userId])
+  @@map("family_members")
+}
+
+model DailyMission {
+  id         String   @id @default(uuid())
+  missionKey String   @unique
+  title      String
+  xpReward   Int
+  coinReward BigInt   @default(0)
+  targetCount Int     @default(1)
+
+  @@map("daily_missions")
+}
+
+model UserMissionProgress {
+  id          String   @id @default(uuid())
+  userId      String
+  missionKey  String
+  currentCount Int     @default(0)
+  isCompleted Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, missionKey])
+  @@map("user_mission_progresses")
+}
+
+model SpinReward {
+  id         String   @id @default(uuid())
+  userId     String
+  rewardType String   // COIN, VIP_DAY, BADGE
+  amount     BigInt
+  createdAt  DateTime @default(now())
+
+  @@map("spin_rewards")
+}
+
+model ResellerAccount {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  coinStock BigInt   @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("reseller_accounts")
+}
+
+model LeaderboardEntry {
+  id         String   @id @default(uuid())
+  type       String   // GIVER, HOST, FAMILY
+  period     String   // DAILY, WEEKLY, MONTHLY
+  entityId   String
+  score      BigInt
+  rank       Int
+  updatedAt  DateTime @updatedAt
+
+  @@unique([type, period, entityId])
+  @@index([type, period, rank])
+  @@map("leaderboard_entries")
+}
+
+// ============================================================================
+// VIP MEMBERSHIP SYSTEM & ENHANCEMENTS
+// ============================================================================
+
+model VipLevel {
+  id                 String   @id @default(uuid())
+  tier               Int      @unique
+  title              String
+  priceCoins         BigInt
+  discountPercentage Decimal  @default(0.00) @db.Decimal(5, 2)
+  badgeUrl           String?
+  frameUrl           String?
+  entryEffectUrl     String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  userSubscriptions  UserVip[]
+
+  @@map("vip_levels")
+}
+
+model UserVip {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  vipTier    Int
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vipLevel   VipLevel @relation(fields: [vipTier], references: [tier])
+
+  @@map("user_vips")
+}
+
+model VipPurchaseHistory {
+  id         String   @id @default(uuid())
+  userId     String
+  vipTier    Int
+  priceCoins BigInt
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@map("vip_purchase_histories")
+}
+
+// ============================================================================
+// USER XP & GAMIFICATION
+// ============================================================================
+
+model XpRule {
+  id         String   @id @default(uuid())
+  action     String   @unique
+  xpReward   Int
+  dailyLimit Int      @default(0)
+  status     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@map("xp_rules")
+}
+
+model UserXpLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  xpGained  Int
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("user_xp_logs")
+}
+
+// ============================================================================
+// AGENCY MANAGEMENT SYSTEM
+// ============================================================================
+
+model Agency {
+  id             String       @id @default(uuid())
+  name           String
+  code           String       @unique
+  ownerId        String       @unique
+  commissionRate Decimal      @default(10.00) @db.Decimal(5, 2)
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  owner          User         @relation("AgencyOwner", fields: [ownerId], references: [id])
+  agents         Agent[]
+  commissions    Commission[]
+
+  @@index([code])
+  @@map("agencies")
+}
+
+model Agent {
+  id              String       @id @default(uuid())
+  agencyId        String
+  userId          String       @unique
+  commissionShare Decimal      @default(70.00) @db.Decimal(5, 2)
+  joinedAt        DateTime     @default(now())
+  isActive        Boolean      @default(true)
+
+  agency          Agency       @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commissions     Commission[]
+
+  @@index([agencyId])
+  @@map("agents")
+}
+
+model Commission {
+  id             String   @id @default(uuid())
+  agencyId       String
+  agentId        String?
+  amountDiamonds BigInt
+  amountUsd      Decimal  @db.Decimal(10, 2)
+  period         String
+  isPaid         Boolean  @default(false)
+  paidAt         DateTime?
+  createdAt      DateTime @default(now())
+
+  agency         Agency   @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  agent          Agent?   @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@index([agencyId])
+  @@index([agentId])
+  @@index([period])
+  @@map("commissions")
+}
+
+// ============================================================================
+// MODERATION, AUDIT LOGS & ANALYTICS
+// ============================================================================
+
+model Report {
+  id           String       @id @default(uuid())
+  reporterId   String
+  targetUserId String
+  roomId       String?
+  reason       String
+  description  String?
+  status       ReportStatus @default(PENDING)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  reporter     User         @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetUser   User         @relation("ReportTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  room         LiveRoom?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  @@index([targetUserId])
+  @@index([reporterId])
+  @@index([status])
+  @@map("reports")
+}
+
+model ModerationAction {
+  id         String   @id @default(uuid())
+  targetType String
+  targetId   String
+  action     String
+  reason     String
+  adminId    String
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([targetType, targetId])
+  @@index([adminId])
+  @@map("moderation_actions")
+}
+
+model BlockedWord {
+  id        String   @id @default(uuid())
+  word      String   @unique
+  category  String   @default("Profanity")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("blocked_words")
+}
+
+model Ban {
+  id          String   @id @default(uuid())
+  userId      String
+  bannedById  String
+  reason      String
+  scope       BanScope @default(GLOBAL)
+  roomId      String?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  bannedUser  User      @relation("BannedUser", fields: [userId], references: [id], onDelete: Cascade)
+  banningAdmin User     @relation("BanningAdmin", fields: [bannedById], references: [id])
+  room        LiveRoom? @relation(fields: [roomId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([scope])
+  @@map("bans")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  details    Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model AnalyticsEvent {
+  id          String   @id @default(uuid())
+  eventType   String
+  userId      String?
+  roomId      String?
+  value       Decimal  @default(0.00) @db.Decimal(12, 2)
+  countryCode String   @default("US")
+  createdAt   DateTime @default(now())
+
+  @@index([eventType])
+  @@index([countryCode])
+  @@index([createdAt])
+  @@map("analytics_events")
+}
+
+// ============================================================================
+// SPRINT 5: AI INTELLIGENCE, RECOMMENDATION & TRUST & SAFETY
+// ============================================================================
+
+model UserInterestProfile {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  favoriteCategories Json     // Array of category strings, e.g. ["Music", "Chat"]
+  followedHostIds     Json     // Array of host user IDs
+  preferredLanguages  Json     // Array of languages, e.g. ["UR", "EN"]
+  giftPropensityScore Decimal  @default(0.50) @db.Decimal(3, 2)
+  updatedAt           DateTime @updatedAt
+
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_interest_profiles")
+}
+
+model UserBehaviorEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  event     String   // ROOM_JOINED, ROOM_LEFT, GIFT_SENT, HOST_FOLLOWED, SEARCH_USED, WATCH_DURATION
+  roomId    String?
+  duration  Int?     // Duration in seconds if WATCH_DURATION
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([event])
+  @@index([createdAt])
+  @@map("user_behavior_events")
+}
+
+model RoomScore {
+  id               String   @id @default(uuid())
+  roomId           String   @unique
+  activeUsers      Int      @default(0)
+  giftVolumeCoins  BigInt   @default(0)
+  chatCount        Int      @default(0)
+  viewDurationAvg  Int      @default(0)
+  hostReputation   Int      @default(50)
+  score            Decimal  @default(0.00) @db.Decimal(10, 2)
+  updatedAt        DateTime @updatedAt
+
+  room             LiveRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([score])
+  @@map("room_scores")
+}
+
+model RankingConfiguration {
+  id                  String   @id @default(uuid())
+  activeUsersWeight   Decimal  @default(0.30) @db.Decimal(3, 2) // 30%
+  giftVolumeWeight    Decimal  @default(0.25) @db.Decimal(3, 2) // 25%
+  chatEngagementWeight Decimal @default(0.20) @db.Decimal(3, 2) // 20%
+  viewDurationWeight  Decimal  @default(0.15) @db.Decimal(3, 2) // 15%
+  hostReputationWeight Decimal @default(0.10) @db.Decimal(3, 2) // 10%
+  isActive            Boolean  @default(true)
+  updatedAt           DateTime @updatedAt
+
+  @@map("ranking_configurations")
+}
+
+model VoiceModerationLog {
+  id             String              @id @default(uuid())
+  roomId         String
+  speakerId      String
+  transcription  String
+  toxicityScore  Decimal             @db.Decimal(3, 2)
+  riskLevel      ModerationRiskLevel @default(LOW)
+  actionTaken    String              // LOG_ONLY, WARNING, AUTO_MUTE, BAN_ALERT
+  createdAt      DateTime            @default(now())
+
+  room           LiveRoom            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@index([riskLevel])
+  @@map("voice_moderation_logs")
+}
+
+model RiskScore {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  score                Int      @default(0) // 0 - 30 Normal, 30 - 70 Review, 70 - 100 Block
+  deviceCount          Int      @default(1)
+  giftLoopPatternDetected Boolean @default(false)
+  isBlocked            Boolean  @default(false)
+  updatedAt            DateTime @updatedAt
+
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([score])
+  @@map("risk_scores")
+}
+
+model HostScore {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  tier                 String   @default("Bronze") // Bronze, Silver, Gold, Platinum, Diamond, Legend
+  totalLiveMinutes     Int      @default(0)
+  viewerRetentionRate  Decimal  @default(0.50) @db.Decimal(3, 2)
+  giftConversionRate   Decimal  @default(0.10) @db.Decimal(3, 2)
+  updatedAt            DateTime @updatedAt
+
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tier])
+  @@map("host_scores")
+}
+
+model TranslationSession {
+  id               String   @id @default(uuid())
+  roomId           String
+  speakerLanguage  String   @default("UR") // UR, EN, AR, ZH, ES
+  targetLanguages  Json     // ["EN", "AR"]
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  @@index([roomId])
+  @@map("translation_sessions")
+}
+
+model RoomRecommendationHistory {
+  id             String   @id @default(uuid())
+  userId         String
+  roomId         String
+  scoreAssigned  Decimal  @db.Decimal(5, 2)
+  wasClicked     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  room           LiveRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("room_recommendation_histories")
+}

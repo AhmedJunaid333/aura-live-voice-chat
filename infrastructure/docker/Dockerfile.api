@@ -1,0 +1,39 @@
+# Production Multi-Stage Dockerfile for Aura Live Voice Room API & WebSocket Gateway
+
+# Stage 1: Build Stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy root package definitions
+COPY package*.json ./
+COPY prisma ./prisma/
+COPY packages ./packages/
+COPY apps/api ./apps/api/
+
+# Install dependencies and build shared packages
+RUN npm ci --ignore-scripts
+RUN npx prisma generate --schema=prisma/schema.prisma
+RUN npm run build --workspaces
+
+# Stage 2: Production Runtime Image
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Copy node_modules & build artifacts from builder
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/apps/api ./apps/api
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/package.json ./package.json
+
+EXPOSE 3000 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost:3000/health || exit 1
+
+CMD ["node", "apps/api/dist/main.js"]
