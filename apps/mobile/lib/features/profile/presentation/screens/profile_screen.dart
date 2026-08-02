@@ -284,7 +284,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const Icon(Icons.male, color: Colors.blueAccent, size: 18),
                         ],
                       ),
-                      Text('ID: ${user?.id ?? "100001"}', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
+                      Text('ID: ${user?.numericId ?? "100001"} | Code: ${user?.userCode ?? "AU100001"} | Age: ${user?.age ?? 18}', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
                       if (user?.bio != null) ...[
                         AuraSpacing.vXs,
                         Text(user!.bio, style: AuraTypography.bodySmall.copyWith(color: AuraColors.accent, fontStyle: FontStyle.italic)),

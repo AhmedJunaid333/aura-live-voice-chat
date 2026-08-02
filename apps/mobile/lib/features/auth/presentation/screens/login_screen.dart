@@ -82,13 +82,15 @@ class _LoginScreenState extends State<LoginScreen> {
     // POST /api/v1/auth/login Simulation
     Future.delayed(const Duration(milliseconds: 1000), () async {
       if (mounted) {
-        final userId = (100000 + (username.hashCode.abs() % 899999)).toString();
+        final numericId = 100000 + (username.hashCode.abs() % 899999);
         final user = UserModel(
-          id: userId,
+          numericId: numericId,
+          uuid: 'usr_login_$numericId',
           username: username,
           displayName: username,
           email: '$username@auralive.app',
           avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&h=300&fit=crop&auto=format',
+          userCode: 'AU$numericId',
           level: 5,
           vip: 1,
           coins: 1500,
@@ -99,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
           bio: 'Voice room enthusiast | Aura Live Official 🎙️',
         );
 
-        await UserSessionService().setCurrentUser(user, token: 'jwt_login_token_$userId');
+        await UserSessionService().setCurrentUser(user, token: 'jwt_login_token_$numericId');
 
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(

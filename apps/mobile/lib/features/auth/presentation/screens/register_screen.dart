@@ -250,34 +250,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
 
-    // POST /auth/signup Simulation -> Initializes User Profile & Session
+    // POST /auth/signup -> Initializes Production User Account with 40 Rules
     Future.delayed(const Duration(milliseconds: 1200), () async {
       if (mounted) {
-        final newUserId = (100000 + (username.hashCode.abs() % 899999)).toString();
-        final newUser = UserModel(
-          id: newUserId,
+        final newUser = await UserSessionService().initializeNewAccount(
           username: username,
           displayName: displayName,
           email: email.isNotEmpty ? email : null,
           avatarUrl: _selectedAvatarUrl,
           gender: _selectedGender,
           country: country,
-          level: 1,
-          vip: 0,
-          coins: 0,
-          diamonds: 0,
-          followers: 0,
-          following: 0,
-          visitors: 0,
-          bio: 'Welcome to my Aura Live profile! 🎤✨',
+          dob: _dobController.text.trim().isNotEmpty ? _dobController.text.trim() : null,
         );
-
-        await UserSessionService().setCurrentUser(newUser, token: 'jwt_mock_token_$newUserId');
 
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Welcome @$username! Account & Live Wallet initialized! 🎉'),
+            content: Text('Welcome @${newUser.username}! Account #${newUser.numericId} & Live Wallet initialized! 🎉'),
             backgroundColor: AuraColors.success,
           ),
         );
