@@ -256,15 +256,14 @@ model CountryManager {
 
 model User {
   id               String       @id @default(uuid())
-  userTag          String       @unique
+  username         String       @unique
   email            String?      @unique
-  phone            String?      @unique
   passwordHash     String?
-  nickname         String
+  nickname         String?
   avatarUrl        String?
   bio              String?
   gender           Gender       @default(PREFER_NOT_TO_SAY)
-  countryCode      String       @default("US")
+  country          String       @default("Pakistan")
   level            Int          @default(1)
   xp               BigInt       @default(0)
   vipTier          Int          @default(0)

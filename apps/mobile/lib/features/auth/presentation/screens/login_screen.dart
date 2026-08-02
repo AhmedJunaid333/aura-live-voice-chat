@@ -10,7 +10,6 @@ import '../../../../core/design_system/radius.dart';
 import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
 import '../../../../core/design_system/animations.dart';
-import '../../../../core/design_system/icons.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,26 +19,37 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _showPassword = false;
   bool _isLoading = false;
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
   void _handleLogin() {
-    final email = _emailController.text.trim();
+    final username = _usernameController.text.trim();
     final password = _passwordController.text.trim();
+    final usernameRegExp = RegExp(r'^[a-zA-Z0-9_]{4,20}$');
 
-    if (email.isEmpty) {
+    if (username.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter your email or phone number'),
+          content: Text('Please enter your username'),
+          backgroundColor: AuraColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (!usernameRegExp.hasMatch(username)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Username must be 4–20 characters with letters, numbers, or _'),
           backgroundColor: AuraColors.error,
         ),
       );
@@ -68,18 +78,90 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
+    // POST /api/v1/auth/login Simulation
     Future.delayed(const Duration(milliseconds: 1000), () {
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Welcome back, $email! ✨'),
+            content: Text('Welcome back, @$username! ✨'),
             backgroundColor: AuraColors.success,
           ),
         );
         context.go('/home');
       }
     });
+  }
+
+  void _showForgotPasswordDialog() {
+    final forgotUsernameController = TextEditingController();
+    final forgotEmailController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AuraColors.surfaceLight,
+        shape: RoundedRectangleBorder(borderRadius: AuraRadius.brLg),
+        title: Text('Reset Password', style: AuraTypography.titleLarge),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Enter your Username and registered Email address to receive a reset link.', style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary)),
+            AuraSpacing.vMd,
+            Text('Username', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
+            AuraSpacing.vXs,
+            TextField(
+              controller: forgotUsernameController,
+              style: AuraTypography.bodyMedium,
+              decoration: InputDecoration(
+                hintText: 'e.g. ahmed123',
+                hintStyle: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary),
+                prefixIcon: const Icon(Iconsax.user, color: AuraColors.primary, size: 18),
+                border: OutlineInputBorder(borderRadius: AuraRadius.brMd),
+              ),
+            ),
+            AuraSpacing.vMd,
+            Text('Registered Email', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
+            AuraSpacing.vXs,
+            TextField(
+              controller: forgotEmailController,
+              style: AuraTypography.bodyMedium,
+              decoration: InputDecoration(
+                hintText: 'e.g. user@example.com',
+                hintStyle: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary),
+                prefixIcon: const Icon(Iconsax.sms, color: AuraColors.primary, size: 18),
+                border: OutlineInputBorder(borderRadius: AuraRadius.brMd),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: AuraTypography.labelMedium.copyWith(color: AuraColors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AuraColors.primary),
+            onPressed: () {
+              final un = forgotUsernameController.text.trim();
+              final em = forgotEmailController.text.trim();
+              if (un.isEmpty || em.isEmpty || !em.contains('@')) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter valid Username and Email'), backgroundColor: AuraColors.error),
+                );
+                return;
+              }
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Password reset link sent to $em for @$un'), backgroundColor: AuraColors.success),
+              );
+            },
+            child: Text('Send Reset Link', style: AuraTypography.labelMedium.copyWith(color: AuraColors.textPrimary)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -93,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Floating & Pulsing Animated Brand Badge
+                // Floating Animated Brand Badge
                 AuraScaleIn(
                   child: AuraPulse(
                     child: Container(
@@ -104,38 +186,37 @@ class _LoginScreenState extends State<LoginScreen> {
                         gradient: AuraGradients.primary,
                         boxShadow: AuraShadows.neonViolet,
                       ),
-                      child: ClipOval(
-                        child: Image.asset(
-                          'assets/images/logo.png',
-                          fit: BoxFit.cover,
-                        ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
                       ),
                     ),
                   ),
                 ),
-
                 AuraSpacing.vLg,
 
-                // Animated App Title
-                AuraSlideIn(
+                // App Name
+                AuraFadeIn(
                   child: Column(
                     children: [
                       Text(
-                        'AURALIVE',
-                        style: AuraTypography.headlineMedium.copyWith(
-                          color: AuraColors.primary,
-                          letterSpacing: 2.0,
+                        'AURA LIVE',
+                        style: AuraTypography.displaySmall.copyWith(
+                          color: AuraColors.textPrimary,
+                          letterSpacing: 3.0,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      AuraSpacing.vXs,
                       Text(
-                        'Next-Gen Audio Broadcast & Live Streaming',
-                        style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary),
+                        'NEXT-GEN VOICE ROOMS',
+                        style: AuraTypography.labelSmall.copyWith(
+                          color: AuraColors.accent,
+                          letterSpacing: 2.0,
+                        ),
                       ),
                     ],
                   ),
                 ),
-
                 AuraSpacing.vXl,
 
                 // Main Login Card (Glassmorphism)
@@ -160,14 +241,14 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             AuraSpacing.vXs,
                             Text(
-                              'Sign in to enter your live broadcast room.',
+                              'Enter your username and password to log in.',
                               style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary),
                             ),
 
                             AuraSpacing.vLg,
 
-                            // Email / Username Input
-                            Text('Email or Phone Number', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
+                            // Username Input
+                            Text('Username', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
                             AuraSpacing.vXs,
                             Container(
                               decoration: BoxDecoration(
@@ -176,10 +257,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 border: Border.all(color: AuraColors.border),
                               ),
                               child: TextField(
-                                controller: _emailController,
+                                controller: _usernameController,
                                 style: AuraTypography.bodyMedium,
                                 decoration: InputDecoration(
-                                  hintText: 'Enter your email or phone',
+                                  hintText: 'e.g. ahmed123, joe_live',
                                   hintStyle: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary),
                                   prefixIcon: const Icon(Iconsax.user, color: AuraColors.primary, size: 20),
                                   border: InputBorder.none,
@@ -223,7 +304,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             Align(
                               alignment: Alignment.centerRight,
                               child: TextButton(
-                                onPressed: () {},
+                                onPressed: _showForgotPasswordDialog,
                                 child: Text('Forgot Password?', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
                               ),
                             ),
@@ -249,7 +330,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                           child: CircularProgressIndicator(color: AuraColors.textPrimary, strokeWidth: 2.5),
                                         )
                                       : Text(
-                                          'SIGN IN',
+                                          'LOGIN',
                                           style: AuraTypography.labelLarge.copyWith(
                                             color: AuraColors.textPrimary,
                                             letterSpacing: 1.2,
@@ -267,28 +348,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 AuraSpacing.vLg,
 
-                // Social Login Options
-                AuraFadeIn(
-                  child: Column(
-                    children: [
-                      Text('Or sign in with', style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary)),
-                      AuraSpacing.vMd,
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          _buildSocialButton(Icons.g_mobiledata, 'Google', () => _handleLogin()),
-                          _buildSocialButton(Icons.apple, 'Apple', () => _handleLogin()),
-                          _buildSocialButton(Iconsax.mobile, 'Phone', () => context.push('/otp')),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                AuraSpacing.vLg,
-
                 // Register Footer Link
                 AuraFadeIn(
                   child: Wrap(
@@ -297,39 +356,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       Text("Don't have an account? ", style: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary)),
                       GestureDetector(
                         onTap: () => context.push('/register'),
-                        child: Text('Register Now', style: AuraTypography.labelLarge.copyWith(color: AuraColors.primary)),
+                        child: Text('Create Account', style: AuraTypography.labelLarge.copyWith(color: AuraColors.primary)),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSocialButton(IconData icon, String label, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: ClipRRect(
-        borderRadius: AuraRadius.brMd,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: AuraColors.glassBg,
-              borderRadius: AuraRadius.brMd,
-              border: Border.all(color: AuraColors.glassBorder),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: AuraColors.primary, size: 20),
-                AuraSpacing.hSm,
-                Flexible(child: Text(label, style: AuraTypography.labelMedium.copyWith(color: AuraColors.textPrimary))),
               ],
             ),
           ),
