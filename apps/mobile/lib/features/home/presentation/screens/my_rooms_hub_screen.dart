@@ -534,37 +534,46 @@ class _MyRoomsHubScreenState extends State<MyRoomsHubScreen> with SingleTickerPr
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          const Icon(Iconsax.clock, color: AuraColors.textSecondary, size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Visited ${room['lastVisited']}',
-                            style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary),
-                          ),
-                        ],
+                      Flexible(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Iconsax.clock, color: AuraColors.textSecondary, size: 14),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                'Visited ${room['lastVisited']}',
+                                style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           OutlinedButton(
                             style: OutlinedButton.styleFrom(
                               side: const BorderSide(color: AuraColors.border),
                               shape: RoundedRectangleBorder(borderRadius: AuraRadius.brPill),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                             ),
                             onPressed: () => context.push('/live-room/1'),
-                            child: Text('View Details', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
+                            child: Text('Details', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AuraColors.primary,
                               shape: RoundedRectangleBorder(borderRadius: AuraRadius.brPill),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             ),
                             onPressed: () => context.push('/audio-meetup'),
-                            icon: const Icon(Iconsax.play5, size: 14, color: AuraColors.textPrimary),
-                            label: Text('Join Again', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textPrimary)),
+                            icon: const Icon(Iconsax.play5, size: 12, color: AuraColors.textPrimary),
+                            label: Text('Join', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textPrimary)),
                           ),
                         ],
                       ),

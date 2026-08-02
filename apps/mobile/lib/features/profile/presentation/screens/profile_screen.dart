@@ -60,7 +60,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Opacity(
                   opacity: 0.35,
                   child: Container(
-                    height: 180,
+                    height: 240,
                     width: double.infinity,
                     decoration: const BoxDecoration(
                       image: DecorationImage(
