@@ -11,6 +11,7 @@ import '../../../../core/design_system/radius.dart';
 import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
 import '../../../../core/design_system/animations.dart';
+import '../../../../core/services/user_session_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -249,9 +250,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
 
-    // POST /auth/signup Simulation -> Initializes User Profile & Wallet (Coins=0, Diamonds=0, XP=0, Level=1, VIP=0)
-    Future.delayed(const Duration(milliseconds: 1200), () {
+    // POST /auth/signup Simulation -> Initializes User Profile & Session
+    Future.delayed(const Duration(milliseconds: 1200), () async {
       if (mounted) {
+        final newUserId = (100000 + (username.hashCode.abs() % 899999)).toString();
+        final newUser = UserModel(
+          id: newUserId,
+          username: username,
+          displayName: displayName,
+          email: email.isNotEmpty ? email : null,
+          avatarUrl: _selectedAvatarUrl,
+          gender: _selectedGender,
+          country: country,
+          level: 1,
+          vip: 0,
+          coins: 0,
+          diamonds: 0,
+          followers: 0,
+          following: 0,
+          visitors: 0,
+          bio: 'Welcome to my Aura Live profile! 🎤✨',
+        );
+
+        await UserSessionService().setCurrentUser(newUser, token: 'jwt_mock_token_$newUserId');
+
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -259,7 +281,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             backgroundColor: AuraColors.success,
           ),
         );
-        // Direct navigation to Home Page (NOT Login)
+        // Direct navigation to Home Page
         context.go('/home');
       }
     });

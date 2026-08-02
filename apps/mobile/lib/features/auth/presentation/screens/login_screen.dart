@@ -10,6 +10,7 @@ import '../../../../core/design_system/radius.dart';
 import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
 import '../../../../core/design_system/animations.dart';
+import '../../../../core/services/user_session_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -79,8 +80,27 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     // POST /api/v1/auth/login Simulation
-    Future.delayed(const Duration(milliseconds: 1000), () {
+    Future.delayed(const Duration(milliseconds: 1000), () async {
       if (mounted) {
+        final userId = (100000 + (username.hashCode.abs() % 899999)).toString();
+        final user = UserModel(
+          id: userId,
+          username: username,
+          displayName: username,
+          email: '$username@auralive.app',
+          avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&h=300&fit=crop&auto=format',
+          level: 5,
+          vip: 1,
+          coins: 1500,
+          diamonds: 320,
+          followers: 42,
+          following: 18,
+          visitors: 99,
+          bio: 'Voice room enthusiast | Aura Live Official 🎙️',
+        );
+
+        await UserSessionService().setCurrentUser(user, token: 'jwt_login_token_$userId');
+
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

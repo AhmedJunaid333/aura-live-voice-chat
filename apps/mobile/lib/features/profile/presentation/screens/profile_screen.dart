@@ -10,6 +10,7 @@ import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
 import '../../../../core/widgets/aura_bottom_nav.dart';
 import '../../../../core/widgets/aura_animator.dart' hide AuraPulse, AuraFloat;
+import '../../../../core/services/user_session_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -19,9 +20,149 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  late UserSessionService _sessionService;
+
+  @override
+  void initState() {
+    super.initState();
+    _sessionService = UserSessionService();
+    _sessionService.addListener(_onSessionUpdated);
+  }
+
+  @override
+  void dispose() {
+    _sessionService.removeListener(_onSessionUpdated);
+    super.dispose();
+  }
+
+  void _onSessionUpdated() {
+    if (mounted) setState(() {});
+  }
+
+  void _showEditProfileBottomSheet(BuildContext context) {
+    final user = _sessionService.currentUser;
+    final nameController = TextEditingController(text: user?.displayName ?? '');
+    final bioController = TextEditingController(text: user?.bio ?? '');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AuraColors.surfaceLight,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: 20,
+          right: 20,
+          top: 20,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AuraColors.border, borderRadius: AuraRadius.brPill)),
+              ),
+              AuraSpacing.vLg,
+              Text('Edit Profile', style: AuraTypography.titleLarge),
+              AuraSpacing.vLg,
+              Center(
+                child: Stack(
+                  children: [
+                    Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AuraColors.primary, width: 3),
+                      ),
+                      child: ClipOval(
+                        child: user?.avatarUrl != null && user!.avatarUrl!.isNotEmpty
+                            ? Image.network(user.avatarUrl!, fit: BoxFit.cover)
+                            : Container(
+                                color: AuraColors.surface,
+                                child: const Icon(Iconsax.user, color: AuraColors.primary, size: 40),
+                              ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
+                          color: AuraColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Iconsax.camera, color: AuraColors.textPrimary, size: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              AuraSpacing.vLg,
+              Text('Display Name', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
+              AuraSpacing.vXxs,
+              TextField(
+                controller: nameController,
+                style: AuraTypography.bodyMedium,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: AuraColors.surfaceLight,
+                  border: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide(color: AuraColors.border)),
+                ),
+              ),
+              AuraSpacing.vMd,
+              Text('Bio', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
+              AuraSpacing.vXxs,
+              TextField(
+                controller: bioController,
+                style: AuraTypography.bodyMedium,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: AuraColors.surfaceLight,
+                  border: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide(color: AuraColors.border)),
+                ),
+              ),
+              AuraSpacing.vLg,
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AuraColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: AuraRadius.brPill),
+                  ),
+                  onPressed: () async {
+                    await _sessionService.updateProfile(
+                      displayName: nameController.text.trim(),
+                      bio: bioController.text.trim(),
+                    );
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Profile updated successfully!')),
+                      );
+                    }
+                  },
+                  child: Text('Save Changes', style: AuraTypography.labelLarge.copyWith(color: AuraColors.textPrimary)),
+                ),
+              ),
+              AuraSpacing.vLg,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final user = _sessionService.currentUser;
+
     return Scaffold(
       backgroundColor: AuraColors.background,
       bottomNavigationBar: const AuraBottomNav(activeTab: 'me'),
@@ -96,11 +237,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               border: Border.all(color: AuraColors.primary, width: 4),
                               boxShadow: AuraShadows.neonViolet,
                             ),
-                            child: const ClipOval(
-                              child: Image(
-                                image: NetworkImage('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&auto=format'),
-                                fit: BoxFit.cover,
-                              ),
+                            child: ClipOval(
+                              child: user?.avatarUrl != null && user!.avatarUrl!.isNotEmpty
+                                  ? Image.network(
+                                      user.avatarUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) => Container(
+                                        color: AuraColors.surface,
+                                        child: const Icon(Iconsax.user, color: AuraColors.primary, size: 48),
+                                      ),
+                                    )
+                                  : Container(
+                                      color: AuraColors.surface,
+                                      child: const Icon(Iconsax.user, color: AuraColors.primary, size: 48),
+                                    ),
                             ),
                           ),
                           Positioned(
@@ -124,7 +274,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           Flexible(
                             child: Text(
-                              'MR √Lucky☆࿐',
+                              user?.displayName ?? user?.username ?? 'Aura User',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AuraTypography.titleLarge.copyWith(color: AuraColors.textPrimary),
@@ -134,13 +284,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const Icon(Icons.male, color: Colors.blueAccent, size: 18),
                         ],
                       ),
-                      Text('ID: 106172', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
+                      Text('ID: ${user?.id ?? "100001"}', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
+                      if (user?.bio != null) ...[
+                        AuraSpacing.vXs,
+                        Text(user!.bio, style: AuraTypography.bodySmall.copyWith(color: AuraColors.accent, fontStyle: FontStyle.italic)),
+                      ],
                       AuraSpacing.vSm,
                       GestureDetector(
-                        onTap: () {
-                          // Navigate to edit profile modal or dialog
-                          _showEditProfileBottomSheet(context);
-                        },
+                        onTap: () => _showEditProfileBottomSheet(context),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(
@@ -173,7 +324,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             AuraSpacing.vLg,
             AuraSpacing.vLg,
 
-            // Stats Row Container
+            // Dynamic Stats Row Container
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: ClipRRect(
@@ -190,11 +341,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        Expanded(child: _buildStatItem('9', 'Visitors')),
+                        Expanded(child: _buildStatItem('${user?.visitors ?? 0}', 'Visitors')),
                         Container(width: 1, height: 28, color: AuraColors.border),
-                        Expanded(child: _buildStatItem('4', 'Following')),
+                        Expanded(child: _buildStatItem('${user?.following ?? 0}', 'Following')),
                         Container(width: 1, height: 28, color: AuraColors.border),
-                        Expanded(child: _buildStatItem('2', 'Followers')),
+                        Expanded(child: _buildStatItem('${user?.followers ?? 0}', 'Followers')),
                       ],
                     ),
                   ),
@@ -228,7 +379,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             AuraSpacing.vLg,
 
-            // User Options Menu List (Includes Level, Host Center, BD Center, Family, CP, Invite Friends, Contact us, Setting)
+            // User Options Menu List
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(
@@ -247,182 +398,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     Divider(height: 1, color: AuraColors.border, indent: 68),
                     _buildCustomOptionRow(
-                      title: 'Level',
-                      icon: Iconsax.award,
-                      iconColor: AuraColors.accent,
+                      title: 'Level ${user?.level ?? 1}',
+                      icon: Iconsax.chart_2,
+                      iconColor: AuraColors.warning,
                       onTap: () => context.push('/level'),
                     ),
                     Divider(height: 1, color: AuraColors.border, indent: 68),
                     _buildCustomOptionRow(
                       title: 'Host Center',
-                      icon: Iconsax.user_tag,
-                      iconColor: AuraColors.primary,
+                      icon: Iconsax.microphone,
+                      iconColor: AuraColors.accent,
                       onTap: () => context.push('/host-center'),
                     ),
                     Divider(height: 1, color: AuraColors.border, indent: 68),
                     _buildCustomOptionRow(
                       title: 'BD Center',
-                      icon: Iconsax.people,
+                      icon: Iconsax.briefcase,
                       iconColor: AuraColors.secondary,
                       onTap: () => context.push('/bd-center'),
                     ),
                     Divider(height: 1, color: AuraColors.border, indent: 68),
                     _buildCustomOptionRow(
                       title: 'Family',
-                      icon: Iconsax.shield_tick,
-                      iconColor: AuraColors.accent,
+                      icon: Iconsax.people,
+                      iconColor: AuraColors.success,
                       onTap: () => context.push('/family'),
                     ),
                     Divider(height: 1, color: AuraColors.border, indent: 68),
                     _buildCustomOptionRow(
-                      title: 'CP',
+                      title: 'CP System',
                       icon: Iconsax.heart,
-                      iconColor: AuraColors.error,
-                      onTap: () => context.push('/cp'),
+                      iconColor: Colors.pinkAccent,
+                      onTap: () => context.push('/cp-system'),
                     ),
                     Divider(height: 1, color: AuraColors.border, indent: 68),
                     _buildCustomOptionRow(
                       title: 'Invite Friends',
                       icon: Iconsax.user_add,
-                      iconColor: AuraColors.success,
+                      iconColor: AuraColors.primary,
                       onTap: () => context.push('/invite-friends'),
                     ),
                     Divider(height: 1, color: AuraColors.border, indent: 68),
                     _buildCustomOptionRow(
-                      title: 'Contact us',
-                      icon: Iconsax.headphone,
-                      iconColor: AuraColors.primary,
+                      title: 'Contact Us',
+                      icon: Iconsax.call,
+                      iconColor: AuraColors.info,
                       onTap: () => context.push('/contact-us'),
                     ),
                     Divider(height: 1, color: AuraColors.border, indent: 68),
                     _buildCustomOptionRow(
-                      title: 'Setting',
-                      icon: Iconsax.setting_2,
-                      iconColor: AuraColors.textPrimary,
+                      title: 'Settings',
+                      icon: Iconsax.setting,
+                      iconColor: AuraColors.textSecondary,
                       onTap: () => context.push('/settings'),
                     ),
                   ],
                 ),
               ),
             ),
-
-            AuraSpacing.vLg,
           ],
-        ),
-      ),
-    );
-  }
-
-  void _showEditProfileBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: EdgeInsets.only(
-            top: 24,
-            left: 20,
-            right: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          decoration: BoxDecoration(
-            color: AuraColors.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            border: Border.all(color: AuraColors.border),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Edit Profile', style: AuraTypography.headlineMedium.copyWith(color: AuraColors.textPrimary)),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: AuraColors.textSecondary),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              AuraSpacing.vMd,
-              Center(
-                child: Stack(
-                  children: [
-                    Container(
-                      width: 90,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AuraColors.primary, width: 3),
-                      ),
-                      child: const ClipOval(
-                        child: Image(
-                          image: NetworkImage('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&auto=format'),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                          color: AuraColors.primary,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Iconsax.camera, color: AuraColors.textPrimary, size: 14),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              AuraSpacing.vLg,
-              Text('Nickname', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
-              AuraSpacing.vXxs,
-              TextField(
-                controller: TextEditingController(text: 'MR √Lucky☆࿐'),
-                style: AuraTypography.bodyMedium,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: AuraColors.surfaceLight,
-                  border: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide.none),
-                ),
-              ),
-              AuraSpacing.vMd,
-              Text('Bio', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
-              AuraSpacing.vXxs,
-              TextField(
-                controller: TextEditingController(text: 'Living life, streaming luxury vibes ✨'),
-                style: AuraTypography.bodyMedium,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: AuraColors.surfaceLight,
-                  border: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide.none),
-                ),
-              ),
-              AuraSpacing.vLg,
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AuraColors.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: AuraRadius.brPill),
-                  ),
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Profile updated successfully!')),
-                    );
-                  },
-                  child: Text('Save Changes', style: AuraTypography.labelLarge.copyWith(color: AuraColors.textPrimary)),
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
