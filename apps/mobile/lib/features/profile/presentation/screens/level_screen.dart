@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+
 import '../../../../core/design_system/colors.dart';
 import '../../../../core/design_system/typography.dart';
 import '../../../../core/design_system/spacing.dart';
@@ -9,6 +10,7 @@ import '../../../../core/design_system/radius.dart';
 import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
 import '../../../../core/design_system/animations.dart';
+import '../../../../core/services/user_session_service.dart';
 
 class LevelScreen extends StatefulWidget {
   const LevelScreen({super.key});
@@ -18,41 +20,60 @@ class LevelScreen extends StatefulWidget {
 }
 
 class _LevelScreenState extends State<LevelScreen> {
-  final int _currentLevel = 32;
-  final int _currentEXP = 320000;
-  final int _nextLevelEXP = 500000;
+  late UserSessionService _sessionService;
+
+  @override
+  void initState() {
+    super.initState();
+    _sessionService = UserSessionService();
+    _sessionService.addListener(_onSessionUpdated);
+  }
+
+  @override
+  void dispose() {
+    _sessionService.removeListener(_onSessionUpdated);
+    super.dispose();
+  }
+
+  void _onSessionUpdated() {
+    if (mounted) setState(() {});
+  }
 
   final List<Map<String, dynamic>> _dailyTasks = [
     {
       'title': 'Daily Check-in',
-      'exp': '+500 EXP',
-      'completed': true,
+      'exp': 500,
+      'expText': '+500 EXP',
+      'completed': false,
       'icon': Iconsax.calendar_1,
     },
     {
       'title': 'Send Gifts in Audio Room',
-      'exp': '+2,000 EXP',
+      'exp': 2000,
+      'expText': '+2,000 EXP',
       'completed': false,
-      'progress': '2/5 Gifts',
+      'progress': '0/5 Gifts',
       'icon': Iconsax.gift,
     },
     {
       'title': 'Watch Live Stream (30 Mins)',
-      'exp': '+1,500 EXP',
+      'exp': 1500,
+      'expText': '+1,500 EXP',
       'completed': false,
-      'progress': '18/30 Mins',
+      'progress': '0/30 Mins',
       'icon': Iconsax.video_play,
     },
     {
       'title': 'Publish a Moment',
-      'exp': '+1,000 EXP',
-      'completed': true,
+      'exp': 1000,
+      'expText': '+1,000 EXP',
+      'completed': false,
       'icon': Iconsax.camera,
     },
   ];
 
   final List<Map<String, dynamic>> _privileges = [
-    {'title': 'Gold Level Badge 👑', 'desc': 'Exclusive Level 30+ Crown Badge'},
+    {'title': 'Starter Level Badge 👑', 'desc': 'Official Level Badge'},
     {'title': 'Luxury Entrance Vehicle 🚗', 'desc': 'Golden Supercar entrance animation'},
     {'title': 'VIP Chat Bubble 💬', 'desc': 'Glowing metallic chat text container'},
     {'title': 'Special Room Seat Ring 💍', 'desc': 'Animated glowing seat aura'},
@@ -60,7 +81,34 @@ class _LevelScreenState extends State<LevelScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final expRatio = _currentEXP / _nextLevelEXP;
+    final user = _sessionService.currentUser;
+    final currentLevel = user?.level ?? 1;
+    final currentEXP = user?.currentXp ?? 0;
+    final nextLevelEXP = user?.nextLevelXp ?? 100;
+    final expRatio = (nextLevelEXP > 0) ? (currentEXP / nextLevelEXP).clamp(0.0, 1.0) : 0.0;
+
+    String tierTitle;
+    String rankLabel;
+    if (currentLevel < 10) {
+      tierTitle = 'Novice Bronze Tier';
+      rankLabel = 'Starter';
+    } else if (currentLevel < 25) {
+      tierTitle = 'Silver Star Tier';
+      rankLabel = 'Top 20%';
+    } else if (currentLevel < 50) {
+      tierTitle = 'Gold Royal Tier';
+      rankLabel = 'Top 5%';
+    } else {
+      tierTitle = 'Diamond Legend Tier';
+      rankLabel = 'Top 1%';
+    }
+
+    String expText;
+    if (nextLevelEXP >= 1000) {
+      expText = '${(currentEXP / 1000).toStringAsFixed(1)}k / ${(nextLevelEXP / 1000).toStringAsFixed(0)}k EXP';
+    } else {
+      expText = '$currentEXP / $nextLevelEXP EXP';
+    }
 
     return Scaffold(
       backgroundColor: AuraColors.background,
@@ -68,7 +116,7 @@ class _LevelScreenState extends State<LevelScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Iconsax.arrow_left, color: AuraColors.textPrimary),
+          icon: const Icon(Iconsax.arrow_left, color: AuraColors.textPrimary),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -117,13 +165,13 @@ class _LevelScreenState extends State<LevelScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Level $_currentLevel',
+                                      'Level $currentLevel',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: AuraTypography.headlineMedium.copyWith(color: AuraColors.textPrimary),
                                     ),
                                     Text(
-                                      'Gold Royal Tier',
+                                      tierTitle,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: AuraTypography.labelMedium.copyWith(color: AuraColors.textSecondary),
@@ -137,7 +185,7 @@ class _LevelScreenState extends State<LevelScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(color: AuraColors.glassBg, borderRadius: AuraRadius.brPill),
-                          child: Text('Top 1%', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textPrimary)),
+                          child: Text(rankLabel, style: AuraTypography.labelSmall.copyWith(color: AuraColors.textPrimary)),
                         )
                       ],
                     ),
@@ -153,8 +201,7 @@ class _LevelScreenState extends State<LevelScreen> {
                             style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary),
                           ),
                         ),
-                        Text('${(_currentEXP / 1000).toStringAsFixed(0)}k / ${(_nextLevelEXP / 1000).toStringAsFixed(0)}k EXP',
-                            style: AuraTypography.labelMedium.copyWith(color: AuraColors.textPrimary)),
+                        Text(expText, style: AuraTypography.labelMedium.copyWith(color: AuraColors.textPrimary)),
                       ],
                     ),
                     AuraSpacing.vSm,
@@ -192,6 +239,8 @@ class _LevelScreenState extends State<LevelScreen> {
                 separatorBuilder: (context, index) => AuraSpacing.vSm,
                 itemBuilder: (context, index) {
                   final task = _dailyTasks[index];
+                  final isCompleted = task['completed'] == true;
+
                   return ClipRRect(
                     borderRadius: AuraRadius.brLg,
                     child: BackdropFilter(
@@ -221,29 +270,35 @@ class _LevelScreenState extends State<LevelScreen> {
                                 children: [
                                   Text(task['title'] as String, style: AuraTypography.bodyLarge),
                                   AuraSpacing.vXxs,
-                                  Text(task['exp'] as String, style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
+                                  Text(task['expText'] as String, style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
                                 ],
                               ),
                             ),
                             GestureDetector(
-                              onTap: task['completed'] == true
+                              onTap: isCompleted
                                   ? null
-                                  : () {
+                                  : () async {
                                       setState(() => task['completed'] = true);
-                                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Task Claimed: ${task['exp']}! 🎉')));
+                                      final expAmount = task['exp'] as int;
+                                      await _sessionService.addXp(expAmount);
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Task Claimed: +$expAmount EXP! 🎉')),
+                                        );
+                                      }
                                     },
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                 decoration: BoxDecoration(
-                                  gradient: task['completed'] == true ? null : AuraGradients.primary,
-                                  color: task['completed'] == true ? AuraColors.surface : null,
+                                  gradient: isCompleted ? null : AuraGradients.primary,
+                                  color: isCompleted ? AuraColors.surface : null,
                                   borderRadius: AuraRadius.brMd,
-                                  boxShadow: task['completed'] == true ? [] : AuraShadows.neonViolet,
+                                  boxShadow: isCompleted ? [] : AuraShadows.neonViolet,
                                 ),
                                 child: Text(
-                                  task['completed'] == true ? 'Completed' : 'Claim',
+                                  isCompleted ? 'Completed' : 'Claim',
                                   style: AuraTypography.labelMedium.copyWith(
-                                    color: task['completed'] == true ? AuraColors.textSecondary : AuraColors.textPrimary,
+                                    color: isCompleted ? AuraColors.textSecondary : AuraColors.textPrimary,
                                   ),
                                 ),
                               ),
@@ -258,7 +313,7 @@ class _LevelScreenState extends State<LevelScreen> {
             ),
             AuraSpacing.vLg,
 
-            // Privileges Unlocked Title
+            // Privileges Title
             AuraFadeIn(
               delay: const Duration(milliseconds: 400),
               child: Text(
