@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
@@ -5,6 +6,83 @@ import '../colors.dart';
 import '../typography.dart';
 import '../radius.dart';
 import '../gradients.dart';
+
+/// Universal Avatar Image Widget supporting both Network HTTP URLs and Local File Paths
+class AuraAvatarImage extends StatelessWidget {
+  final String? avatarUrl;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+  final Widget? fallback;
+
+  const AuraAvatarImage({
+    super.key,
+    this.avatarUrl,
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+    this.fallback,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final defaultFallback = fallback ??
+        Container(
+          color: AuraColors.surface,
+          child: Center(
+            child: Icon(
+              Iconsax.user,
+              color: AuraColors.primary,
+              size: (width != null && width! > 0) ? width! * 0.48 : 36,
+            ),
+          ),
+        );
+
+    if (avatarUrl == null || avatarUrl!.trim().isEmpty) {
+      return SizedBox(width: width, height: height, child: defaultFallback);
+    }
+
+    final url = avatarUrl!.trim();
+
+    // 1. Check Network URL
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return Image.network(
+        url,
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) =>
+            SizedBox(width: width, height: height, child: defaultFallback),
+      );
+    }
+
+    // 2. Check Local File Path (from Camera/Gallery image picker)
+    try {
+      final cleanPath = url.startsWith('file://') ? Uri.parse(url).path : url;
+      final file = File(cleanPath);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          width: width,
+          height: height,
+          fit: fit,
+          errorBuilder: (context, error, stackTrace) =>
+              SizedBox(width: width, height: height, child: defaultFallback),
+        );
+      }
+    } catch (_) {}
+
+    // 3. Fallback to network or default
+    return Image.network(
+      url,
+      width: width,
+      height: height,
+      fit: fit,
+      errorBuilder: (context, error, stackTrace) =>
+          SizedBox(width: width, height: height, child: defaultFallback),
+    );
+  }
+}
 
 class AuraAvatar extends StatelessWidget {
   final String imageUrl;
@@ -38,16 +116,15 @@ class AuraAvatar extends StatelessWidget {
               shape: BoxShape.circle,
               color: AuraColors.surfaceLight,
               border: isVip ? Border.all(color: AuraColors.gold, width: 2) : null,
-              image: imageUrl.isNotEmpty
-                  ? DecorationImage(
-                      image: NetworkImage(imageUrl),
-                      fit: BoxFit.cover,
-                    )
-                  : null,
             ),
-            child: imageUrl.isEmpty
-                ? Icon(Iconsax.user, size: size * 0.5, color: AuraColors.textSecondary)
-                : null,
+            child: ClipOval(
+              child: AuraAvatarImage(
+                avatarUrl: imageUrl,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+              ),
+            ),
           ),
           if (isOnline)
             Positioned(
@@ -191,7 +268,12 @@ class AuraGuestSeat extends StatelessWidget {
         ),
         child: isOccupied && imageUrl != null
             ? ClipOval(
-                child: Image.network(imageUrl!, fit: BoxFit.cover),
+                child: AuraAvatarImage(
+                  avatarUrl: imageUrl,
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                ),
               )
             : Icon(
                 Iconsax.add,

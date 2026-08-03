@@ -1,15 +1,16 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:image_picker/image_picker.dart';
+
 import '../../../../core/design_system/colors.dart';
 import '../../../../core/design_system/typography.dart';
 import '../../../../core/design_system/spacing.dart';
 import '../../../../core/design_system/radius.dart';
 import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
+import '../../../../core/design_system/widgets/avatars.dart';
 import '../../../../core/widgets/aura_bottom_nav.dart';
-import '../../../../core/widgets/aura_animator.dart' hide AuraPulse, AuraFloat;
 import '../../../../core/services/user_session_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -21,6 +22,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late UserSessionService _sessionService;
+  final ImagePicker _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -43,6 +45,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = _sessionService.currentUser;
     final nameController = TextEditingController(text: user?.displayName ?? '');
     final bioController = TextEditingController(text: user?.bio ?? '');
+    String? selectedAvatarPath = user?.avatarUrl;
 
     showModalBottomSheet(
       context: context,
@@ -51,111 +54,179 @@ class _ProfileScreenState extends State<ProfileScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          left: 20,
-          right: 20,
-          top: 20,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AuraColors.border, borderRadius: AuraRadius.brPill)),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (bottomSheetContext, setModalState) {
+            Future<void> pickPhoto(ImageSource source) async {
+              try {
+                final XFile? image = await _imagePicker.pickImage(
+                  source: source,
+                  maxWidth: 800,
+                  maxHeight: 800,
+                  imageQuality: 85,
+                );
+                if (image != null) {
+                  setModalState(() {
+                    selectedAvatarPath = image.path;
+                  });
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Image error: ${e.toString()}'), backgroundColor: AuraColors.error),
+                  );
+                }
+              }
+            }
+
+            void showPhotoOptions() {
+              showModalBottomSheet(
+                context: ctx,
+                backgroundColor: AuraColors.surfaceLight,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                builder: (context) => Container(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Change Profile Photo', style: AuraTypography.titleLarge),
+                      AuraSpacing.vMd,
+                      ListTile(
+                        leading: const Icon(Iconsax.camera, color: AuraColors.primary),
+                        title: Text('Take Photo', style: AuraTypography.titleMedium),
+                        onTap: () {
+                          Navigator.pop(context);
+                          pickPhoto(ImageSource.camera);
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Iconsax.gallery, color: AuraColors.secondary),
+                        title: Text('Choose from Gallery', style: AuraTypography.titleMedium),
+                        onTap: () {
+                          Navigator.pop(context);
+                          pickPhoto(ImageSource.gallery);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                left: 20,
+                right: 20,
+                top: 20,
               ),
-              AuraSpacing.vLg,
-              Text('Edit Profile', style: AuraTypography.titleLarge),
-              AuraSpacing.vLg,
-              Center(
-                child: Stack(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 90,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AuraColors.primary, width: 3),
-                      ),
-                      child: ClipOval(
-                        child: user?.avatarUrl != null && user!.avatarUrl!.isNotEmpty
-                            ? Image.network(user.avatarUrl!, fit: BoxFit.cover)
-                            : Container(
-                                color: AuraColors.surface,
-                                child: const Icon(Iconsax.user, color: AuraColors.primary, size: 40),
+                    Center(
+                      child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AuraColors.border, borderRadius: AuraRadius.brPill)),
+                    ),
+                    AuraSpacing.vLg,
+                    Text('Edit Profile', style: AuraTypography.titleLarge),
+                    AuraSpacing.vLg,
+                    Center(
+                      child: GestureDetector(
+                        onTap: showPhotoOptions,
+                        child: Stack(
+                          children: [
+                            Container(
+                              width: 90,
+                              height: 90,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: AuraColors.primary, width: 3),
                               ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                          color: AuraColors.primary,
-                          shape: BoxShape.circle,
+                              child: ClipOval(
+                                child: AuraAvatarImage(
+                                  avatarUrl: selectedAvatarPath,
+                                  width: 90,
+                                  height: 90,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(
+                                  color: AuraColors.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Iconsax.camera, color: AuraColors.textPrimary, size: 14),
+                              ),
+                            ),
+                          ],
                         ),
-                        child: const Icon(Iconsax.camera, color: AuraColors.textPrimary, size: 14),
                       ),
                     ),
+                    AuraSpacing.vLg,
+                    Text('Display Name', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
+                    AuraSpacing.vXxs,
+                    TextField(
+                      controller: nameController,
+                      style: AuraTypography.bodyMedium,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: AuraColors.surfaceLight,
+                        border: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide(color: AuraColors.border)),
+                      ),
+                    ),
+                    AuraSpacing.vMd,
+                    Text('Bio', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
+                    AuraSpacing.vXxs,
+                    TextField(
+                      controller: bioController,
+                      style: AuraTypography.bodyMedium,
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: AuraColors.surfaceLight,
+                        border: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide(color: AuraColors.border)),
+                      ),
+                    ),
+                    AuraSpacing.vLg,
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AuraColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: AuraRadius.brPill),
+                        ),
+                        onPressed: () async {
+                          await _sessionService.updateProfile(
+                            displayName: nameController.text.trim(),
+                            bio: bioController.text.trim(),
+                            avatarUrl: selectedAvatarPath,
+                          );
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Profile updated successfully!')),
+                            );
+                          }
+                        },
+                        child: Text('Save Changes', style: AuraTypography.labelLarge.copyWith(color: AuraColors.textPrimary)),
+                      ),
+                    ),
+                    AuraSpacing.vLg,
                   ],
                 ),
               ),
-              AuraSpacing.vLg,
-              Text('Display Name', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
-              AuraSpacing.vXxs,
-              TextField(
-                controller: nameController,
-                style: AuraTypography.bodyMedium,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: AuraColors.surfaceLight,
-                  border: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide(color: AuraColors.border)),
-                ),
-              ),
-              AuraSpacing.vMd,
-              Text('Bio', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
-              AuraSpacing.vXxs,
-              TextField(
-                controller: bioController,
-                style: AuraTypography.bodyMedium,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: AuraColors.surfaceLight,
-                  border: OutlineInputBorder(borderRadius: AuraRadius.brMd, borderSide: BorderSide(color: AuraColors.border)),
-                ),
-              ),
-              AuraSpacing.vLg,
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AuraColors.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: AuraRadius.brPill),
-                  ),
-                  onPressed: () async {
-                    await _sessionService.updateProfile(
-                      displayName: nameController.text.trim(),
-                      bio: bioController.text.trim(),
-                    );
-                    if (ctx.mounted) Navigator.pop(ctx);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Profile updated successfully!')),
-                      );
-                    }
-                  },
-                  child: Text('Save Changes', style: AuraTypography.labelLarge.copyWith(color: AuraColors.textPrimary)),
-                ),
-              ),
-              AuraSpacing.vLg,
-            ],
-          ),
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -238,19 +309,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               boxShadow: AuraShadows.neonViolet,
                             ),
                             child: ClipOval(
-                              child: user?.avatarUrl != null && user!.avatarUrl!.isNotEmpty
-                                  ? Image.network(
-                                      user.avatarUrl!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) => Container(
-                                        color: AuraColors.surface,
-                                        child: const Icon(Iconsax.user, color: AuraColors.primary, size: 48),
-                                      ),
-                                    )
-                                  : Container(
-                                      color: AuraColors.surface,
-                                      child: const Icon(Iconsax.user, color: AuraColors.primary, size: 48),
-                                    ),
+                              child: AuraAvatarImage(
+                                avatarUrl: user?.avatarUrl,
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                           Positioned(
@@ -302,60 +366,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Iconsax.edit_2, size: 14, color: AuraColors.primary),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Edit Profile',
-                                style: AuraTypography.labelSmall.copyWith(
-                                  color: AuraColors.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                              const Icon(Iconsax.edit, color: AuraColors.primary, size: 14),
+                              const SizedBox(width: 4),
+                              Text('Edit Profile', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textPrimary)),
                             ],
                           ),
                         ),
                       ),
                     ],
                   ),
-                )
+                ),
               ],
             ),
 
-            AuraSpacing.vLg,
-            AuraSpacing.vLg,
+            const SizedBox(height: 120),
 
-            // Dynamic Stats Row Container
+            // Profile Stats Grid
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: ClipRRect(
-                borderRadius: AuraRadius.brLg,
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: AuraColors.glassBg,
-                      borderRadius: AuraRadius.brLg,
-                      border: Border.all(color: AuraColors.glassBorder),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        Expanded(child: _buildStatItem('${user?.visitors ?? 0}', 'Visitors')),
-                        Container(width: 1, height: 28, color: AuraColors.border),
-                        Expanded(child: _buildStatItem('${user?.following ?? 0}', 'Following')),
-                        Container(width: 1, height: 28, color: AuraColors.border),
-                        Expanded(child: _buildStatItem('${user?.followers ?? 0}', 'Followers')),
-                      ],
-                    ),
-                  ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                decoration: BoxDecoration(
+                  color: AuraColors.surfaceLight,
+                  borderRadius: AuraRadius.brLg,
+                  border: Border.all(color: AuraColors.border),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildStatItem('Visitors', '${user?.visitors ?? 0}'),
+                    Container(width: 1, height: 30, color: AuraColors.border),
+                    _buildStatItem('Following', '${user?.following ?? 0}'),
+                    Container(width: 1, height: 30, color: AuraColors.border),
+                    _buildStatItem('Followers', '${user?.followers ?? 0}'),
+                  ],
                 ),
               ),
             ),
 
             AuraSpacing.vLg,
 
-            // Quick Actions Grid (4 columns)
+            // Quick Access Grid: Wallet, Store, Bag, Reward
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(
@@ -368,10 +419,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    Expanded(child: _buildQuickAction('Wallet', Iconsax.wallet_3, AuraColors.accent, () => context.push('/wallet'))),
-                    Expanded(child: _buildQuickAction('Store', Iconsax.shop, AuraColors.primary, () => context.push('/store'))),
-                    Expanded(child: _buildQuickAction('Bag', Iconsax.bag_2, AuraColors.secondary, () => context.push('/bag'))),
-                    Expanded(child: _buildQuickAction('Reward', Iconsax.gift, AuraColors.success, () => context.push('/reward'))),
+                    _buildQuickAction(context, Iconsax.wallet_3, 'Wallet', AuraColors.gold, () => context.push('/wallet')),
+                    _buildQuickAction(context, Iconsax.shop, 'Store', AuraColors.primary, () => context.push('/store')),
+                    _buildQuickAction(context, Iconsax.shopping_bag, 'Bag', AuraColors.secondary, () => context.push('/bag')),
+                    _buildQuickAction(context, Iconsax.gift, 'Reward', AuraColors.success, () => context.push('/reward')),
                   ],
                 ),
               ),
@@ -379,7 +430,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             AuraSpacing.vLg,
 
-            // User Options Menu List
+            // Profile Menu Items List
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(
@@ -390,66 +441,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 child: Column(
                   children: [
-                    _buildCustomOptionRow(
-                      title: 'Edit Profile',
+                    _buildMenuItem(
+                      context,
                       icon: Iconsax.edit,
-                      iconColor: AuraColors.primary,
+                      title: 'Edit Profile',
                       onTap: () => _showEditProfileBottomSheet(context),
                     ),
-                    Divider(height: 1, color: AuraColors.border, indent: 68),
-                    _buildCustomOptionRow(
-                      title: 'Level ${user?.level ?? 1}',
+                    const Divider(color: AuraColors.border, height: 1),
+                    _buildMenuItem(
+                      context,
                       icon: Iconsax.chart_2,
-                      iconColor: AuraColors.warning,
+                      title: 'Level ${user?.level ?? 1}',
+                      subtitle: 'XP Progress',
                       onTap: () => context.push('/level'),
                     ),
-                    Divider(height: 1, color: AuraColors.border, indent: 68),
-                    _buildCustomOptionRow(
-                      title: 'Host Center',
+                    const Divider(color: AuraColors.border, height: 1),
+                    _buildMenuItem(
+                      context,
                       icon: Iconsax.microphone,
-                      iconColor: AuraColors.accent,
+                      title: 'Host Center',
+                      subtitle: 'Lv.${user?.hostLevel ?? 1} Host Rank',
                       onTap: () => context.push('/host-center'),
                     ),
-                    Divider(height: 1, color: AuraColors.border, indent: 68),
-                    _buildCustomOptionRow(
-                      title: 'BD Center',
-                      icon: Iconsax.briefcase,
-                      iconColor: AuraColors.secondary,
-                      onTap: () => context.push('/bd-center'),
+                    const Divider(color: AuraColors.border, height: 1),
+                    _buildMenuItem(
+                      context,
+                      icon: Iconsax.crown,
+                      title: 'VIP Privileges',
+                      subtitle: user?.vip != null && user!.vip > 0 ? 'VIP ${user.vip}' : 'Non-VIP',
+                      onTap: () => context.push('/vip'),
                     ),
-                    Divider(height: 1, color: AuraColors.border, indent: 68),
-                    _buildCustomOptionRow(
-                      title: 'Family',
+                    const Divider(color: AuraColors.border, height: 1),
+                    _buildMenuItem(
+                      context,
+                      icon: Iconsax.heart,
+                      title: 'CP Relationship Space',
+                      subtitle: 'Love Partner',
+                      onTap: () => context.push('/cp'),
+                    ),
+                    const Divider(color: AuraColors.border, height: 1),
+                    _buildMenuItem(
+                      context,
                       icon: Iconsax.people,
-                      iconColor: AuraColors.success,
+                      title: 'Family',
+                      subtitle: user?.family ?? 'No Family',
                       onTap: () => context.push('/family'),
                     ),
-                    Divider(height: 1, color: AuraColors.border, indent: 68),
-                    _buildCustomOptionRow(
-                      title: 'CP System',
-                      icon: Iconsax.heart,
-                      iconColor: Colors.pinkAccent,
-                      onTap: () => context.push('/cp-system'),
+                    const Divider(color: AuraColors.border, height: 1),
+                    _buildMenuItem(
+                      context,
+                      icon: Iconsax.building,
+                      title: 'BD Center',
+                      subtitle: user?.agency ?? 'No Agency',
+                      onTap: () => context.push('/bd-center'),
                     ),
-                    Divider(height: 1, color: AuraColors.border, indent: 68),
-                    _buildCustomOptionRow(
-                      title: 'Invite Friends',
+                    const Divider(color: AuraColors.border, height: 1),
+                    _buildMenuItem(
+                      context,
                       icon: Iconsax.user_add,
-                      iconColor: AuraColors.primary,
+                      title: 'Invite Friends',
                       onTap: () => context.push('/invite-friends'),
                     ),
-                    Divider(height: 1, color: AuraColors.border, indent: 68),
-                    _buildCustomOptionRow(
-                      title: 'Contact Us',
+                    const Divider(color: AuraColors.border, height: 1),
+                    _buildMenuItem(
+                      context,
                       icon: Iconsax.call,
-                      iconColor: AuraColors.info,
+                      title: 'Contact Us',
                       onTap: () => context.push('/contact-us'),
                     ),
-                    Divider(height: 1, color: AuraColors.border, indent: 68),
-                    _buildCustomOptionRow(
-                      title: 'Settings',
+                    const Divider(color: AuraColors.border, height: 1),
+                    _buildMenuItem(
+                      context,
                       icon: Iconsax.setting,
-                      iconColor: AuraColors.textSecondary,
+                      title: 'Settings',
                       onTap: () => context.push('/settings'),
                     ),
                   ],
@@ -462,64 +526,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStatItem(String val, String label) {
+  Widget _buildStatItem(String label, String value) {
     return Column(
       children: [
-        Text(val, style: AuraTypography.titleLarge.copyWith(color: AuraColors.textPrimary)),
-        AuraSpacing.vSm,
+        Text(value, style: AuraTypography.titleLarge.copyWith(color: AuraColors.textPrimary)),
+        const SizedBox(height: 2),
         Text(label, style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
       ],
     );
   }
 
-  Widget _buildQuickAction(String title, IconData icon, Color color, VoidCallback onTap) {
-    return AuraBounceButton(
+  Widget _buildQuickAction(BuildContext context, IconData icon, String label, Color color, VoidCallback onTap) {
+    return GestureDetector(
       onTap: onTap,
       child: Column(
         children: [
           Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(color: AuraColors.surface, borderRadius: AuraRadius.brMd, border: Border.all(color: AuraColors.border)),
-            child: Icon(icon, color: color, size: 26),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: AuraRadius.brMd,
+              border: Border.all(color: color.withValues(alpha: 0.3)),
+            ),
+            child: Icon(icon, color: color, size: 24),
           ),
-          AuraSpacing.vSm,
-          Text(title, style: AuraTypography.labelSmall.copyWith(color: AuraColors.textPrimary)),
+          const SizedBox(height: 6),
+          Text(label, style: AuraTypography.labelSmall.copyWith(color: AuraColors.textPrimary)),
         ],
       ),
     );
   }
 
-  Widget _buildCustomOptionRow({
-    required String title,
+  Widget _buildMenuItem(
+    BuildContext context, {
     required IconData icon,
-    required Color iconColor,
+    required String title,
+    String? subtitle,
     required VoidCallback onTap,
   }) {
-    return AuraBounceButton(
+    return ListTile(
       onTap: onTap,
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: AuraColors.surface,
-            borderRadius: AuraRadius.brMd,
-            border: Border.all(color: AuraColors.border),
-          ),
-          child: Icon(icon, color: iconColor, size: 24),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: AuraColors.surfaceElevated,
+          borderRadius: AuraRadius.brSm,
         ),
-        title: Text(
-          title,
-          style: AuraTypography.labelLarge.copyWith(color: AuraColors.textPrimary),
-        ),
-        trailing: const Icon(
-          Iconsax.arrow_right_3,
-          color: AuraColors.textSecondary,
-          size: 20,
-        ),
+        child: Icon(icon, color: AuraColors.primary, size: 20),
       ),
+      title: Text(title, style: AuraTypography.titleMedium.copyWith(color: AuraColors.textPrimary)),
+      subtitle: subtitle != null ? Text(subtitle, style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary)) : null,
+      trailing: const Icon(Iconsax.arrow_right_3, color: AuraColors.textSecondary, size: 16),
     );
   }
 }
