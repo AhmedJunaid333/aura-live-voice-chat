@@ -38,7 +38,8 @@ Aura Live Voice Room
 7. **Modular AI Engine (`packages/ai-engine`)**: Pluggable AI provider layer (`OpenAI`, `LocalAI`, `Mock`) supporting speech-to-text, toxicity analysis, and real-time multi-language translation.
 8. **Cloud Infrastructure & Kubernetes (`infrastructure/k8s`)**: Multi-stage Docker builds, Kubernetes HPA auto-scaling (5-50 pods), 6-node Redis Cluster StatefulSets, and Prometheus observability metrics exporter.
 9. **Google Authentication & SSO Engine (`apps/mobile/lib/core/services/user_session_service.dart`)**: Google Sign-In + Username/Password login with auto-provisioning of sequential numeric user IDs, zero economy default balances, and persistent local DB session storage.
-10. **Production Readiness Certification Gate (`infrastructure/`)**: Staging Ingress TLS (`k8s-staging-ingress.yaml`), 5% Canary rollout with auto-rollback, k6 WebSocket load testing script, Python Locust API load testing script, Trivy container security scanner, OWASP ZAP audit config, Disaster Recovery PITR restore verification (RTO <= 30m, RPO <= 5m), Prometheus alert rules, and Chaos Engineering failover test.
+10. **Production Agora RTC Audio Broadcasting (`apps/mobile/lib/core/services/agora_rtc_service.dart`)**: Dynamic backend token fetching, 3-role permissions (Host, Speaker, Audience), 10/15/20 seat dynamic voice room layouts, 3A audio processing (AEC, ANS, AGC), real-time volume indicators, and WebSocket state sync.
+11. **Production Readiness Certification Gate (`infrastructure/`)**: Staging Ingress TLS (`k8s-staging-ingress.yaml`), 5% Canary rollout with auto-rollback, k6 WebSocket load testing script, Python Locust API load testing script, Trivy container security scanner, OWASP ZAP audit config, Disaster Recovery PITR restore verification (RTO <= 30m, RPO <= 5m), Prometheus alert rules, and Chaos Engineering failover test.
 
 ```
 New-Live-App/

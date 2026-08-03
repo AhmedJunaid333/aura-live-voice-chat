@@ -25,6 +25,14 @@ Building **Aura Live Voice Room** — a completely fresh, production-grade Live 
 - [x] Flutter Live Room Host & Audience Integration (`apps/mobile/lib/features/live_room/`)
 - [x] Automated Unit & Integration Test Suite (`apps/api/tests/`)
 
+### Sprint 2.5: Production Agora Audio Broadcasting System (IN PROGRESS)
+- [ ] Agora RTC Engine Integration (`agora_rtc_engine: ^6.3.0`, `permission_handler`)
+- [ ] Backend Dynamic Token Service & Token Auto-Renewal (`POST /api/v1/rtc/token`)
+- [ ] 3-Role Permission Architecture (Host, Speaker, Audience)
+- [ ] 10 / 15 / 20 Seat Dynamic Voice Room Layouts & Volume Indicators
+- [ ] Real-time WebSocket Event Sync (`ROOM_*`, `SEAT_*`, `MIC_*`, `HOST_*`)
+- [ ] Reconnection Logic, State Recovery & Token Privilege Expiration Handler
+
 ### Sprint 3: Virtual Economy & Gifts System (COMPLETED)
 - [x] Strict Double-Entry Wallet Ledger (`packages/wallet`)
 - [x] Currency Separation (Coins vs Diamonds)
@@ -112,3 +120,4 @@ Building **Aura Live Voice Room** — a completely fresh, production-grade Live 
 
 - **2026-07-30**: Initialized project repository `New-Live-App` for **Aura Live Voice Room**. Created root structure, `README.md`, and master `plan.md`. Completed Sprints 1, 2, 3, 4, 5, 6, 6.5, 7, and 8 (Version `v1.0.0-RC1` Release Candidate Ready).
 - **2026-08-03**: Added End-to-End Production Google Sign-In & Single Sign-On (SSO) Authentication task covering Firebase Auth, Google Sign In, Flutter Secure Storage, NestJS Token Verification, Account Linking, and Audit Logging.
+- **2026-08-04**: Created comprehensive technical implementation plan for Production Agora RTC Audio Broadcasting Integration covering dynamic token API, 3-role permissions, 10/15/20 seat layouts, 3A audio processing, and WebSocket real-time synchronization.
