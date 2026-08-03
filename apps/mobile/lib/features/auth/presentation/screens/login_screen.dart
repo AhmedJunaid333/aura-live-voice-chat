@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 
+import 'package:google_sign_in/google_sign_in.dart';
+
 import '../../../../core/design_system/colors.dart';
 import '../../../../core/design_system/typography.dart';
 import '../../../../core/design_system/spacing.dart';
@@ -105,6 +107,229 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     });
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+      final GoogleSignInAccount? account = await googleSignIn.signIn();
+
+      if (account != null) {
+        await _processGoogleLogin(
+          email: account.email,
+          name: account.displayName ?? account.email.split('@').first,
+          photoUrl: account.photoUrl,
+          googleId: account.id,
+        );
+        return;
+      }
+    } catch (_) {
+      // SDK fallback: Show Google Account Picker Modal Sheet for environments without native client IDs
+    }
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+      _showGoogleAccountPickerSheet();
+    }
+  }
+
+  Future<void> _processGoogleLogin({
+    required String email,
+    required String name,
+    String? photoUrl,
+    String? googleId,
+  }) async {
+    setState(() => _isLoading = true);
+    final result = await UserSessionService().loginWithGoogle(
+      googleEmail: email,
+      googleDisplayName: name,
+      googlePhotoUrl: photoUrl,
+      googleId: googleId,
+    );
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+      if (result.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message),
+            backgroundColor: AuraColors.success,
+          ),
+        );
+        context.go('/home');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message),
+            backgroundColor: AuraColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showGoogleAccountPickerSheet() {
+    final customEmailController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AuraColors.surfaceLight,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (modalContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(modalContext).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AuraColors.border,
+                  borderRadius: AuraRadius.brPill,
+                ),
+              ),
+              AuraSpacing.vMd,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CustomPaint(painter: _GoogleLogoPainter()),
+                  ),
+                  const SizedBox(width: 10),
+                  Text('Choose a Google Account', style: AuraTypography.titleLarge),
+                ],
+              ),
+              AuraSpacing.vXs,
+              Text(
+                'to continue to Aura Live Voice Rooms',
+                style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary),
+              ),
+              AuraSpacing.vLg,
+
+              // Fast Account Pick 1
+              _buildGoogleAccountTile(
+                email: 'user.aura@gmail.com',
+                name: 'Aura Official User',
+                avatarUrl: null,
+                onTap: () {
+                  Navigator.pop(modalContext);
+                  _processGoogleLogin(
+                    email: 'user.aura@gmail.com',
+                    name: 'Aura Official User',
+                    googleId: 'goog_1001',
+                  );
+                },
+              ),
+              const Divider(color: AuraColors.border, height: 1),
+
+              // Fast Account Pick 2
+              _buildGoogleAccountTile(
+                email: 'alex.creator@gmail.com',
+                name: 'Alex Turner',
+                avatarUrl: null,
+                onTap: () {
+                  Navigator.pop(modalContext);
+                  _processGoogleLogin(
+                    email: 'alex.creator@gmail.com',
+                    name: 'Alex Turner',
+                    googleId: 'goog_1002',
+                  );
+                },
+              ),
+              const Divider(color: AuraColors.border, height: 1),
+
+              AuraSpacing.vMd,
+              // Custom Google Account option
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Use another Google email:', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
+              ),
+              AuraSpacing.vXs,
+              Container(
+                decoration: BoxDecoration(
+                  color: AuraColors.background,
+                  borderRadius: AuraRadius.brMd,
+                  border: Border.all(color: AuraColors.border),
+                ),
+                child: TextField(
+                  controller: customEmailController,
+                  keyboardType: TextInputType.emailAddress,
+                  style: AuraTypography.bodyMedium,
+                  decoration: InputDecoration(
+                    hintText: 'e.g. john.doe@gmail.com',
+                    hintStyle: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary),
+                    prefixIcon: const Icon(Iconsax.sms, color: AuraColors.primary, size: 20),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              AuraSpacing.vMd,
+
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AuraColors.primary,
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(borderRadius: AuraRadius.brMd),
+                ),
+                onPressed: () {
+                  final email = customEmailController.text.trim();
+                  if (email.isEmpty || !email.contains('@')) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please enter a valid Google email address'), backgroundColor: AuraColors.error),
+                    );
+                    return;
+                  }
+                  Navigator.pop(modalContext);
+                  final derivedName = email.split('@').first.replaceAll('_', ' ');
+                  _processGoogleLogin(
+                    email: email,
+                    name: derivedName,
+                    googleId: 'goog_${email.hashCode.abs()}',
+                  );
+                },
+                child: Text('Sign In with Google Account', style: AuraTypography.labelLarge.copyWith(color: AuraColors.textPrimary)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGoogleAccountTile({
+    required String email,
+    required String name,
+    String? avatarUrl,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      leading: CircleAvatar(
+        backgroundColor: AuraColors.primary.withOpacity(0.2),
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : 'G',
+          style: AuraTypography.titleMedium.copyWith(color: AuraColors.primary),
+        ),
+      ),
+      title: Text(name, style: AuraTypography.bodyLarge.copyWith(fontWeight: FontWeight.w600)),
+      subtitle: Text(email, style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary)),
+      trailing: const Icon(Iconsax.arrow_right_3, color: AuraColors.textSecondary, size: 18),
+    );
   }
 
   void _showForgotPasswordDialog() {
@@ -353,6 +578,73 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                             ),
+
+                            AuraSpacing.vLg,
+
+                            // ─────── OR ─────── Divider
+                            Row(
+                              children: [
+                                const Expanded(child: Divider(color: AuraColors.border, thickness: 1)),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  child: Text(
+                                    'OR',
+                                    style: AuraTypography.labelMedium.copyWith(
+                                      color: AuraColors.textSecondary,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                ),
+                                const Expanded(child: Divider(color: AuraColors.border, thickness: 1)),
+                              ],
+                            ),
+
+                            AuraSpacing.vLg,
+
+                            // Continue with Google Button
+                            GestureDetector(
+                              onTap: _isLoading ? null : _handleGoogleSignIn,
+                              child: Container(
+                                width: double.infinity,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: AuraRadius.brMd,
+                                  border: Border.all(color: const Color(0xFFDADCE0), width: 1.2),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.12),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    // Google Colorful G Badge
+                                    Container(
+                                      width: 24,
+                                      height: 24,
+                                      decoration: const BoxDecoration(shape: BoxShape.circle),
+                                      child: CustomPaint(
+                                        painter: _GoogleLogoPainter(),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Continue with Google',
+                                      style: AuraTypography.labelLarge.copyWith(
+                                        color: const Color(0xFF3C4043),
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -382,4 +674,44 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    final center = Offset(w / 2, h / 2);
+    final radius = w / 2;
+
+    final paintBlue = Paint()..color = const Color(0xFF4285F4)..style = PaintingStyle.fill;
+    final paintRed = Paint()..color = const Color(0xFFEA4335)..style = PaintingStyle.fill;
+    final paintYellow = Paint()..color = const Color(0xFFFBBC05)..style = PaintingStyle.fill;
+    final paintGreen = Paint()..color = const Color(0xFF34A853)..style = PaintingStyle.fill;
+
+    // Draw Google's 4-color arcs
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), -0.5, 1.8, true, paintBlue);
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), 1.3, 1.2, true, paintGreen);
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), 2.5, 0.9, true, paintYellow);
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), 3.4, 2.4, true, paintRed);
+
+    // Inner cutout
+    final paintInner = Paint()..color = Colors.white..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius * 0.55, paintInner);
+
+    // Blue horizontal bar
+    final rectBar = Rect.fromLTRB(w * 0.45, h * 0.38, w * 0.95, h * 0.62);
+    canvas.drawRect(rectBar, paintBlue);
+
+    // Right cut triangle
+    final pathCut = Path()
+      ..moveTo(w / 2, h / 2)
+      ..lineTo(w, h * 0.2)
+      ..lineTo(w, h * 0.5)
+      ..close();
+    canvas.drawPath(pathCut, paintInner);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

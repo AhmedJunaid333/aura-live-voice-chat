@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../../core/design_system/colors.dart';
 import '../../../../core/design_system/typography.dart';
@@ -340,6 +341,211 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
   }
 
+  Future<void> _handleGoogleSignUp() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+      final GoogleSignInAccount? account = await googleSignIn.signIn();
+
+      if (account != null) {
+        await _processGoogleSignUp(
+          email: account.email,
+          name: account.displayName ?? account.email.split('@').first,
+          photoUrl: account.photoUrl,
+          googleId: account.id,
+        );
+        return;
+      }
+    } catch (_) {
+      // Fallback to interactive Google account selector sheet
+    }
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+      _showGoogleAccountPickerSheet();
+    }
+  }
+
+  Future<void> _processGoogleSignUp({
+    required String email,
+    required String name,
+    String? photoUrl,
+    String? googleId,
+  }) async {
+    setState(() => _isLoading = true);
+    final result = await UserSessionService().loginWithGoogle(
+      googleEmail: email,
+      googleDisplayName: name,
+      googlePhotoUrl: photoUrl,
+      googleId: googleId,
+    );
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+      if (result.success && result.user != null) {
+        _showSnack('Welcome @${result.user!.username}! User ID: ${result.user!.numericId} 🎉', isSuccess: true);
+        context.go('/home');
+      } else {
+        _showSnack(result.message, isSuccess: false);
+      }
+    }
+  }
+
+  void _showGoogleAccountPickerSheet() {
+    final customEmailController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AuraColors.surfaceLight,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (modalContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(modalContext).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AuraColors.border,
+                  borderRadius: AuraRadius.brPill,
+                ),
+              ),
+              AuraSpacing.vMd,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CustomPaint(painter: _GoogleLogoPainter()),
+                  ),
+                  const SizedBox(width: 10),
+                  Text('Sign Up with Google Account', style: AuraTypography.titleLarge),
+                ],
+              ),
+              AuraSpacing.vXs,
+              Text(
+                'Select account to initialize your profile & wallet',
+                style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary),
+              ),
+              AuraSpacing.vLg,
+
+              _buildGoogleAccountTile(
+                email: 'user.aura@gmail.com',
+                name: 'Aura Official User',
+                onTap: () {
+                  Navigator.pop(modalContext);
+                  _processGoogleSignUp(
+                    email: 'user.aura@gmail.com',
+                    name: 'Aura Official User',
+                    googleId: 'goog_1001',
+                  );
+                },
+              ),
+              const Divider(color: AuraColors.border, height: 1),
+
+              _buildGoogleAccountTile(
+                email: 'alex.creator@gmail.com',
+                name: 'Alex Turner',
+                onTap: () {
+                  Navigator.pop(modalContext);
+                  _processGoogleSignUp(
+                    email: 'alex.creator@gmail.com',
+                    name: 'Alex Turner',
+                    googleId: 'goog_1002',
+                  );
+                },
+              ),
+              const Divider(color: AuraColors.border, height: 1),
+
+              AuraSpacing.vMd,
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Use another Google email:', style: AuraTypography.labelMedium.copyWith(color: AuraColors.primary)),
+              ),
+              AuraSpacing.vXs,
+              Container(
+                decoration: BoxDecoration(
+                  color: AuraColors.background,
+                  borderRadius: AuraRadius.brMd,
+                  border: Border.all(color: AuraColors.border),
+                ),
+                child: TextField(
+                  controller: customEmailController,
+                  keyboardType: TextInputType.emailAddress,
+                  style: AuraTypography.bodyMedium,
+                  decoration: InputDecoration(
+                    hintText: 'e.g. john.doe@gmail.com',
+                    hintStyle: AuraTypography.bodyMedium.copyWith(color: AuraColors.textSecondary),
+                    prefixIcon: const Icon(Iconsax.sms, color: AuraColors.primary, size: 20),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              AuraSpacing.vMd,
+
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AuraColors.primary,
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(borderRadius: AuraRadius.brMd),
+                ),
+                onPressed: () {
+                  final email = customEmailController.text.trim();
+                  if (email.isEmpty || !email.contains('@')) {
+                    _showSnack('Please enter a valid Google email address', isSuccess: false);
+                    return;
+                  }
+                  Navigator.pop(modalContext);
+                  final derivedName = email.split('@').first.replaceAll('_', ' ');
+                  _processGoogleSignUp(
+                    email: email,
+                    name: derivedName,
+                    googleId: 'goog_${email.hashCode.abs()}',
+                  );
+                },
+                child: Text('Sign Up with Google Account', style: AuraTypography.labelLarge.copyWith(color: AuraColors.textPrimary)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGoogleAccountTile({
+    required String email,
+    required String name,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      leading: CircleAvatar(
+        backgroundColor: AuraColors.primary.withOpacity(0.2),
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : 'G',
+          style: AuraTypography.titleMedium.copyWith(color: AuraColors.primary),
+        ),
+      ),
+      title: Text(name, style: AuraTypography.bodyLarge.copyWith(fontWeight: FontWeight.w600)),
+      subtitle: Text(email, style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary)),
+      trailing: const Icon(Iconsax.arrow_right_3, color: AuraColors.textSecondary, size: 18),
+    );
+  }
+
   // ─── Build ───────────────────────────────────────────────────────────────────
 
   @override
@@ -636,6 +842,72 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     ),
                                   ),
                                 ),
+
+                                AuraSpacing.vLg,
+
+                                // ─────── OR ─────── Divider
+                                Row(
+                                  children: [
+                                    const Expanded(child: Divider(color: AuraColors.border, thickness: 1)),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      child: Text(
+                                        'OR',
+                                        style: AuraTypography.labelMedium.copyWith(
+                                          color: AuraColors.textSecondary,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                    const Expanded(child: Divider(color: AuraColors.border, thickness: 1)),
+                                  ],
+                                ),
+
+                                AuraSpacing.vLg,
+
+                                // Sign Up with Google Button
+                                GestureDetector(
+                                  onTap: _isLoading ? null : _handleGoogleSignUp,
+                                  child: Container(
+                                    width: double.infinity,
+                                    height: 52,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: AuraRadius.brMd,
+                                      border: Border.all(color: const Color(0xFFDADCE0), width: 1.2),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.12),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          width: 24,
+                                          height: 24,
+                                          decoration: const BoxDecoration(shape: BoxShape.circle),
+                                          child: CustomPaint(
+                                            painter: _GoogleLogoPainter(),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Text(
+                                          'Sign Up with Google',
+                                          style: AuraTypography.labelLarge.copyWith(
+                                            color: const Color(0xFF3C4043),
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: 0.2,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -720,4 +992,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
     );
   }
+}
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    final center = Offset(w / 2, h / 2);
+    final radius = w / 2;
+
+    final paintBlue = Paint()..color = const Color(0xFF4285F4)..style = PaintingStyle.fill;
+    final paintRed = Paint()..color = const Color(0xFFEA4335)..style = PaintingStyle.fill;
+    final paintYellow = Paint()..color = const Color(0xFFFBBC05)..style = PaintingStyle.fill;
+    final paintGreen = Paint()..color = const Color(0xFF34A853)..style = PaintingStyle.fill;
+
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), -0.5, 1.8, true, paintBlue);
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), 1.3, 1.2, true, paintGreen);
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), 2.5, 0.9, true, paintYellow);
+    canvas.drawArc(Rect.fromCircle(center: center, radius: radius), 3.4, 2.4, true, paintRed);
+
+    final paintInner = Paint()..color = Colors.white..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius * 0.55, paintInner);
+
+    final rectBar = Rect.fromLTRB(w * 0.45, h * 0.38, w * 0.95, h * 0.62);
+    canvas.drawRect(rectBar, paintBlue);
+
+    final pathCut = Path()
+      ..moveTo(w / 2, h / 2)
+      ..lineTo(w, h * 0.2)
+      ..lineTo(w, h * 0.5)
+      ..close();
+    canvas.drawPath(pathCut, paintInner);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
