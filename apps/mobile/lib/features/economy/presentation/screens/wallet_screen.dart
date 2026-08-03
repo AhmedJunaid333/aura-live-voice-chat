@@ -664,8 +664,9 @@ class _WalletScreenState extends State<WalletScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Flexible(child: Text('User ID: ${user?.numericId ?? 100001}', overflow: TextOverflow.ellipsis, style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary))),
-                            Text('Recharge Total: 0 🪙', style: AuraTypography.labelLarge.copyWith(color: AuraColors.textPrimary)),
+                            Flexible(child: Text('User ID: ${user?.numericId ?? ""}', overflow: TextOverflow.ellipsis, style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary))),
+                            const SizedBox(width: 8),
+                            Flexible(child: Text('Recharge Total: 0 🪙', overflow: TextOverflow.ellipsis, style: AuraTypography.labelLarge.copyWith(color: AuraColors.textPrimary))),
                           ],
                         ),
                       ],
@@ -701,7 +702,13 @@ class _WalletScreenState extends State<WalletScreen> {
                         children: [
                           Row(
                             children: [
-                              Text('Offline Purchased', style: AuraTypography.titleLarge.copyWith(color: AuraColors.textPrimary)),
+                              Flexible(
+                                child: Text(
+                                  'Offline Purchased',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AuraTypography.titleLarge.copyWith(color: AuraColors.textPrimary),
+                                ),
+                              ),
                               const SizedBox(width: 6),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -740,7 +747,7 @@ class _WalletScreenState extends State<WalletScreen> {
               crossAxisCount: 2,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              childAspectRatio: 1.5,
+              childAspectRatio: 1.3,
               children: [
                 _buildWalletCard(
                   icon: Iconsax.add_circle,
@@ -834,11 +841,26 @@ class _WalletScreenState extends State<WalletScreen> {
                 color: color.withValues(alpha: 0.15),
                 borderRadius: AuraRadius.brSm,
               ),
-              child: Icon(icon, color: color, size: 22),
+              child: Icon(icon, color: color, size: 20),
             ),
-            const SizedBox(height: 8),
-            Text(title, style: AuraTypography.titleMedium.copyWith(color: AuraColors.textPrimary)),
-            Text(subtitle, style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary)),
+            const SizedBox(height: 6),
+            Flexible(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AuraTypography.titleMedium.copyWith(color: AuraColors.textPrimary),
+              ),
+            ),
+            const SizedBox(height: 2),
+            Flexible(
+              child: Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AuraTypography.bodySmall.copyWith(color: AuraColors.textSecondary),
+              ),
+            ),
           ],
         ),
       ),
