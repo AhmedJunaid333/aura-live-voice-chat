@@ -38,6 +38,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
 
   // Username live availability checking state
   Timer? _debounceTimer;
@@ -342,25 +343,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _handleGoogleSignUp() async {
-    setState(() => _isLoading = true);
+    if (_isGoogleLoading || _isLoading) return;
+    setState(() => _isGoogleLoading = true);
 
-    final authResult = await GoogleAuthService().signInWithGoogle();
+    try {
+      final authResult = await GoogleAuthService().signInWithGoogle();
 
-    if (authResult.success) {
-      await _processGoogleSignUp(
-        email: authResult.email ?? 'user@gmail.com',
-        name: authResult.displayName ?? 'Google User',
-        photoUrl: authResult.photoUrl,
-        googleId: authResult.googleId,
-      );
-      return;
-    }
+      if (authResult.success) {
+        await _processGoogleSignUp(
+          email: authResult.email ?? 'user@gmail.com',
+          name: authResult.displayName ?? 'Google User',
+          photoUrl: authResult.photoUrl,
+          googleId: authResult.googleId,
+        );
+        return;
+      }
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-      if (authResult.message.contains('No internet')) {
-        _showSnack(authResult.message, isSuccess: false);
-      } else {
+      if (mounted) {
+        setState(() => _isGoogleLoading = false);
+        if (authResult.message.contains('No internet')) {
+          _showSnack(authResult.message, isSuccess: false);
+        } else {
+          _showGoogleAccountPickerSheet();
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isGoogleLoading = false);
         _showGoogleAccountPickerSheet();
       }
     }
@@ -372,7 +381,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     String? photoUrl,
     String? googleId,
   }) async {
-    setState(() => _isLoading = true);
+    if (!mounted) return;
+    setState(() => _isGoogleLoading = true);
+
     final result = await UserSessionService().loginWithGoogle(
       googleEmail: email,
       googleDisplayName: name,
@@ -381,7 +392,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
 
     if (mounted) {
-      setState(() => _isLoading = false);
+      setState(() => _isGoogleLoading = false);
       if (result.success && result.user != null) {
         _showSnack('Welcome @${result.user!.username}! User ID: ${result.user!.numericId} 🎉', isSuccess: true);
         context.go('/home');
@@ -867,7 +878,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                 // Sign Up with Google Button
                                 GestureDetector(
-                                  onTap: _isLoading ? null : _handleGoogleSignUp,
+                                  onTap: (_isLoading || _isGoogleLoading) ? null : _handleGoogleSignUp,
                                   child: Container(
                                     width: double.infinity,
                                     height: 52,
@@ -883,27 +894,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                         ),
                                       ],
                                     ),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Container(
-                                          width: 24,
-                                          height: 24,
-                                          decoration: const BoxDecoration(shape: BoxShape.circle),
-                                          child: CustomPaint(
-                                            painter: _GoogleLogoPainter(),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          'Sign Up with Google',
-                                          style: AuraTypography.labelLarge.copyWith(
-                                            color: const Color(0xFF3C4043),
-                                            fontWeight: FontWeight.w600,
-                                            letterSpacing: 0.2,
-                                          ),
-                                        ),
-                                      ],
+                                    child: Center(
+                                      child: _isGoogleLoading
+                                          ? const SizedBox(
+                                              width: 22,
+                                              height: 22,
+                                              child: CircularProgressIndicator(
+                                                color: Color(0xFF4285F4),
+                                                strokeWidth: 2.5,
+                                              ),
+                                            )
+                                          : Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Container(
+                                                  width: 24,
+                                                  height: 24,
+                                                  decoration: const BoxDecoration(shape: BoxShape.circle),
+                                                  child: CustomPaint(
+                                                    painter: _GoogleLogoPainter(),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Text(
+                                                  'Sign Up with Google',
+                                                  style: AuraTypography.labelLarge.copyWith(
+                                                    color: const Color(0xFF3C4043),
+                                                    fontWeight: FontWeight.w600,
+                                                    letterSpacing: 0.2,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                     ),
                                   ),
                                 ),

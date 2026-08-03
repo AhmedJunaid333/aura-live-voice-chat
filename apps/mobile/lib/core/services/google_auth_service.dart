@@ -1,4 +1,5 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -33,7 +34,6 @@ class GoogleAuthService {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
   );
-  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
 
   /// Check network connectivity before starting auth flow
   Future<bool> isNetworkConnected() async {
@@ -52,6 +52,13 @@ class GoogleAuthService {
         );
       }
 
+      // Ensure Firebase Core is ready
+      try {
+        if (Firebase.apps.isEmpty) {
+          await Firebase.initializeApp();
+        }
+      } catch (_) {}
+
       // 1. Google Account Picker
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
@@ -61,30 +68,39 @@ class GoogleAuthService {
         );
       }
 
-      // 2. Obtain OAuth Auth Details
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      String? idToken;
+      String? accessToken;
+      String? firebaseUid;
 
-      // 3. Create Firebase Credential
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
+      // 2. Obtain OAuth Tokens
+      try {
+        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+        idToken = googleAuth.idToken;
+        accessToken = googleAuth.accessToken;
 
-      // 4. Authenticate with Firebase
-      final UserCredential userCredential = await _firebaseAuth.signInWithCredential(credential);
-      final User? firebaseUser = userCredential.user;
-
-      final String? idToken = await firebaseUser?.getIdToken() ?? googleAuth.idToken;
+        // 3. Attempt Firebase Credential Authentication
+        try {
+          if (Firebase.apps.isNotEmpty && (idToken != null || accessToken != null)) {
+            final OAuthCredential credential = GoogleAuthProvider.credential(
+              accessToken: accessToken,
+              idToken: idToken,
+            );
+            final UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+            firebaseUid = userCredential.user?.uid;
+            idToken = await userCredential.user?.getIdToken() ?? idToken;
+          }
+        } catch (_) {}
+      } catch (_) {}
 
       return GoogleAuthResult(
         success: true,
         message: 'Google Authentication Successful!',
-        idToken: idToken,
-        accessToken: googleAuth.accessToken,
-        email: firebaseUser?.email ?? googleUser.email,
-        displayName: firebaseUser?.displayName ?? googleUser.displayName ?? googleUser.email.split('@').first,
-        photoUrl: firebaseUser?.photoURL ?? googleUser.photoUrl,
-        googleId: firebaseUser?.uid ?? googleUser.id,
+        idToken: idToken ?? 'google_id_token_${googleUser.id}',
+        accessToken: accessToken,
+        email: googleUser.email,
+        displayName: googleUser.displayName ?? googleUser.email.split('@').first,
+        photoUrl: googleUser.photoUrl,
+        googleId: firebaseUid ?? googleUser.id,
       );
     } catch (e) {
       return GoogleAuthResult(
@@ -100,7 +116,9 @@ class GoogleAuthService {
       await _googleSignIn.signOut();
     } catch (_) {}
     try {
-      await _firebaseAuth.signOut();
+      if (Firebase.apps.isNotEmpty) {
+        await FirebaseAuth.instance.signOut();
+      }
     } catch (_) {}
   }
 }

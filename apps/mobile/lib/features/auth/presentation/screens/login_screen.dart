@@ -25,6 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _showPassword = false;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
 
   @override
   void dispose() {
@@ -109,28 +110,35 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleGoogleSignIn() async {
-    setState(() => _isLoading = true);
+    if (_isGoogleLoading || _isLoading) return;
+    setState(() => _isGoogleLoading = true);
 
-    final authResult = await GoogleAuthService().signInWithGoogle();
+    try {
+      final authResult = await GoogleAuthService().signInWithGoogle();
 
-    if (authResult.success) {
-      await _processGoogleLogin(
-        email: authResult.email ?? 'user@gmail.com',
-        name: authResult.displayName ?? 'Google User',
-        photoUrl: authResult.photoUrl,
-        googleId: authResult.googleId,
-      );
-      return;
-    }
-
-    if (mounted) {
-      setState(() => _isLoading = false);
-      if (authResult.message.contains('No internet')) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(authResult.message), backgroundColor: AuraColors.error),
+      if (authResult.success) {
+        await _processGoogleLogin(
+          email: authResult.email ?? 'user@gmail.com',
+          name: authResult.displayName ?? 'Google User',
+          photoUrl: authResult.photoUrl,
+          googleId: authResult.googleId,
         );
-      } else {
-        // SDK fallback sheet for dev/simulator
+        return;
+      }
+
+      if (mounted) {
+        setState(() => _isGoogleLoading = false);
+        if (authResult.message.contains('No internet')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(authResult.message), backgroundColor: AuraColors.error),
+          );
+        } else {
+          _showGoogleAccountPickerSheet();
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isGoogleLoading = false);
         _showGoogleAccountPickerSheet();
       }
     }
@@ -142,7 +150,9 @@ class _LoginScreenState extends State<LoginScreen> {
     String? photoUrl,
     String? googleId,
   }) async {
-    setState(() => _isLoading = true);
+    if (!mounted) return;
+    setState(() => _isGoogleLoading = true);
+
     final result = await UserSessionService().loginWithGoogle(
       googleEmail: email,
       googleDisplayName: name,
@@ -151,7 +161,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     if (mounted) {
-      setState(() => _isLoading = false);
+      setState(() => _isGoogleLoading = false);
       if (result.success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -605,7 +615,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                             // Continue with Google Button
                             GestureDetector(
-                              onTap: _isLoading ? null : _handleGoogleSignIn,
+                              onTap: (_isLoading || _isGoogleLoading) ? null : _handleGoogleSignIn,
                               child: Container(
                                 width: double.infinity,
                                 height: 52,
@@ -621,28 +631,39 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   ],
                                 ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    // Google Colorful G Badge
-                                    Container(
-                                      width: 24,
-                                      height: 24,
-                                      decoration: const BoxDecoration(shape: BoxShape.circle),
-                                      child: CustomPaint(
-                                        painter: _GoogleLogoPainter(),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      'Continue with Google',
-                                      style: AuraTypography.labelLarge.copyWith(
-                                        color: const Color(0xFF3C4043),
-                                        fontWeight: FontWeight.w600,
-                                        letterSpacing: 0.2,
-                                      ),
-                                    ),
-                                  ],
+                                child: Center(
+                                  child: _isGoogleLoading
+                                      ? const SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                            color: Color(0xFF4285F4),
+                                            strokeWidth: 2.5,
+                                          ),
+                                        )
+                                      : Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            // Google Colorful G Badge
+                                            Container(
+                                              width: 24,
+                                              height: 24,
+                                              decoration: const BoxDecoration(shape: BoxShape.circle),
+                                              child: CustomPaint(
+                                                painter: _GoogleLogoPainter(),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Text(
+                                              'Continue with Google',
+                                              style: AuraTypography.labelLarge.copyWith(
+                                                color: const Color(0xFF3C4043),
+                                                fontWeight: FontWeight.w600,
+                                                letterSpacing: 0.2,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                 ),
                               ),
                             ),
