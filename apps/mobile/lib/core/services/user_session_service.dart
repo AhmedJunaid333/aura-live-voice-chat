@@ -394,6 +394,148 @@ class UserSessionService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> addCoins(int coinAmount) async {
+    if (_currentUser == null) return;
+
+    int newCoins = _currentUser!.coins + coinAmount;
+
+    _currentUser = UserModel(
+      numericId: _currentUser!.numericId,
+      uuid: _currentUser!.uuid,
+      username: _currentUser!.username,
+      displayName: _currentUser!.displayName,
+      email: _currentUser!.email,
+      avatarUrl: _currentUser!.avatarUrl,
+      gender: _currentUser!.gender,
+      country: _currentUser!.country,
+      dob: _currentUser!.dob,
+      bio: _currentUser!.bio,
+      userCode: _currentUser!.userCode,
+      level: _currentUser!.level,
+      currentXp: _currentUser!.currentXp,
+      nextLevelXp: _currentUser!.nextLevelXp,
+      vip: _currentUser!.vip,
+      coins: newCoins,
+      diamonds: _currentUser!.diamonds,
+      beans: _currentUser!.beans,
+      followers: _currentUser!.followers,
+      following: _currentUser!.following,
+      friends: _currentUser!.friends,
+      visitors: _currentUser!.visitors,
+      giftsReceived: _currentUser!.giftsReceived,
+      giftsSent: _currentUser!.giftsSent,
+      roomsCreated: _currentUser!.roomsCreated,
+      totalLiveMinutes: _currentUser!.totalLiveMinutes,
+      pkWins: _currentUser!.pkWins,
+      pkLoss: _currentUser!.pkLoss,
+      family: _currentUser!.family,
+      agency: _currentUser!.agency,
+      hostLevel: _currentUser!.hostLevel,
+      hostXp: _currentUser!.hostXp,
+      creatorRank: _currentUser!.creatorRank,
+      leaderboardRank: _currentUser!.leaderboardRank,
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('aura_current_user', jsonEncode(_currentUser!.toJson()));
+    notifyListeners();
+  }
+
+  Future<bool> deductCoins(int coinAmount) async {
+    if (_currentUser == null || _currentUser!.coins < coinAmount) return false;
+
+    int newCoins = _currentUser!.coins - coinAmount;
+
+    _currentUser = UserModel(
+      numericId: _currentUser!.numericId,
+      uuid: _currentUser!.uuid,
+      username: _currentUser!.username,
+      displayName: _currentUser!.displayName,
+      email: _currentUser!.email,
+      avatarUrl: _currentUser!.avatarUrl,
+      gender: _currentUser!.gender,
+      country: _currentUser!.country,
+      dob: _currentUser!.dob,
+      bio: _currentUser!.bio,
+      userCode: _currentUser!.userCode,
+      level: _currentUser!.level,
+      currentXp: _currentUser!.currentXp,
+      nextLevelXp: _currentUser!.nextLevelXp,
+      vip: _currentUser!.vip,
+      coins: newCoins,
+      diamonds: _currentUser!.diamonds,
+      beans: _currentUser!.beans,
+      followers: _currentUser!.followers,
+      following: _currentUser!.following,
+      friends: _currentUser!.friends,
+      visitors: _currentUser!.visitors,
+      giftsReceived: _currentUser!.giftsReceived,
+      giftsSent: _currentUser!.giftsSent,
+      roomsCreated: _currentUser!.roomsCreated,
+      totalLiveMinutes: _currentUser!.totalLiveMinutes,
+      pkWins: _currentUser!.pkWins,
+      pkLoss: _currentUser!.pkLoss,
+      family: _currentUser!.family,
+      agency: _currentUser!.agency,
+      hostLevel: _currentUser!.hostLevel,
+      hostXp: _currentUser!.hostXp,
+      creatorRank: _currentUser!.creatorRank,
+      leaderboardRank: _currentUser!.leaderboardRank,
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('aura_current_user', jsonEncode(_currentUser!.toJson()));
+    notifyListeners();
+    return true;
+  }
+
+  Future<void> addDiamonds(int diamondAmount) async {
+    if (_currentUser == null) return;
+
+    int newDiamonds = _currentUser!.diamonds + diamondAmount;
+
+    _currentUser = UserModel(
+      numericId: _currentUser!.numericId,
+      uuid: _currentUser!.uuid,
+      username: _currentUser!.username,
+      displayName: _currentUser!.displayName,
+      email: _currentUser!.email,
+      avatarUrl: _currentUser!.avatarUrl,
+      gender: _currentUser!.gender,
+      country: _currentUser!.country,
+      dob: _currentUser!.dob,
+      bio: _currentUser!.bio,
+      userCode: _currentUser!.userCode,
+      level: _currentUser!.level,
+      currentXp: _currentUser!.currentXp,
+      nextLevelXp: _currentUser!.nextLevelXp,
+      vip: _currentUser!.vip,
+      coins: _currentUser!.coins,
+      diamonds: newDiamonds,
+      beans: _currentUser!.beans,
+      followers: _currentUser!.followers,
+      following: _currentUser!.following,
+      friends: _currentUser!.friends,
+      visitors: _currentUser!.visitors,
+      giftsReceived: _currentUser!.giftsReceived,
+      giftsSent: _currentUser!.giftsSent,
+      roomsCreated: _currentUser!.roomsCreated,
+      totalLiveMinutes: _currentUser!.totalLiveMinutes,
+      pkWins: _currentUser!.pkWins,
+      pkLoss: _currentUser!.pkLoss,
+      family: _currentUser!.family,
+      agency: _currentUser!.agency,
+      hostLevel: _currentUser!.hostLevel,
+      hostXp: _currentUser!.hostXp,
+      creatorRank: _currentUser!.creatorRank,
+      leaderboardRank: _currentUser!.leaderboardRank,
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('aura_current_user', jsonEncode(_currentUser!.toJson()));
+    notifyListeners();
+  }
+
   Future<void> logout() async {
     _currentUser = null;
     _jwtToken = null;
