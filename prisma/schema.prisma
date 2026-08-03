@@ -157,6 +157,11 @@ enum PaymentProviderType {
   JAZZCASH
 }
 
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
+
 // ============================================================================
 // ADMIN & RBAC PERMISSION SYSTEM
 // ============================================================================
@@ -264,6 +269,13 @@ model User {
   bio              String?
   gender           Gender       @default(PREFER_NOT_TO_SAY)
   country          String       @default("Pakistan")
+  provider         AuthProvider @default(LOCAL)
+  googleId         String?      @unique
+  emailVerified    Boolean      @default(false)
+  firstName        String?
+  lastName         String?
+  lastLogin        DateTime?
+  deviceId         String?
   level            Int          @default(1)
   xp               BigInt       @default(0)
   vipTier          Int          @default(0)

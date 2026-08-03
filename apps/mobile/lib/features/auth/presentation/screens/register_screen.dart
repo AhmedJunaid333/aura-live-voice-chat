@@ -15,6 +15,7 @@ import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
 import '../../../../core/design_system/animations.dart';
 import '../../../../core/services/user_session_service.dart';
+import '../../../../core/services/google_auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -344,26 +345,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _handleGoogleSignUp() async {
     setState(() => _isLoading = true);
 
-    try {
-      final GoogleSignIn googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
-      final GoogleSignInAccount? account = await googleSignIn.signIn();
+    final authResult = await GoogleAuthService().signInWithGoogle();
 
-      if (account != null) {
-        await _processGoogleSignUp(
-          email: account.email,
-          name: account.displayName ?? account.email.split('@').first,
-          photoUrl: account.photoUrl,
-          googleId: account.id,
-        );
-        return;
-      }
-    } catch (_) {
-      // Fallback to interactive Google account selector sheet
+    if (authResult.success) {
+      await _processGoogleSignUp(
+        email: authResult.email ?? 'user@gmail.com',
+        name: authResult.displayName ?? 'Google User',
+        photoUrl: authResult.photoUrl,
+        googleId: authResult.googleId,
+      );
+      return;
     }
 
     if (mounted) {
       setState(() => _isLoading = false);
-      _showGoogleAccountPickerSheet();
+      if (authResult.message.contains('No internet')) {
+        _showSnack(authResult.message, isSuccess: false);
+      } else {
+        _showGoogleAccountPickerSheet();
+      }
     }
   }
 

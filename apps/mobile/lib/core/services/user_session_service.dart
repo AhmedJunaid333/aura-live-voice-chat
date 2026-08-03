@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'secure_storage_service.dart';
+import 'google_auth_service.dart';
 
 /// Full Production Account Entity & Data Model according to Aura Live v1.0 Rules
 class UserModel {
@@ -206,16 +208,22 @@ class UserSessionService extends ChangeNotifier {
   bool get isAuthenticated => _currentUser != null;
 
   Future<void> initSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userJsonStr = prefs.getString('aura_current_user');
-    _jwtToken = prefs.getString('aura_jwt_token');
-    _refreshToken = prefs.getString('aura_refresh_token');
+    _jwtToken = await SecureStorageService().getJwtToken();
+    _refreshToken = await SecureStorageService().getRefreshToken();
+    _currentUser = await SecureStorageService().getCurrentUser();
 
-    if (userJsonStr != null) {
-      try {
-        _currentUser = UserModel.fromJson(jsonDecode(userJsonStr));
-      } catch (e) {
-        _currentUser = null;
+    if (_currentUser == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final userJsonStr = prefs.getString('aura_current_user');
+      _jwtToken ??= prefs.getString('aura_jwt_token');
+      _refreshToken ??= prefs.getString('aura_refresh_token');
+
+      if (userJsonStr != null) {
+        try {
+          _currentUser = UserModel.fromJson(jsonDecode(userJsonStr));
+        } catch (_) {
+          _currentUser = null;
+        }
       }
     }
     notifyListeners();
@@ -484,10 +492,17 @@ class UserSessionService extends ChangeNotifier {
     );
   }
 
-  Future<void> setCurrentUser(UserModel user, {String? token, String? refreshToken}) async {
+  Future<void> setCurrentUser(UserModel user, {String? token, String? refreshToken, AuthProviderType provider = AuthProviderType.LOCAL}) async {
     _currentUser = user;
     if (token != null) _jwtToken = token;
     if (refreshToken != null) _refreshToken = refreshToken;
+
+    await SecureStorageService().saveSession(
+      user: user,
+      jwtToken: _jwtToken ?? 'jwt_auth_${user.uuid}',
+      refreshToken: _refreshToken ?? 'refresh_auth_${user.uuid}',
+      provider: user.googleId != null ? AuthProviderType.GOOGLE : provider,
+    );
 
     await _saveCurrentUserToDatabase();
     notifyListeners();
@@ -763,10 +778,15 @@ class UserSessionService extends ChangeNotifier {
     _currentUser = null;
     _jwtToken = null;
     _refreshToken = null;
+
+    await GoogleAuthService().signOut();
+    await SecureStorageService().clearSession();
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('aura_current_user');
     await prefs.remove('aura_jwt_token');
     await prefs.remove('aura_refresh_token');
+
     notifyListeners();
   }
 }

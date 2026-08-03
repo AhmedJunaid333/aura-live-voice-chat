@@ -1,0 +1,42 @@
+{
+  "project_info": {
+    "project_number": "987654321098",
+    "project_id": "aura-live-voice",
+    "storage_bucket": "aura-live-voice.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:987654321098:android:a1b2c3d4e5f67890",
+        "android_client_info": {
+          "package_name": "com.auralive.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "987654321098-auraandroidclient.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.auralive.app",
+            "certificate_hash": "a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4"
+          }
+        },
+        {
+          "client_id": "987654321098-aurawebbackendclient.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAuraLiveAndroidApiKeySecret123"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

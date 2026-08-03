@@ -32,6 +32,22 @@ export interface SendOtpDto {
   type: 'REGISTER' | 'LOGIN' | 'PASSWORD_RESET' | 'PHONE_VERIFY';
 }
 
+export interface GoogleAuthRequestDto {
+  idToken: string;
+  email?: string;
+  displayName?: string;
+  photoUrl?: string;
+  googleId?: string;
+  deviceId?: string;
+}
+
+export interface LinkGoogleRequestDto {
+  userId: string;
+  googleId: string;
+  email: string;
+  idToken: string;
+}
+
 // ============================================================================
 // USER DTOs
 // ============================================================================

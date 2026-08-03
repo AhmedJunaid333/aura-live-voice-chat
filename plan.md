@@ -110,5 +110,5 @@ Building **Aura Live Voice Room** — a completely fresh, production-grade Live 
 
 ---
 
-## 📝 Change Log & Updates
 - **2026-07-30**: Initialized project repository `New-Live-App` for **Aura Live Voice Room**. Created root structure, `README.md`, and master `plan.md`. Completed Sprints 1, 2, 3, 4, 5, 6, 6.5, 7, and 8 (Version `v1.0.0-RC1` Release Candidate Ready).
+- **2026-08-03**: Added End-to-End Production Google Sign-In & Single Sign-On (SSO) Authentication task covering Firebase Auth, Google Sign In, Flutter Secure Storage, NestJS Token Verification, Account Linking, and Audit Logging.
