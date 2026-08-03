@@ -142,7 +142,7 @@ class UserModel {
       numericId: json['numericId'] ?? 100001,
       uuid: json['uuid'] ?? '',
       username: json['username'] ?? '',
-      displayName: json['displayName'] ?? json['username'] ?? 'Aura User',
+      displayName: json['displayName'] ?? json['username'] ?? '',
       email: json['email'],
       avatarUrl: json['avatarUrl'],
       gender: json['gender'] ?? 'PREFER_NOT_TO_SAY',
@@ -178,6 +178,14 @@ class UserModel {
   }
 }
 
+class LoginResult {
+  final bool success;
+  final String message;
+  final UserModel? user;
+
+  LoginResult({required this.success, required this.message, this.user});
+}
+
 class UserSessionService extends ChangeNotifier {
   static final UserSessionService _instance = UserSessionService._internal();
   factory UserSessionService() => _instance;
@@ -211,6 +219,7 @@ class UserSessionService extends ChangeNotifier {
   /// Create a fresh account based on Production Initialization Rules
   Future<UserModel> initializeNewAccount({
     required String username,
+    required String password,
     required String displayName,
     String? email,
     String? avatarUrl,
@@ -219,7 +228,7 @@ class UserSessionService extends ChangeNotifier {
     String? dob,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     // Auto-increment numeric ID counter starting from 100001
     int lastNumericId = prefs.getInt('aura_last_numeric_id') ?? 100000;
     int nextNumericId = lastNumericId + 1;
@@ -265,13 +274,91 @@ class UserSessionService extends ChangeNotifier {
       leaderboardRank: 'Unranked',
     );
 
-    await setCurrentUser(
-      newUser,
-      token: 'jwt_auth_token_${newUser.uuid}',
-      refreshToken: 'refresh_auth_token_${newUser.uuid}',
-    );
+    // Save user to persistent local database registry
+    await registerAccountInDatabase(user: newUser, password: password);
 
     return newUser;
+  }
+
+  /// Register user into persistent local database registry
+  Future<void> registerAccountInDatabase({
+    required UserModel user,
+    required String password,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final dbJson = prefs.getString('aura_user_database');
+    Map<String, dynamic> userDb = {};
+    if (dbJson != null) {
+      try {
+        userDb = jsonDecode(dbJson) as Map<String, dynamic>;
+      } catch (_) {}
+    }
+
+    final String usernameKey = user.username.toLowerCase();
+    userDb[usernameKey] = {
+      'password': password,
+      'userModel': user.toJson(),
+    };
+
+    await prefs.setString('aura_user_database', jsonEncode(userDb));
+    await setCurrentUser(
+      user,
+      token: 'jwt_auth_${user.uuid}',
+      refreshToken: 'refresh_auth_${user.uuid}',
+    );
+  }
+
+  /// Login user against persistent local database registry
+  Future<LoginResult> loginUser({
+    required String username,
+    required String password,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final dbJson = prefs.getString('aura_user_database');
+    if (dbJson == null) {
+      return LoginResult(
+        success: false,
+        message: 'No registered user accounts found. Please Sign Up first!',
+      );
+    }
+
+    Map<String, dynamic> userDb = {};
+    try {
+      userDb = jsonDecode(dbJson) as Map<String, dynamic>;
+    } catch (_) {}
+
+    final String usernameKey = username.toLowerCase();
+    if (!userDb.containsKey(usernameKey)) {
+      return LoginResult(
+        success: false,
+        message: 'Account "@$username" not found. Please create an account first!',
+      );
+    }
+
+    final accountData = userDb[usernameKey] as Map<String, dynamic>;
+    final storedPassword = accountData['password'] as String?;
+
+    if (storedPassword != password) {
+      return LoginResult(
+        success: false,
+        message: 'Incorrect password for "@$username". Please try again!',
+      );
+    }
+
+    final userJson = accountData['userModel'] as Map<String, dynamic>;
+    final user = UserModel.fromJson(userJson);
+
+    await setCurrentUser(
+      user,
+      token: 'jwt_auth_${user.uuid}',
+      refreshToken: 'refresh_auth_${user.uuid}',
+    );
+
+    return LoginResult(
+      success: true,
+      message: 'Welcome back @${user.username}! ✨',
+      user: user,
+    );
   }
 
   Future<void> setCurrentUser(UserModel user, {String? token, String? refreshToken}) async {
@@ -279,12 +366,30 @@ class UserSessionService extends ChangeNotifier {
     if (token != null) _jwtToken = token;
     if (refreshToken != null) _refreshToken = refreshToken;
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('aura_current_user', jsonEncode(user.toJson()));
-    if (token != null) await prefs.setString('aura_jwt_token', token);
-    if (refreshToken != null) await prefs.setString('aura_refresh_token', refreshToken);
-
+    await _saveCurrentUserToDatabase();
     notifyListeners();
+  }
+
+  Future<void> _saveCurrentUserToDatabase() async {
+    if (_currentUser == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('aura_current_user', jsonEncode(_currentUser!.toJson()));
+    if (_jwtToken != null) await prefs.setString('aura_jwt_token', _jwtToken!);
+    if (_refreshToken != null) await prefs.setString('aura_refresh_token', _refreshToken!);
+
+    final dbJson = prefs.getString('aura_user_database');
+    if (dbJson != null) {
+      try {
+        final Map<String, dynamic> userDb = jsonDecode(dbJson) as Map<String, dynamic>;
+        final String usernameKey = _currentUser!.username.toLowerCase();
+        if (userDb.containsKey(usernameKey)) {
+          final accountData = userDb[usernameKey] as Map<String, dynamic>;
+          accountData['userModel'] = _currentUser!.toJson();
+          userDb[usernameKey] = accountData;
+          await prefs.setString('aura_user_database', jsonEncode(userDb));
+        }
+      } catch (_) {}
+    }
   }
 
   Future<void> updateProfile({
@@ -334,8 +439,7 @@ class UserSessionService extends ChangeNotifier {
       leaderboardRank: _currentUser!.leaderboardRank,
     );
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('aura_current_user', jsonEncode(_currentUser!.toJson()));
+    await _saveCurrentUserToDatabase();
     notifyListeners();
   }
 
@@ -389,8 +493,7 @@ class UserSessionService extends ChangeNotifier {
       leaderboardRank: _currentUser!.leaderboardRank,
     );
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('aura_current_user', jsonEncode(_currentUser!.toJson()));
+    await _saveCurrentUserToDatabase();
     notifyListeners();
   }
 
@@ -436,8 +539,7 @@ class UserSessionService extends ChangeNotifier {
       leaderboardRank: _currentUser!.leaderboardRank,
     );
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('aura_current_user', jsonEncode(_currentUser!.toJson()));
+    await _saveCurrentUserToDatabase();
     notifyListeners();
   }
 
@@ -483,8 +585,7 @@ class UserSessionService extends ChangeNotifier {
       leaderboardRank: _currentUser!.leaderboardRank,
     );
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('aura_current_user', jsonEncode(_currentUser!.toJson()));
+    await _saveCurrentUserToDatabase();
     notifyListeners();
     return true;
   }
@@ -531,8 +632,7 @@ class UserSessionService extends ChangeNotifier {
       leaderboardRank: _currentUser!.leaderboardRank,
     );
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('aura_current_user', jsonEncode(_currentUser!.toJson()));
+    await _saveCurrentUserToDatabase();
     notifyListeners();
   }
 

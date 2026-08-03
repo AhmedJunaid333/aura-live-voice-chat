@@ -338,7 +338,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           Flexible(
                             child: Text(
-                              user?.displayName ?? user?.username ?? 'Aura User',
+                              (user?.displayName != null && user!.displayName.isNotEmpty) ? user.displayName : (user?.username ?? ''),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AuraTypography.titleLarge.copyWith(color: AuraColors.textPrimary),
@@ -348,7 +348,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const Icon(Icons.male, color: Colors.blueAccent, size: 18),
                         ],
                       ),
-                      Text('ID: ${user?.numericId ?? "100001"} | Code: ${user?.userCode ?? "AU100001"} | Age: ${user?.age ?? 18}', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
+                      Text('ID: ${user?.numericId ?? ""} | Code: ${user?.userCode ?? ""} | Age: ${user?.age ?? 18}', style: AuraTypography.labelSmall.copyWith(color: AuraColors.textSecondary)),
                       if (user?.bio != null) ...[
                         AuraSpacing.vXs,
                         Text(user!.bio, style: AuraTypography.bodySmall.copyWith(color: AuraColors.accent, fontStyle: FontStyle.italic)),

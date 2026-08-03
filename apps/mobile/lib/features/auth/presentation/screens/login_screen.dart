@@ -79,38 +79,30 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
 
-    // POST /api/v1/auth/login Simulation
-    Future.delayed(const Duration(milliseconds: 1000), () async {
+    Future.delayed(const Duration(milliseconds: 600), () async {
+      final result = await UserSessionService().loginUser(
+        username: username,
+        password: password,
+      );
+
       if (mounted) {
-        final numericId = 100000 + (username.hashCode.abs() % 899999);
-        final user = UserModel(
-          numericId: numericId,
-          uuid: 'usr_login_$numericId',
-          username: username,
-          displayName: username,
-          email: '$username@auralive.app',
-          avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&h=300&fit=crop&auto=format',
-          userCode: 'AU$numericId',
-          level: 5,
-          vip: 1,
-          coins: 1500,
-          diamonds: 320,
-          followers: 42,
-          following: 18,
-          visitors: 99,
-          bio: 'Voice room enthusiast | Aura Live Official 🎙️',
-        );
-
-        await UserSessionService().setCurrentUser(user, token: 'jwt_login_token_$numericId');
-
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Welcome back, @$username! ✨'),
-            backgroundColor: AuraColors.success,
-          ),
-        );
-        context.go('/home');
+        if (result.success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result.message),
+              backgroundColor: AuraColors.success,
+            ),
+          );
+          context.go('/home');
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result.message),
+              backgroundColor: AuraColors.error,
+            ),
+          );
+        }
       }
     });
   }

@@ -325,6 +325,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
       final newUser = await UserSessionService().initializeNewAccount(
         username: username,
+        password: password,
         displayName: displayName,
         email: email.isNotEmpty ? email : null,
         avatarUrl: _selectedImageFile?.path,
