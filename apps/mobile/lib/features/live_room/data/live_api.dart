@@ -14,6 +14,7 @@ class LiveApi {
       hostId: "u-host-101",
       hostName: "Aura Queen",
       category: "Music",
+      rtcChannelId: "channel_$roomId",
       maxSeats: 9,
       totalViewers: 450,
     );

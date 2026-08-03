@@ -324,7 +324,7 @@ class _GoLiveSheetState extends State<GoLiveSheet> {
                               final seatCount = selectedObj['seats'] as int;
 
                               Navigator.pop(context);
-                              context.push('/audio-meetup?seats=$seatCount');
+                              context.push('/live-room/host_${DateTime.now().millisecondsSinceEpoch}?seats=$seatCount&isHost=true');
                             },
                             icon: Icon(Iconsax.flash, color: AuraColors.white, size: 22),
                             label: Text(

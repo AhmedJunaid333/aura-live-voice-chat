@@ -8,7 +8,6 @@ import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/home/presentation/screens/explore_screen.dart';
 import '../../features/home/presentation/screens/live_feed_screen.dart';
 import '../../features/live_room/presentation/screens/live_room_screen.dart';
-import '../../features/live_room/presentation/screens/audio_meetup_screen.dart';
 import '../../features/economy/presentation/screens/wallet_screen.dart';
 import '../../features/economy/presentation/screens/vip_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
@@ -80,15 +79,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/live-room/:id',
         builder: (context, state) {
           final roomId = state.pathParameters['id'] ?? '1';
-          return LiveRoomScreen(roomId: roomId);
+          final seatsStr = state.uri.queryParameters['seats'];
+          final isHostStr = state.uri.queryParameters['isHost'];
+          final seatCount = seatsStr != null ? (int.tryParse(seatsStr) ?? 15) : 15;
+          final isHost = isHostStr == 'true';
+          return LiveRoomScreen(roomId: roomId, maxSeats: seatCount, isHost: isHost);
         },
       ),
       GoRoute(
         path: '/audio-meetup',
         builder: (context, state) {
           final seatsStr = state.uri.queryParameters['seats'];
-          final seatCount = seatsStr != null ? int.tryParse(seatsStr) ?? 10 : 10;
-          return AudioMeetupScreen(initialSeatCount: seatCount);
+          final isHostStr = state.uri.queryParameters['isHost'];
+          final seatCount = seatsStr != null ? (int.tryParse(seatsStr) ?? 10) : 10;
+          final isHost = isHostStr == 'true';
+          return LiveRoomScreen(
+            roomId: 'meetup_${DateTime.now().millisecondsSinceEpoch}',
+            maxSeats: seatCount,
+            isHost: isHost,
+          );
         },
       ),
       GoRoute(

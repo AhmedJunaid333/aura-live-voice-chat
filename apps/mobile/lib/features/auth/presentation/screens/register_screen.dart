@@ -14,7 +14,6 @@ import '../../../../core/design_system/shadows.dart';
 import '../../../../core/design_system/gradients.dart';
 import '../../../../core/design_system/animations.dart';
 import '../../../../core/services/user_session_service.dart';
-import '../../../../core/services/google_auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
