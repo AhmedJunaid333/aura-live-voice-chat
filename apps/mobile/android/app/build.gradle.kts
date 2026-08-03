@@ -20,7 +20,7 @@ val flutterVersionName = localProperties.getProperty("flutter.versionName") ?: "
 android {
     namespace = "com.auralive.app"
     compileSdk = 36
-    ndkVersion = "25.2.9519653"
+    ndkVersion = "26.3.11579264"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
