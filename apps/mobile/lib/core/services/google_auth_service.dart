@@ -59,12 +59,15 @@ class GoogleAuthService {
         }
       } catch (_) {}
 
-      // 1. Google Account Picker
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      // 1. Google Account Picker with 3.5s timeout protection
+      final GoogleSignInAccount? googleUser = await _googleSignIn
+          .signIn()
+          .timeout(const Duration(milliseconds: 3500), onTimeout: () => null);
+
       if (googleUser == null) {
         return GoogleAuthResult(
           success: false,
-          message: 'Google Sign-In was cancelled by user.',
+          message: 'Google Sign-In prompt timed out or was cancelled by user.',
         );
       }
 

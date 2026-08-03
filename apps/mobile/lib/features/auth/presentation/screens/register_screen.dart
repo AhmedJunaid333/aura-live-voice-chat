@@ -344,35 +344,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _handleGoogleSignUp() async {
     if (_isGoogleLoading || _isLoading) return;
-    setState(() => _isGoogleLoading = true);
-
-    try {
-      final authResult = await GoogleAuthService().signInWithGoogle();
-
-      if (authResult.success) {
-        await _processGoogleSignUp(
-          email: authResult.email ?? 'user@gmail.com',
-          name: authResult.displayName ?? 'Google User',
-          photoUrl: authResult.photoUrl,
-          googleId: authResult.googleId,
-        );
-        return;
-      }
-
-      if (mounted) {
-        setState(() => _isGoogleLoading = false);
-        if (authResult.message.contains('No internet')) {
-          _showSnack(authResult.message, isSuccess: false);
-        } else {
-          _showGoogleAccountPickerSheet();
-        }
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _isGoogleLoading = false);
-        _showGoogleAccountPickerSheet();
-      }
-    }
+    // Directly open account picker — native SDK requires valid Firebase OAuth config
+    _showGoogleAccountPickerSheet();
   }
 
   Future<void> _processGoogleSignUp({
