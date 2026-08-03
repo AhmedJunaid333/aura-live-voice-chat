@@ -320,7 +320,7 @@ class _LoginScreenState extends State<LoginScreen> {
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
       leading: CircleAvatar(
-        backgroundColor: AuraColors.primary.withOpacity(0.2),
+        backgroundColor: AuraColors.primary.withValues(alpha: 0.2),
         child: Text(
           name.isNotEmpty ? name[0].toUpperCase() : 'G',
           style: AuraTypography.titleMedium.copyWith(color: AuraColors.primary),
@@ -613,8 +613,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   borderRadius: AuraRadius.brMd,
                                   border: Border.all(color: const Color(0xFFDADCE0), width: 1.2),
                                   boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.12),
+                                     BoxShadow(
+                                       color: Colors.black.withValues(alpha: 0.12),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
                                     ),
