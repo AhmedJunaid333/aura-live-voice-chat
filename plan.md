@@ -97,7 +97,7 @@ Building **Aura Live Voice Room** — a completely fresh, production-grade Live 
 - [ ] Sprint 7.2: PK Battle Engine, Team Battles & Dynamic Real-Time Score Counter
 - [ ] Sprint 7.3: Family & Guild System with Family Level Progression & Chat
 - [ ] Sprint 7.4: Daily Missions, Lucky Wheel, Spin Box & Seasonal Events Engine
-- [ ] Sprint 7.5: Creator Center, Agency Portal & Coin Reseller Portal
+- [x] Sprint 7.5: Creator Center, Agency Portal & Enterprise Admin Panel Dashboard (`apps/admin` & `src/screens/AdminDashboardScreen.tsx`)
 - [ ] Sprint 7.6: Global Leaderboards, Weekly/Monthly Rankings & Hall of Fame
 
 ### Sprint 8: Enterprise Release Engineering & Store Readiness (COMPLETED - v1.0.0-RC1)
