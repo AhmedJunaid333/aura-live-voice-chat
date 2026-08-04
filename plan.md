@@ -25,13 +25,14 @@ Building **Aura Live Voice Room** — a completely fresh, production-grade Live 
 - [x] Flutter Live Room Host & Audience Integration (`apps/mobile/lib/features/live_room/`)
 - [x] Automated Unit & Integration Test Suite (`apps/api/tests/`)
 
-### Sprint 2.5: Production Agora Audio Broadcasting System (IN PROGRESS)
-- [ ] Agora RTC Engine Integration (`agora_rtc_engine: ^6.3.0`, `permission_handler`)
-- [ ] Backend Dynamic Token Service & Token Auto-Renewal (`POST /api/v1/rtc/token`)
-- [ ] 3-Role Permission Architecture (Host, Speaker, Audience)
-- [ ] 10 / 15 / 20 Seat Dynamic Voice Room Layouts & Volume Indicators
-- [ ] Real-time WebSocket Event Sync (`ROOM_*`, `SEAT_*`, `MIC_*`, `HOST_*`)
-- [ ] Reconnection Logic, State Recovery & Token Privilege Expiration Handler
+### Sprint 2.5: Production Agora Audio Broadcasting System (COMPLETED)
+- [x] Agora RTC Engine Integration (`agora_rtc_engine: ^6.3.0`, `permission_handler`)
+- [x] Backend Dynamic Token Service & Token Auto-Renewal (`POST /api/v1/rtc/token`)
+- [x] 3-Role Permission Architecture (Host, Speaker, Audience)
+- [x] 10 / 15 / 20 Seat Dynamic Voice Room Layouts & Volume Indicators
+- [x] Real-time WebSocket Event Sync (`ROOM_*`, `SEAT_*`, `MIC_*`, `HOST_*`)
+- [x] Reconnection Logic, State Recovery & Token Privilege Expiration Handler
+- [x] Verified debug APK build with custom CMake NDK 27 linker patches (`app-debug.apk`)
 
 ### Sprint 3: Virtual Economy & Gifts System (COMPLETED)
 - [x] Strict Double-Entry Wallet Ledger (`packages/wallet`)

@@ -41,12 +41,6 @@ android {
         targetSdk = 36
         versionCode = flutterVersionCode.toInt()
         versionName = flutterVersionName
-
-        externalNativeBuild {
-            cmake {
-                arguments("-DANDROID_STL=c++_shared")
-            }
-        }
     }
 
     buildTypes {
