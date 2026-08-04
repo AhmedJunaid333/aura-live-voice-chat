@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 
 const Icon = {
   Dashboard: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>,
@@ -14,6 +14,7 @@ const Icon = {
   Search: () => <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
   Bell: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
   Plus: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>,
+  Download: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>,
   ChevronDown: () => <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>,
   ChevronRight: () => <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>,
 };
@@ -29,12 +30,123 @@ export default function AdminDashboardPage() {
     cms: false,
     governance: false,
   });
+
   const [cluster, setCluster] = useState('Global');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [userStatusFilter, setUserStatusFilter] = useState('ALL');
   const [showNotifications, setShowNotifications] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showBanModal, setShowBanModal] = useState(false);
+  
+  const [targetUser, setTargetUser] = useState<any>(null);
+  const [banReason, setBanReason] = useState('');
+  const [banDuration, setBanDuration] = useState('7');
+  const [newGiftName, setNewGiftName] = useState('');
+  const [newGiftPrice, setNewGiftPrice] = useState('50000');
+  const [newGiftVip, setNewGiftVip] = useState('1');
+
+  const [usersList, setUsersList] = useState([
+    { id: '100821', name: 'Sara_Vip7', level: 'Lv.45', vip: 'VIP 7', family: 'Royal Lions', coins: '1,450,000', diamonds: '820,000', risk: 'Low', status: 'ACTIVE' },
+    { id: '100452', name: 'Dark_Phantom', level: 'Lv.12', vip: 'VIP 1', family: 'None', coins: '12,000', diamonds: '500', risk: 'High', status: 'SUSPENDED' },
+    { id: '100998', name: 'King_Rana_VIP', level: 'Lv.58', vip: 'VIP 7', family: 'Rana Clan', coins: '8,900,000', diamonds: '4,200,000', risk: 'Low', status: 'ACTIVE' },
+    { id: '100114', name: 'SpamBot_3912', level: 'Lv.1', vip: 'VIP 0', family: 'None', coins: '0', diamonds: '0', risk: 'Critical', status: 'BANNED' },
+  ]);
+
+  const [activeRooms, setActiveRooms] = useState([
+    { id: 'RM-8821', title: '💖 Urdu Romantic Poetry & Songs', host: 'Sara_Vip7', listeners: 1420, seats: 10, category: 'Music', pK: true, isMuted: false },
+    { id: 'RM-9042', title: '🔥 Ultimate 3v3 PK Battle Arena', host: 'King_Rana_VIP', listeners: 3890, seats: 15, category: 'PK Battle', pK: true, isMuted: false },
+    { id: 'RM-1029', title: '🌙 Late Night Chat & Chill Space', host: 'Ali_Choudhary', listeners: 850, seats: 10, category: 'Chat', pK: false, isMuted: false },
+  ]);
+
+  const [auditLogs, setAuditLogs] = useState([
+    { id: 'log-1', type: 'RECHARGE', desc: 'User #100998 completed $500.00 JazzCash order', time: '12s ago', status: 'SUCCESS', accent: 'text-[#10B981]' },
+    { id: 'log-2', type: 'GIFT_SEND', desc: 'Sara_Vip7 sent Supercar Phantom (50,000 Coins)', time: '34s ago', status: 'COMPLETED', accent: 'text-[#06B6D4]' },
+    { id: 'log-3', type: 'AI_MOD', desc: 'Voice toxicity warning issued in Room #RM-8821', time: '1m ago', status: 'FLAGGED', accent: 'text-[#EF4444]' },
+  ]);
 
   const toggleSection = (section: string) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const filteredUsers = useMemo(() => {
+    return usersList.filter(u => {
+      const matchesSearch = u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.id.includes(searchQuery);
+      const matchesStatus = userStatusFilter === 'ALL' || u.status === userStatusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [usersList, searchQuery, userStatusFilter]);
+
+  const handleConfirmBan = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetUser || !banReason.trim()) return;
+
+    setUsersList(prev => prev.map(u => u.id === targetUser.id ? { ...u, status: 'BANNED' } : u));
+    setAuditLogs(prev => [
+      {
+        id: `log-${Date.now()}`,
+        type: 'BAN_USER',
+        desc: `Admin banned User #${targetUser.id} (${targetUser.name}) for ${banDuration} days. Reason: ${banReason}`,
+        time: 'Just now',
+        status: 'BANNED',
+        accent: 'text-[#EF4444]'
+      },
+      ...prev
+    ]);
+
+    setShowBanModal(false);
+    setBanReason('');
+    alert(`User ${targetUser.name} (${targetUser.id}) has been banned for ${banDuration} days.`);
+  };
+
+  const handleCreateGift = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGiftName.trim()) return;
+
+    setAuditLogs(prev => [
+      {
+        id: `log-${Date.now()}`,
+        type: 'CREATE_GIFT',
+        desc: `Admin created gift '${newGiftName}' for ${newGiftPrice} Coins (Requires VIP ${newGiftVip})`,
+        time: 'Just now',
+        status: 'PUBLISHED',
+        accent: 'text-[#10B981]'
+      },
+      ...prev
+    ]);
+
+    setShowCreateModal(false);
+    setNewGiftName('');
+    alert(`New Gift '${newGiftName}' published to store!`);
+  };
+
+  const handleToggleMute = (roomId: string) => {
+    setActiveRooms(prev => prev.map(r => r.id === roomId ? { ...r, isMuted: !r.isMuted } : r));
+  };
+
+  const handleCloseRoom = (roomId: string) => {
+    setActiveRooms(prev => prev.filter(r => r.id !== roomId));
+    setAuditLogs(prev => [
+      {
+        id: `log-${Date.now()}`,
+        type: 'CLOSE_ROOM',
+        desc: `Admin force closed Live Voice Room #${roomId}`,
+        time: 'Just now',
+        status: 'TERMINATED',
+        accent: 'text-[#EF4444]'
+      },
+      ...prev
+    ]);
+  };
+
+  const handleExportCSV = () => {
+    const csvRows = ['User ID,Name,Level,VIP,Coins,Diamonds,Risk,Status'];
+    usersList.forEach(u => csvRows.push(`${u.id},${u.name},${u.level},${u.vip},"${u.coins}","${u.diamonds}",${u.risk},${u.status}`));
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aura_admin_users_${Date.now()}.csv`;
+    a.click();
   };
 
   const sidebarMenu = [
@@ -87,7 +199,7 @@ export default function AdminDashboardPage() {
     { label: 'Online Users', value: '42,850', change: '+12.4%', accent: 'bg-[#3B82F6]' },
     { label: "Today's Gross Revenue", value: '$18,450.00', change: '+18.9%', accent: 'bg-[#10B981]' },
     { label: "Today's Recharges", value: '$24,800.00', change: '+14.2%', accent: 'bg-[#10B981]' },
-    { label: 'Active Live Rooms', value: '1,248', change: '+8.1%', accent: 'bg-[#3B82F6]' },
+    { label: 'Active Live Rooms', value: `${activeRooms.length}`, change: '+8.1%', accent: 'bg-[#3B82F6]' },
     { label: 'Active Creator Hosts', value: '890', change: '+5.3%', accent: 'bg-[#3B82F6]' },
     { label: 'Pending Withdrawals', value: '$6,350.00', change: '-2.1%', accent: 'bg-[#F59E0B]' },
     { label: 'Flagged Safety Reports', value: '14 Reports', change: 'Requires Action', accent: 'bg-[#EF4444]' },
@@ -97,7 +209,6 @@ export default function AdminDashboardPage() {
   return (
     <div className="flex h-screen w-full bg-[#0B1220] text-white font-sans overflow-hidden select-none">
       
-      {/* 1. PROFESSIONAL SIDEBAR (#111827) */}
       <aside className="w-72 bg-[#111827] border-r border-[#273449] flex flex-col justify-between flex-shrink-0 z-30">
         <div>
           <div className="h-20 flex items-center px-6 border-b border-[#273449]">
@@ -169,19 +280,18 @@ export default function AdminDashboardPage() {
         </div>
       </aside>
 
-      {/* MAIN LAYOUT WRAPPER */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#0B1220]">
         
-        {/* 2. MINIMAL ENTERPRISE TOP BAR (#111827 / Glassmorphism) */}
         <header className="h-20 px-8 border-b border-[#273449] flex items-center justify-between bg-[#111827]/80 backdrop-blur-md z-20">
-          
           <div className="relative w-80">
             <span className="absolute left-4 top-1/2 -translate-y-1/2">
               <Icon.Search />
             </span>
             <input
               type="text"
-              placeholder="Search User ID, Room, Transaction..."
+              placeholder="Search User ID, Name, Room..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
               className="w-full bg-[#1E293B] border border-[#273449] rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-[#94A3B8] focus:outline-none focus:border-[#4F46E5] transition"
             />
           </div>
@@ -202,6 +312,14 @@ export default function AdminDashboardPage() {
             </div>
 
             <button
+              onClick={handleExportCSV}
+              className="px-4 py-2.5 rounded-xl bg-[#1E293B] hover:bg-[#273449] text-white font-bold text-xs border border-[#273449] transition flex items-center gap-2"
+            >
+              <Icon.Download />
+              <span>Export CSV</span>
+            </button>
+
+            <button
               onClick={() => setShowNotifications(!showNotifications)}
               className="relative p-3 rounded-xl bg-[#1E293B] border border-[#273449] text-[#CBD5E1] hover:text-white transition"
             >
@@ -219,20 +337,19 @@ export default function AdminDashboardPage() {
           </div>
         </header>
 
-        {/* 3. DASHBOARD MAIN CONTENT BODY */}
         <div className="flex-1 overflow-y-auto p-8 space-y-12">
           
           <section className="space-y-6">
             <div>
               <h2 className="text-3xl font-black text-white tracking-tight">Executive Dashboard</h2>
-              <p className="text-sm text-[#94A3B8] mt-1">Real-time platform telemetry and operational health for cluster: <strong className="text-[#06B6D4]">{cluster}</strong></p>
+              <p className="text-sm text-[#94A3B8] mt-1">Real-time telemetry & functional state for cluster: <strong className="text-[#06B6D4]">{cluster}</strong></p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {kpis.map((k, i) => (
                 <div
                   key={i}
-                  className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 shadow-lg hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between relative overflow-hidden"
+                  className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 shadow-lg hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-2">
@@ -245,129 +362,138 @@ export default function AdminDashboardPage() {
                     </div>
                     <div className="text-[38px] font-black text-white tracking-tight mt-1">{k.value}</div>
                   </div>
-
                   <div className={`h-1.5 w-full rounded-full ${k.accent} mt-6`} />
                 </div>
               ))}
             </div>
           </section>
 
-          <section className="space-y-6">
-            <h3 className="text-xl font-bold text-[#CBD5E1]">Financial & Traffic Telemetry</h3>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 space-y-4 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-lg font-bold text-white">Gross Platform Revenue ($ USD)</h4>
-                    <p className="text-sm text-[#94A3B8]">Hourly Coin Purchases vs Fiat Recharges</p>
-                  </div>
-                  <span className="text-xs font-bold text-[#10B981] px-3 py-1 rounded-full bg-[#10B981]/10 border border-[#10B981]/30">
-                    Live Updates
-                  </span>
-                </div>
-
-                <div className="h-60 w-full flex items-end justify-between gap-3 pt-6 border-b border-[#273449] pb-3">
-                  {[45, 60, 55, 80, 95, 70, 85, 100, 90, 110, 125, 140].map((val, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                      <div
-                        className="w-full bg-[#4F46E5] hover:bg-[#06B6D4] rounded-t-lg transition-all duration-200"
-                        style={{ height: `${val}%` }}
-                      />
-                      <span className="text-[10px] text-[#94A3B8] font-medium">{i * 2}:00</span>
-                    </div>
-                  ))}
-                </div>
+          <section className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 space-y-6 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-white">User Ecosystem & Host Management</h3>
+                <p className="text-sm text-[#94A3B8]">Filterable user accounts and real-time suspension controls</p>
               </div>
 
-              <div className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 space-y-4 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-lg font-bold text-white">Coin Consumption & Gift Volume</h4>
-                    <p className="text-sm text-[#94A3B8]">Real-time SVGA / Lottie 3D Gift Animations</p>
-                  </div>
-                  <span className="text-xs font-bold text-[#06B6D4] px-3 py-1 rounded-full bg-[#06B6D4]/10 border border-[#06B6D4]/30">
-                    1.85M Coins
-                  </span>
-                </div>
-
-                <div className="h-60 w-full flex items-end justify-between gap-3 pt-6 border-b border-[#273449] pb-3">
-                  {[30, 50, 75, 60, 90, 110, 95, 130, 105, 120, 135, 150].map((val, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                      <div
-                        className="w-full bg-[#06B6D4] hover:bg-[#10B981] rounded-t-lg transition-all duration-200"
-                        style={{ height: `${val}%` }}
-                      />
-                      <span className="text-[10px] text-[#94A3B8] font-medium">{i * 2}:00</span>
-                    </div>
-                  ))}
-                </div>
+              <div className="flex items-center gap-2 bg-[#1E293B] border border-[#273449] rounded-xl p-1">
+                {['ALL', 'ACTIVE', 'SUSPENDED', 'BANNED'].map(st => (
+                  <button
+                    key={st}
+                    onClick={() => setUserStatusFilter(st)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                      userStatusFilter === st ? 'bg-[#4F46E5] text-white' : 'text-[#94A3B8] hover:text-white'
+                    }`}
+                  >
+                    {st}
+                  </button>
+                ))}
               </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-[#273449]">
+              <table className="w-full text-left text-xs text-[#CBD5E1]">
+                <thead className="bg-[#1E293B] text-[#94A3B8] font-bold uppercase tracking-wider text-[11px] border-b border-[#273449]">
+                  <tr>
+                    <th className="p-4">User ID / Name</th>
+                    <th className="p-4">Level & VIP</th>
+                    <th className="p-4">Family</th>
+                    <th className="p-4">Coins / Diamonds</th>
+                    <th className="p-4">Fraud Risk</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#273449] bg-[#0B1220]/40">
+                  {filteredUsers.map(u => (
+                    <tr key={u.id} className="hover:bg-[#1E293B]/40 transition">
+                      <td className="p-4">
+                        <div className="font-bold text-white text-sm">{u.name}</div>
+                        <div className="text-[11px] text-[#94A3B8] font-mono">ID: {u.id}</div>
+                      </td>
+                      <td className="p-4">
+                        <span className="px-2.5 py-1 rounded-md bg-[#4F46E5]/20 text-[#4F46E5] font-bold text-xs mr-2">{u.level}</span>
+                        <span className="px-2.5 py-1 rounded-md bg-[#F59E0B]/20 text-[#F59E0B] font-bold text-xs">{u.vip}</span>
+                      </td>
+                      <td className="p-4 font-semibold">{u.family}</td>
+                      <td className="p-4 font-mono">
+                        <div className="text-[#F59E0B] font-bold">{u.coins} Coins</div>
+                        <div className="text-[#06B6D4] font-bold">{u.diamonds} Diamonds</div>
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2.5 py-1 rounded-full font-bold text-[10px] ${
+                          u.risk === 'Low' ? 'bg-[#10B981]/20 text-[#10B981]' : 'bg-[#EF4444]/20 text-[#EF4444]'
+                        }`}>
+                          {u.risk} Risk
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2.5 py-1 rounded-full font-bold text-[10px] ${
+                          u.status === 'ACTIVE' ? 'bg-[#10B981]/20 text-[#10B981]' : 'bg-[#EF4444]/20 text-[#EF4444]'
+                        }`}>
+                          {u.status}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right">
+                        {u.status !== 'BANNED' ? (
+                          <button
+                            onClick={() => { setTargetUser(u); setShowBanModal(true); }}
+                            className="px-3 py-1.5 rounded-lg bg-[#EF4444]/20 hover:bg-[#EF4444]/30 border border-[#EF4444]/40 text-[#EF4444] text-xs font-bold transition"
+                          >
+                            Ban Account
+                          </button>
+                        ) : (
+                          <span className="text-xs text-[#94A3B8] font-bold">Banned</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
 
-          <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 space-y-4 shadow-lg">
-              <h4 className="text-lg font-bold text-white">Country Revenue & User Distribution</h4>
-              <div className="space-y-3">
-                {[
-                  { country: '🇵🇰 Pakistan (PK-MENA)', revenue: '$12,450', percent: '62%' },
-                  { country: '🇺🇸 United States (US-East)', revenue: '$4,800', percent: '24%' },
-                  { country: '🇸🇦 Saudi Arabia (GCC)', revenue: '$2,100', percent: '10%' },
-                  { country: '🇬🇧 United Kingdom (EU-West)', revenue: '$1,100', percent: '4%' },
-                ].map((c, idx) => (
-                  <div key={idx} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-semibold text-[#CBD5E1]">{c.country}</span>
-                      <span className="font-bold text-white font-mono">{c.revenue} ({c.percent})</span>
-                    </div>
-                    <div className="w-full bg-[#1E293B] h-2 rounded-full overflow-hidden">
-                      <div className="bg-[#4F46E5] h-full rounded-full" style={{ width: c.percent }} />
-                    </div>
+          <section className="space-y-6">
+            <h3 className="text-xl font-bold text-white">Live Voice Rooms Telemetry</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {activeRooms.map(r => (
+                <div key={r.id} className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 space-y-4 shadow-lg">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold text-[#06B6D4]">{r.id}</span>
+                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#4F46E5]/20 text-[#4F46E5]">
+                      {r.category}
+                    </span>
                   </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 space-y-4 shadow-lg">
-              <h4 className="text-lg font-bold text-white">Top Earner Hosts Today</h4>
-              <div className="space-y-3">
-                {[
-                  { name: 'Sara_Vip7', rank: '#1', diamonds: '820,000 Diamonds', agency: 'Royal Lions' },
-                  { name: 'King_Rana_VIP', rank: '#2', diamonds: '640,000 Diamonds', agency: 'Rana Guild' },
-                  { name: 'Ayesha_Official', rank: '#3', diamonds: '490,000 Diamonds', agency: 'Aura Creators' },
-                ].map((h, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-[#1E293B]/60 border border-[#273449]">
-                    <div className="flex items-center gap-3">
-                      <span className="w-7 h-7 rounded-lg bg-[#4F46E5] flex items-center justify-center font-bold text-xs text-white">
-                        {h.rank}
-                      </span>
-                      <div>
-                        <p className="text-xs font-bold text-white">{h.name}</p>
-                        <p className="text-[11px] text-[#94A3B8]">{h.agency}</p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-mono font-bold text-[#06B6D4]">{h.diamonds}</span>
+                  <h4 className="font-bold text-white text-base truncate">{r.title}</h4>
+                  <div className="text-xs text-[#94A3B8] space-y-1">
+                    <p>Host: <strong className="text-white">{r.host}</strong></p>
+                    <p>Listeners: <strong className="text-[#06B6D4]">{r.listeners} Viewers</strong></p>
                   </div>
-                ))}
-              </div>
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={() => handleToggleMute(r.id)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${
+                        r.isMuted ? 'bg-[#F59E0B]/20 text-[#F59E0B] border-[#F59E0B]/30' : 'bg-[#1E293B] text-white border-[#273449]'
+                      }`}
+                    >
+                      {r.isMuted ? 'Unmute Mic' : 'Mute Mic'}
+                    </button>
+                    <button
+                      onClick={() => handleCloseRoom(r.id)}
+                      className="flex-1 py-2 rounded-xl bg-[#EF4444]/20 hover:bg-[#EF4444]/30 border border-[#EF4444]/40 text-[#EF4444] text-xs font-bold transition"
+                    >
+                      Force Close
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
 
           <section className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 space-y-4 shadow-lg">
-            <div className="flex items-center justify-between">
-              <h4 className="text-lg font-bold text-white">Real-Time Security & Financial Audit Stream</h4>
-              <button className="text-xs font-bold text-[#4F46E5] hover:underline">View Complete Audit Logs →</button>
-            </div>
-
+            <h4 className="text-lg font-bold text-white">Security & Audit Event Stream</h4>
             <div className="space-y-2.5">
-              {[
-                { type: 'RECHARGE', desc: 'User #100998 completed $500.00 JazzCash order', time: '12s ago', status: 'SUCCESS', accent: 'text-[#10B981]' },
-                { type: 'GIFT_SEND', desc: 'Sara_Vip7 sent Supercar Phantom (50,000 Coins)', time: '34s ago', status: 'COMPLETED', accent: 'text-[#06B6D4]' },
-                { type: 'AI_MOD', desc: 'Voice toxicity warning issued in Room #RM-8821', time: '1m ago', status: 'FLAGGED', accent: 'text-[#EF4444]' },
-                { type: 'WITHDRAWAL', desc: 'Agency #A-99 payout request approved ($2,400.00)', time: '3m ago', status: 'SETTLED', accent: 'text-[#F59E0B]' },
-              ].map((log, i) => (
-                <div key={i} className="flex items-center justify-between p-3.5 rounded-xl bg-[#1E293B]/50 border border-[#273449] text-xs">
+              {auditLogs.map(log => (
+                <div key={log.id} className="flex items-center justify-between p-3.5 rounded-xl bg-[#1E293B]/50 border border-[#273449] text-xs">
                   <div className="flex items-center gap-3">
                     <span className="px-2 py-0.5 rounded-md bg-[#273449] font-mono font-bold text-[#CBD5E1] text-[10px]">
                       {log.type}
@@ -386,43 +512,118 @@ export default function AdminDashboardPage() {
         </div>
       </main>
 
-      {showNotifications && (
-        <div className="fixed inset-y-0 right-0 z-50 w-96 bg-[#111827] border-l border-[#273449] shadow-2xl p-6 space-y-6">
-          <div className="flex items-center justify-between border-b border-[#273449] pb-4">
-            <h3 className="text-lg font-bold text-white">System Notifications</h3>
-            <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-white">✕</button>
-          </div>
-          <div className="space-y-4">
-            <div className="p-4 rounded-xl bg-[#131C2E] border border-[#273449] space-y-1">
-              <span className="text-xs font-bold text-[#EF4444]">🚨 High Risk Withdrawal Alert</span>
-              <p className="text-xs text-[#CBD5E1]">User #100452 requested $1,200 withdrawal with High Fraud Risk Score.</p>
-              <p className="text-[10px] text-[#94A3B8]">2 mins ago</p>
+      {showBanModal && targetUser && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <form onSubmit={handleConfirmBan} className="w-full max-w-md p-6 rounded-[20px] bg-[#131C2E] border border-[#273449] space-y-6 shadow-2xl">
+            <h3 className="text-xl font-bold text-white">Ban Account Authorization</h3>
+            <p className="text-xs text-[#94A3B8]">Target User: <strong className="text-white">{targetUser.name} (ID: {targetUser.id})</strong></p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-[#CBD5E1] mb-1 block">Ban Duration</label>
+                <select
+                  value={banDuration}
+                  onChange={e => setBanDuration(e.target.value)}
+                  className="w-full bg-[#1E293B] border border-[#273449] rounded-xl p-3 text-xs text-white"
+                >
+                  <option value="7">7 Days Suspension</option>
+                  <option value="30">30 Days Suspension</option>
+                  <option value="365">1 Year Suspension</option>
+                  <option value="9999">Permanent MAC / IP Ban</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-[#CBD5E1] mb-1 block">Reason for Audit Log</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g., Voice Toxicity / Financial Fraud"
+                  value={banReason}
+                  onChange={e => setBanReason(e.target.value)}
+                  className="w-full bg-[#1E293B] border border-[#273449] rounded-xl p-3 text-xs text-white placeholder-[#94A3B8]"
+                />
+              </div>
             </div>
-          </div>
+
+            <div className="flex gap-4 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowBanModal(false)}
+                className="flex-1 h-[52px] rounded-[16px] bg-[#1E293B] text-xs font-bold text-[#CBD5E1]"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 h-[52px] rounded-[16px] bg-[#EF4444] text-xs font-bold text-white shadow-md"
+              >
+                Execute Ban
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md p-6 rounded-[20px] bg-[#131C2E] border border-[#273449] space-y-6 shadow-2xl">
-            <h3 className="text-xl font-bold text-white">Create Platform Asset</h3>
+          <form onSubmit={handleCreateGift} className="w-full max-w-md p-6 rounded-[20px] bg-[#131C2E] border border-[#273449] space-y-6 shadow-2xl">
+            <h3 className="text-xl font-bold text-white">Create Animated Gift Asset</h3>
             <div className="space-y-4">
-              <input type="text" placeholder="Asset Title / Name" className="w-full bg-[#1E293B] border border-[#273449] rounded-xl p-3 text-xs text-white placeholder-[#94A3B8]" />
-              <select className="w-full bg-[#1E293B] border border-[#273449] rounded-xl p-3 text-xs text-white">
-                <option>New SVGA Animated Gift</option>
-                <option>Global Announcement Notice</option>
-                <option>Avatar Frame Theme</option>
-              </select>
+              <div>
+                <label className="text-xs font-bold text-[#CBD5E1] mb-1 block">Gift Title</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g., Supercar Phantom"
+                  value={newGiftName}
+                  onChange={e => setNewGiftName(e.target.value)}
+                  className="w-full bg-[#1E293B] border border-[#273449] rounded-xl p-3 text-xs text-white placeholder-[#94A3B8]"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-[#CBD5E1] mb-1 block">Price in Coins</label>
+                <input
+                  type="number"
+                  required
+                  value={newGiftPrice}
+                  onChange={e => setNewGiftPrice(e.target.value)}
+                  className="w-full bg-[#1E293B] border border-[#273449] rounded-xl p-3 text-xs text-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-[#CBD5E1] mb-1 block">Required VIP Tier</label>
+                <select
+                  value={newGiftVip}
+                  onChange={e => setNewGiftVip(e.target.value)}
+                  className="w-full bg-[#1E293B] border border-[#273449] rounded-xl p-3 text-xs text-white"
+                >
+                  <option value="1">VIP 1</option>
+                  <option value="3">VIP 3</option>
+                  <option value="5">VIP 5</option>
+                  <option value="7">VIP 7</option>
+                </select>
+              </div>
             </div>
+
             <div className="flex gap-4 pt-2">
-              <button onClick={() => setShowCreateModal(false)} className="flex-1 h-[52px] rounded-[16px] bg-[#1E293B] text-xs font-bold text-[#CBD5E1] hover:bg-[#273449]">
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className="flex-1 h-[52px] rounded-[16px] bg-[#1E293B] text-xs font-bold text-[#CBD5E1]"
+              >
                 Cancel
               </button>
-              <button onClick={() => { alert('Asset Created!'); setShowCreateModal(false); }} className="flex-1 h-[52px] rounded-[16px] bg-[#4F46E5] hover:bg-[#4338CA] text-xs font-bold text-white shadow-md">
-                Confirm Create
+              <button
+                type="submit"
+                className="flex-1 h-[52px] rounded-[16px] bg-[#4F46E5] text-xs font-bold text-white shadow-md"
+              >
+                Publish Gift
               </button>
             </div>
-          </div>
+          </form>
         </div>
       )}
 
