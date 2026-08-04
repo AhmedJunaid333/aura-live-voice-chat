@@ -2,488 +2,425 @@
 
 import React, { useState } from 'react';
 
-export type EnterpriseModule = 
-  | 'overview' 
-  | 'governance' 
-  | 'users' 
-  | 'streaming' 
-  | 'rtc' 
-  | 'moderation' 
-  | 'finance' 
-  | 'payments' 
-  | 'gifts' 
-  | 'pk' 
-  | 'agencies' 
-  | 'resellers' 
-  | 'cms' 
-  | 'leaderboards' 
-  | 'analytics' 
-  | 'safety' 
-  | 'storage' 
-  | 'developer';
+const Icon = {
+  Dashboard: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>,
+  Users: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>,
+  Live: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z" /></svg>,
+  Economy: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  Moderation: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
+  Analytics: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 19v-6a2 2 0 012-2h2a2 2 0 012 2v6a2 2 0 01-2 2h-2a2 2 0 01-2-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+  CMS: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+  Governance: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>,
+  Search: () => <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
+  Bell: () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
+  Plus: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>,
+  ChevronDown: () => <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>,
+  ChevronRight: () => <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>,
+};
 
 export default function AdminDashboardPage() {
-  const [activeModule, setActiveModule] = useState<EnterpriseModule>('overview');
-  const [rolePortal, setRolePortal] = useState('👑 CEO Global Portal');
-  const [region, setRegion] = useState('🌐 Global Cluster');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [showBanModal, setShowBanModal] = useState(false);
-  const [showGiftModal, setShowGiftModal] = useState(false);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    users: true,
+    live: false,
+    economy: false,
+    moderation: false,
+    analytics: false,
+    cms: false,
+    governance: false,
+  });
+  const [cluster, setCluster] = useState('Global');
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const menuCategories = [
+  const toggleSection = (section: string) => {
+    setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const sidebarMenu = [
+    { id: 'dashboard', title: 'Dashboard', icon: <Icon.Dashboard /> },
     {
-      category: 'GOVERNANCE & ACCESS',
-      items: [
-        { id: 'overview', label: 'CEO & Global Dashboard', icon: '📊', badge: 'Live' },
-        { id: 'governance', label: 'Governance & RBAC Roles', icon: '🛡️', badge: '10 Portals' },
-      ]
+      id: 'users',
+      title: 'Users',
+      icon: <Icon.Users />,
+      items: ['Users List', 'Hosts Center', 'VIP Tiers', 'Levels & XP', 'Families', 'Agencies']
     },
     {
-      category: 'USER & STREAMING ECOSYSTEM',
-      items: [
-        { id: 'users', label: 'Users & Host Center', icon: '👥', badge: '2.4M Users' },
-        { id: 'streaming', label: 'Live Voice & Multi-Host', icon: '🎙️', badge: '1,248 Live' },
-        { id: 'rtc', label: 'Agora RTC & WebSocket', icon: '📶', badge: '18ms Latency' },
-      ]
+      id: 'live',
+      title: 'Live Streaming',
+      icon: <Icon.Live />,
+      items: ['Audio Rooms', 'Video Streams', 'PK Battles', 'Live Monitor', 'RTC Edge Monitor']
     },
     {
-      category: 'MODERATION & TRUST',
-      items: [
-        { id: 'moderation', label: 'AI Voice & Chat Moderation', icon: '🚨', badge: '3 Flags' },
-        { id: 'safety', label: 'Anti-Fraud & Risk Engine', icon: '🔒', badge: 'Active' },
-      ]
+      id: 'economy',
+      title: 'Economy',
+      icon: <Icon.Economy />,
+      items: ['Wallet Ledger', 'Diamonds', 'Coins', 'Recharges', 'Withdrawals', 'Gifts CMS', 'Lucky Gifts']
     },
     {
-      category: 'FINANCE, GIFTS & PK',
-      items: [
-        { id: 'finance', label: 'Wallet, Coins & Beans Ledger', icon: '💰', badge: '$18.4K Today' },
-        { id: 'payments', label: 'Gateways (Stripe, JazzCash)', icon: '💳', badge: '5 Providers' },
-        { id: 'gifts', label: 'Gifts CMS & Lottie 3D', icon: '🎁', badge: 'SVGA/3D' },
-        { id: 'pk', label: 'Solo & Team PK Battles', icon: '⚔️', badge: '84 Active' },
-      ]
+      id: 'moderation',
+      title: 'Moderation',
+      icon: <Icon.Moderation />,
+      items: ['Reports Queue', 'AI Moderation', 'Banned Users', 'Device Ban', 'Blacklist']
     },
     {
-      category: 'BUSINESS & RESELLERS',
-      items: [
-        { id: 'agencies', label: 'Agency & Creator Salaries', icon: '🏛️', badge: '142 Agencies' },
-        { id: 'resellers', label: 'Reseller Coin Stock', icon: '💎', badge: 'Direct Credit' },
-      ]
+      id: 'analytics',
+      title: 'Analytics',
+      icon: <Icon.Analytics />,
+      items: ['Revenue', 'User Retention', 'Room Traffic', 'Gift Trends', 'Leaderboards']
     },
     {
-      category: 'ENGAGEMENT, LEADERBOARDS & SYSTEM',
-      items: [
-        { id: 'cms', label: 'Avatar Frames & Event CMS', icon: '🎨', badge: 'Banners/Wheel' },
-        { id: 'leaderboards', label: 'Hall of Fame & Top Givers', icon: '🏆', badge: 'Weekly/Monthly' },
-        { id: 'analytics', label: 'Deep Business Analytics', icon: '📈', badge: '18 Reports' },
-        { id: 'storage', label: 'CDN, Media & Storage', icon: '📁', badge: 'Asset Manager' },
-        { id: 'developer', label: 'Developer API & Health', icon: '⚙️', badge: '99.99% Uptime' },
-      ]
-    }
+      id: 'cms',
+      title: 'CMS',
+      icon: <Icon.CMS />,
+      items: ['Banners', 'Wallpapers', 'Avatar Frames', 'Emojis', 'Mini Games', 'Seasonal Events']
+    },
+    {
+      id: 'governance',
+      title: 'Governance',
+      icon: <Icon.Governance />,
+      items: ['CEO Portal', 'Country Managers', 'Finance Hub', 'Security', 'RBAC Matrix']
+    },
   ];
 
-  const masterStats = [
-    { label: 'Online Users', val: '42,850', change: '+12.4%', icon: '👥', color: 'from-blue-500 to-cyan-400', glow: 'rgba(59,130,246,0.25)' },
-    { label: 'Active Live Rooms', val: '1,248', change: '+8.1%', icon: '🎙️', color: 'from-purple-500 to-pink-500', glow: 'rgba(168,85,247,0.25)' },
-    { label: 'Active Creator Hosts', val: '890', change: '+5.3%', icon: '👑', color: 'from-amber-400 to-orange-500', glow: 'rgba(245,158,11,0.25)' },
-    { label: "Today's Gross Revenue", val: '$18,450.00', change: '+18.9%', icon: '💰', color: 'from-emerald-400 to-teal-500', glow: 'rgba(16,185,129,0.25)' },
-    { label: "Fiat Recharges Today", val: '$24,800.00', change: '+14.2%', icon: '💳', color: 'from-cyan-400 to-blue-600', glow: 'rgba(6,182,212,0.25)' },
-    { label: "Creator Withdrawals", val: '$6,350.00', change: '-2.1%', icon: '🏦', color: 'from-rose-500 to-red-600', glow: 'rgba(244,63,94,0.25)' },
-    { label: 'Gift Coin Volume', val: '1.85M Coins', change: '+22.5%', icon: '🎁', color: 'from-violet-500 to-purple-600', glow: 'rgba(139,92,246,0.25)' },
-    { label: 'Platform Coin Reserve', val: '84.5M Coins', change: 'Stable', icon: '🪙', color: 'from-yellow-400 to-amber-600', glow: 'rgba(234,179,8,0.25)' },
+  const kpis = [
+    { label: 'Online Users', value: '42,850', change: '+12.4%', accent: 'bg-[#3B82F6]' },
+    { label: "Today's Gross Revenue", value: '$18,450.00', change: '+18.9%', accent: 'bg-[#10B981]' },
+    { label: "Today's Recharges", value: '$24,800.00', change: '+14.2%', accent: 'bg-[#10B981]' },
+    { label: 'Active Live Rooms', value: '1,248', change: '+8.1%', accent: 'bg-[#3B82F6]' },
+    { label: 'Active Creator Hosts', value: '890', change: '+5.3%', accent: 'bg-[#3B82F6]' },
+    { label: 'Pending Withdrawals', value: '$6,350.00', change: '-2.1%', accent: 'bg-[#F59E0B]' },
+    { label: 'Flagged Safety Reports', value: '14 Reports', change: 'Requires Action', accent: 'bg-[#EF4444]' },
+    { label: 'Agora RTC Latency', value: '18 ms', change: 'Optimal', accent: 'bg-[#10B981]' },
   ];
 
   return (
-    <div className="flex h-screen w-full bg-[#05020a] text-slate-100 font-sans overflow-hidden select-none">
+    <div className="flex h-screen w-full bg-[#0B1220] text-white font-sans overflow-hidden select-none">
       
-      {/* SIDEBAR NAVIGATION */}
-      <aside 
-        className={`${sidebarCollapsed ? 'w-20' : 'w-72'} transition-all duration-300 bg-slate-950/80 backdrop-blur-2xl border-r border-purple-500/20 flex flex-col justify-between z-30 relative`}
-      >
-        <div className="flex flex-col h-full overflow-hidden">
-          
-          <div className="h-20 flex items-center justify-between px-5 border-b border-purple-500/15 flex-shrink-0">
+      {/* 1. PROFESSIONAL SIDEBAR (#111827) */}
+      <aside className="w-72 bg-[#111827] border-r border-[#273449] flex flex-col justify-between flex-shrink-0 z-30">
+        <div>
+          <div className="h-20 flex items-center px-6 border-b border-[#273449]">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-cyan-400 p-[2px] shadow-lg shadow-purple-500/30">
-                <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center font-black text-xl text-cyan-400">
-                  A
-                </div>
+              <div className="w-10 h-10 rounded-xl bg-[#4F46E5] flex items-center justify-center font-black text-xl text-white shadow-md">
+                A
               </div>
-              {!sidebarCollapsed && (
-                <div>
-                  <h1 className="font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-purple-300 text-sm">
-                    AURA LIVE v1.0
-                  </h1>
-                  <p className="text-[9px] font-extrabold text-cyan-400 tracking-widest uppercase">ENTERPRISE ADMIN</p>
-                </div>
-              )}
+              <div>
+                <h1 className="font-extrabold tracking-tight text-white text-base">AURA LIVE</h1>
+                <p className="text-[11px] font-semibold text-[#06B6D4] tracking-widest uppercase">ENTERPRISE ADMIN</p>
+              </div>
             </div>
-            <button 
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)} 
-              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition"
-            >
-              {sidebarCollapsed ? '➡️' : '⬅️'}
-            </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-4">
-            {menuCategories.map((cat, idx) => (
-              <div key={idx} className="space-y-1">
-                {!sidebarCollapsed && (
-                  <p className="px-3 text-[9px] font-black text-purple-400/80 uppercase tracking-widest mb-1.5">
-                    {cat.category}
-                  </p>
-                )}
-                {cat.items.map(item => (
+          <nav className="p-4 space-y-1.5 overflow-y-auto max-h-[calc(100vh-160px)]">
+            {sidebarMenu.map(sec => {
+              const isAccordion = !!sec.items;
+              const isOpen = openSections[sec.id];
+              const isActive = activeTab === sec.id;
+
+              return (
+                <div key={sec.id} className="space-y-1">
                   <button
-                    key={item.id}
-                    onClick={() => setActiveModule(item.id as EnterpriseModule)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200 ${
-                      activeModule === item.id 
-                        ? 'bg-gradient-to-r from-purple-600/30 via-indigo-600/25 to-cyan-500/15 border border-purple-500/40 text-white shadow-lg shadow-purple-900/20' 
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'
+                    onClick={() => isAccordion ? toggleSection(sec.id) : setActiveTab(sec.id)}
+                    className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl transition-all duration-200 ${
+                      isActive || (isAccordion && isOpen)
+                        ? 'bg-[#1E293B] text-white font-bold'
+                        : 'text-[#CBD5E1] hover:text-white hover:bg-[#1E293B]/50'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-base">{item.icon}</span>
-                      {!sidebarCollapsed && <span className="font-semibold text-xs">{item.label}</span>}
+                    <div className="flex items-center gap-3">
+                      <span className="text-[#06B6D4]">{sec.icon}</span>
+                      <span className="text-sm font-semibold">{sec.title}</span>
                     </div>
-                    {!sidebarCollapsed && item.badge && (
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
-                        item.badge.includes('Alert') || item.badge.includes('Flags')
-                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' 
-                          : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                      }`}>
-                        {item.badge}
-                      </span>
+                    {isAccordion && (
+                      <span>{isOpen ? <Icon.ChevronDown /> : <Icon.ChevronRight />}</span>
                     )}
                   </button>
-                ))}
-              </div>
-            ))}
-          </div>
 
-          <div className="p-3 border-t border-purple-500/15 bg-slate-950/60 flex-shrink-0">
-            {!sidebarCollapsed ? (
-              <div className="space-y-1">
-                <p className="text-[9px] text-slate-500 font-extrabold uppercase tracking-wider">ACTIVE GOVERNANCE PORTAL</p>
-                <select 
-                  value={rolePortal}
-                  onChange={e => setRolePortal(e.target.value)}
-                  className="w-full bg-slate-900 border border-purple-500/30 rounded-xl p-2 text-xs font-bold text-cyan-300 focus:outline-none"
-                >
-                  <option>👑 CEO Global Portal</option>
-                  <option>🛡️ Super Admin Portal</option>
-                  <option>🌐 Country Head Portal</option>
-                  <option>💰 Finance Manager Portal</option>
-                  <option>🚨 Moderator Portal</option>
-                </select>
-              </div>
-            ) : (
-              <div className="text-center font-bold text-cyan-400 text-xs">👑</div>
-            )}
-          </div>
+                  {isAccordion && isOpen && (
+                    <div className="pl-9 pr-2 py-1 space-y-1 border-l-2 border-[#273449] ml-5">
+                      {sec.items!.map(sub => (
+                        <button
+                          key={sub}
+                          onClick={() => setActiveTab(sub.toLowerCase().replace(/\s+/g, '-'))}
+                          className="w-full text-left py-2 px-3 rounded-lg text-xs font-medium text-[#94A3B8] hover:text-white hover:bg-[#1E293B] transition"
+                        >
+                          {sub}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </nav>
+        </div>
 
+        <div className="p-4 border-t border-[#273449] bg-[#0B1220]/50 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#1E293B] border border-[#273449] flex items-center justify-center font-bold text-sm text-[#06B6D4]">
+              SA
+            </div>
+            <div>
+              <p className="text-xs font-bold text-white">Super Admin</p>
+              <p className="text-[11px] text-[#94A3B8]">CEO Governance</p>
+            </div>
+          </div>
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-gradient-to-b from-[#0B061A] via-[#07040f] to-[#040108]">
+      {/* MAIN LAYOUT WRAPPER */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#0B1220]">
         
-        <header className="h-20 px-8 border-b border-purple-500/15 flex items-center justify-between bg-slate-950/60 backdrop-blur-2xl z-20">
-          <div className="relative w-96">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
-            <input 
+        {/* 2. MINIMAL ENTERPRISE TOP BAR (#111827 / Glassmorphism) */}
+        <header className="h-20 px-8 border-b border-[#273449] flex items-center justify-between bg-[#111827]/80 backdrop-blur-md z-20">
+          
+          <div className="relative w-80">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2">
+              <Icon.Search />
+            </span>
+            <input
               type="text"
-              placeholder="Search User ID, Host Name, Room ID, TX Hash, IP..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-900/90 border border-purple-500/25 rounded-2xl pl-11 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition"
+              placeholder="Search User ID, Room, Transaction..."
+              className="w-full bg-[#1E293B] border border-[#273449] rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-[#94A3B8] focus:outline-none focus:border-[#4F46E5] transition"
             />
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 bg-slate-900/80 border border-purple-500/20 rounded-2xl px-3 py-1.5">
-              <span className="text-xs text-slate-400 font-semibold">Cluster:</span>
-              {['🌐 Global', '🇺🇸 US-East', '🇵🇰 PK-MENA', '🇪🇺 EU-West'].map(reg => (
+            <div className="flex items-center gap-1.5 bg-[#1E293B] border border-[#273449] rounded-xl p-1">
+              {['Global', 'US-East', 'PK-MENA'].map(c => (
                 <button
-                  key={reg}
-                  onClick={() => setRegion(reg)}
-                  className={`text-[11px] font-bold px-2.5 py-1 rounded-xl transition ${
-                    region === reg ? 'bg-gradient-to-r from-purple-600 to-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'
+                  key={c}
+                  onClick={() => setCluster(c)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                    cluster === c ? 'bg-[#4F46E5] text-white' : 'text-[#94A3B8] hover:text-white'
                   }`}
                 >
-                  {reg}
+                  {c}
                 </button>
               ))}
             </div>
 
-            <button 
-              onClick={() => setShowGiftModal(true)} 
-              className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-purple-600 to-cyan-500 text-white font-bold text-xs shadow-lg shadow-purple-500/25 transition flex items-center gap-2"
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-3 rounded-xl bg-[#1E293B] border border-[#273449] text-[#CBD5E1] hover:text-white transition"
             >
-              <span>✨</span>
-              <span>Create Gift</span>
+              <Icon.Bell />
+              <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
             </button>
 
-            <button 
-              onClick={() => alert('Global Announcement Sent!')} 
-              className="px-4 py-2.5 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold text-xs transition flex items-center gap-2"
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="h-[52px] px-6 rounded-[16px] bg-[#4F46E5] hover:bg-[#4338CA] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
             >
-              <span>📢</span>
-              <span>Global Announcement</span>
+              <Icon.Plus />
+              <span>Create</span>
             </button>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-8 space-y-8">
+        {/* 3. DASHBOARD MAIN CONTENT BODY */}
+        <div className="flex-1 overflow-y-auto p-8 space-y-12">
           
-          {activeModule === 'overview' && (
-            <>
-              <div className="p-6 rounded-[24px] bg-gradient-to-r from-indigo-950/60 via-purple-950/50 to-cyan-950/30 border border-purple-500/30 backdrop-blur-xl relative overflow-hidden flex items-center justify-between shadow-2xl">
-                <div className="space-y-1 z-10">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-black uppercase">
-                    <span>🟢 CLUSTER HEALTH: OPTIMAL (18ms AGORA RTC LATENCY)</span>
-                  </div>
-                  <h2 className="text-2xl font-black text-white">{rolePortal} Overview</h2>
-                  <p className="text-xs text-slate-300">Aura Live Voice Chat Enterprise v1.0 • Active Cluster: <strong className="text-cyan-400">{region}</strong>.</p>
-                </div>
-                <div className="hidden lg:flex items-center gap-4 z-10">
-                  <div className="text-center px-4 py-2.5 rounded-2xl bg-slate-950/80 border border-purple-500/25">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">Concurrent Sockets</p>
-                    <p className="text-lg font-black text-cyan-400">42,850</p>
-                  </div>
-                  <div className="text-center px-4 py-2.5 rounded-2xl bg-slate-950/80 border border-purple-500/25">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">DB Write QPS</p>
-                    <p className="text-lg font-black text-purple-400">1,420 QPS</p>
-                  </div>
-                </div>
-              </div>
+          <section className="space-y-6">
+            <div>
+              <h2 className="text-3xl font-black text-white tracking-tight">Executive Dashboard</h2>
+              <p className="text-sm text-[#94A3B8] mt-1">Real-time platform telemetry and operational health for cluster: <strong className="text-[#06B6D4]">{cluster}</strong></p>
+            </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                {masterStats.map((s, idx) => (
-                  <div 
-                    key={idx}
-                    className="p-5 rounded-[20px] bg-slate-900/60 backdrop-blur-xl border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 relative group overflow-hidden"
-                    style={{ boxShadow: `0 8px 32px ${s.glow}` }}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-2xl p-2.5 rounded-2xl bg-slate-950 border border-purple-500/20">{s.icon}</span>
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                        s.change.startsWith('+') ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-800 text-slate-400'
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {kpis.map((k, i) => (
+                <div
+                  key={i}
+                  className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 shadow-lg hover:-translate-y-1 transition-all duration-200 flex flex-col justify-between relative overflow-hidden"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-[#CBD5E1]">{k.label}</span>
+                      <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                        k.change.startsWith('+') ? 'bg-[#10B981]/20 text-[#10B981]' : 'bg-[#1E293B] text-[#94A3B8]'
                       }`}>
-                        {s.change}
+                        {k.change}
                       </span>
                     </div>
-                    <p className="text-xs font-semibold text-slate-400">{s.label}</p>
-                    <h3 className="text-2xl font-black text-white mt-1 tracking-tight">{s.val}</h3>
-                    <div className={`mt-3 h-1 w-full rounded-full bg-gradient-to-r ${s.color}`} />
+                    <div className="text-[38px] font-black text-white tracking-tight mt-1">{k.value}</div>
+                  </div>
+
+                  <div className={`h-1.5 w-full rounded-full ${k.accent} mt-6`} />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-6">
+            <h3 className="text-xl font-bold text-[#CBD5E1]">Financial & Traffic Telemetry</h3>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 space-y-4 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-lg font-bold text-white">Gross Platform Revenue ($ USD)</h4>
+                    <p className="text-sm text-[#94A3B8]">Hourly Coin Purchases vs Fiat Recharges</p>
+                  </div>
+                  <span className="text-xs font-bold text-[#10B981] px-3 py-1 rounded-full bg-[#10B981]/10 border border-[#10B981]/30">
+                    Live Updates
+                  </span>
+                </div>
+
+                <div className="h-60 w-full flex items-end justify-between gap-3 pt-6 border-b border-[#273449] pb-3">
+                  {[45, 60, 55, 80, 95, 70, 85, 100, 90, 110, 125, 140].map((val, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                      <div
+                        className="w-full bg-[#4F46E5] hover:bg-[#06B6D4] rounded-t-lg transition-all duration-200"
+                        style={{ height: `${val}%` }}
+                      />
+                      <span className="text-[10px] text-[#94A3B8] font-medium">{i * 2}:00</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 space-y-4 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-lg font-bold text-white">Coin Consumption & Gift Volume</h4>
+                    <p className="text-sm text-[#94A3B8]">Real-time SVGA / Lottie 3D Gift Animations</p>
+                  </div>
+                  <span className="text-xs font-bold text-[#06B6D4] px-3 py-1 rounded-full bg-[#06B6D4]/10 border border-[#06B6D4]/30">
+                    1.85M Coins
+                  </span>
+                </div>
+
+                <div className="h-60 w-full flex items-end justify-between gap-3 pt-6 border-b border-[#273449] pb-3">
+                  {[30, 50, 75, 60, 90, 110, 95, 130, 105, 120, 135, 150].map((val, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+                      <div
+                        className="w-full bg-[#06B6D4] hover:bg-[#10B981] rounded-t-lg transition-all duration-200"
+                        style={{ height: `${val}%` }}
+                      />
+                      <span className="text-[10px] text-[#94A3B8] font-medium">{i * 2}:00</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 space-y-4 shadow-lg">
+              <h4 className="text-lg font-bold text-white">Country Revenue & User Distribution</h4>
+              <div className="space-y-3">
+                {[
+                  { country: '🇵🇰 Pakistan (PK-MENA)', revenue: '$12,450', percent: '62%' },
+                  { country: '🇺🇸 United States (US-East)', revenue: '$4,800', percent: '24%' },
+                  { country: '🇸🇦 Saudi Arabia (GCC)', revenue: '$2,100', percent: '10%' },
+                  { country: '🇬🇧 United Kingdom (EU-West)', revenue: '$1,100', percent: '4%' },
+                ].map((c, idx) => (
+                  <div key={idx} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-semibold text-[#CBD5E1]">{c.country}</span>
+                      <span className="font-bold text-white font-mono">{c.revenue} ({c.percent})</span>
+                    </div>
+                    <div className="w-full bg-[#1E293B] h-2 rounded-full overflow-hidden">
+                      <div className="bg-[#4F46E5] h-full rounded-full" style={{ width: c.percent }} />
+                    </div>
                   </div>
                 ))}
               </div>
+            </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 p-6 rounded-[24px] bg-slate-900/60 border border-purple-500/20 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-extrabold text-white text-base">Gross Platform Revenue & Coin Volume</h3>
-                      <p className="text-xs text-slate-400">Hourly comparison between Coin Purchases & Fiat Recharges</p>
-                    </div>
-                    <span className="text-xs text-cyan-400 font-bold px-3 py-1 rounded-xl bg-cyan-500/10 border border-cyan-500/30">Live Stream</span>
-                  </div>
-
-                  <div className="h-64 w-full flex items-end justify-between gap-3 pt-6 border-b border-purple-500/15 pb-2">
-                    {[45, 60, 55, 80, 95, 70, 85, 100, 90, 110, 125, 140].map((h, i) => (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                        <div 
-                          className="w-full bg-gradient-to-t from-indigo-600 via-purple-500 to-cyan-400 rounded-t-xl transition-all duration-300 group-hover:brightness-125"
-                          style={{ height: `${h}%` }}
-                        />
-                        <span className="text-[10px] font-semibold text-slate-500">{i * 2}:00</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="p-6 rounded-[24px] bg-slate-900/60 border border-purple-500/20 space-y-4">
-                  <h3 className="font-extrabold text-white text-base">Audit & Compliance Stream</h3>
-                  <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                    {[
-                      { type: 'GIFT', msg: 'Sara_Vip7 sent Supercar Phantom (50K Coins)', time: '2s ago', color: 'text-amber-300' },
-                      { type: 'RECHARGE', msg: 'User #100998 completed $500 JazzCash Order', time: '14s ago', color: 'text-emerald-300' },
-                      { type: 'AI_MOD', msg: 'Voice toxicity flag detected in RM-8821', time: '42s ago', color: 'text-rose-400' },
-                      { type: 'WITHDRAW', msg: 'Agency #A-99 payout request approved ($2,400)', time: '1m ago', color: 'text-cyan-300' },
-                    ].map((log, idx) => (
-                      <div key={idx} className="p-3 rounded-2xl bg-slate-950/80 border border-purple-500/15 flex items-start gap-3">
-                        <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                          {log.type}
-                        </span>
-                        <div className="flex-1">
-                          <p className={`text-xs font-medium ${log.color}`}>{log.msg}</p>
-                          <p className="text-[10px] text-slate-500 mt-0.5">{log.time}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          {activeModule === 'governance' && (
-            <div className="space-y-6">
-              <h2 className="text-xl font-extrabold text-white">Governance, Portals & RBAC Permissions Matrix</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 space-y-4 shadow-lg">
+              <h4 className="text-lg font-bold text-white">Top Earner Hosts Today</h4>
+              <div className="space-y-3">
                 {[
-                  { portal: 'CEO Global Portal', scope: 'All Regions', permissions: 'Full Executive Override', users: 2 },
-                  { portal: 'Country Head Portal', scope: 'Country Specific (PK / US)', permissions: 'Financial & Agency Settlement', users: 14 },
-                  { portal: 'Moderator Portal', scope: 'Live Rooms & Chat', permissions: 'Mute, Kick, Room Lock, Warnings', users: 85 },
-                ].map((p, i) => (
-                  <div key={i} className="p-6 rounded-[20px] bg-slate-900/60 border border-purple-500/20 space-y-3">
-                    <h3 className="font-extrabold text-cyan-400 text-sm">{p.portal}</h3>
-                    <p className="text-xs text-slate-300">Scope: <strong>{p.scope}</strong></p>
-                    <p className="text-xs text-slate-400">Permissions: {p.permissions}</p>
-                    <span className="inline-block px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 font-bold text-[10px]">
-                      {p.users} Active Officers
+                  { name: 'Sara_Vip7', rank: '#1', diamonds: '820,000 Diamonds', agency: 'Royal Lions' },
+                  { name: 'King_Rana_VIP', rank: '#2', diamonds: '640,000 Diamonds', agency: 'Rana Guild' },
+                  { name: 'Ayesha_Official', rank: '#3', diamonds: '490,000 Diamonds', agency: 'Aura Creators' },
+                ].map((h, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-[#1E293B]/60 border border-[#273449]">
+                    <div className="flex items-center gap-3">
+                      <span className="w-7 h-7 rounded-lg bg-[#4F46E5] flex items-center justify-center font-bold text-xs text-white">
+                        {h.rank}
+                      </span>
+                      <div>
+                        <p className="text-xs font-bold text-white">{h.name}</p>
+                        <p className="text-[11px] text-[#94A3B8]">{h.agency}</p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-[#06B6D4]">{h.diamonds}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="bg-[#131C2E] border border-[#273449] rounded-[20px] p-6 space-y-4 shadow-lg">
+            <div className="flex items-center justify-between">
+              <h4 className="text-lg font-bold text-white">Real-Time Security & Financial Audit Stream</h4>
+              <button className="text-xs font-bold text-[#4F46E5] hover:underline">View Complete Audit Logs →</button>
+            </div>
+
+            <div className="space-y-2.5">
+              {[
+                { type: 'RECHARGE', desc: 'User #100998 completed $500.00 JazzCash order', time: '12s ago', status: 'SUCCESS', accent: 'text-[#10B981]' },
+                { type: 'GIFT_SEND', desc: 'Sara_Vip7 sent Supercar Phantom (50,000 Coins)', time: '34s ago', status: 'COMPLETED', accent: 'text-[#06B6D4]' },
+                { type: 'AI_MOD', desc: 'Voice toxicity warning issued in Room #RM-8821', time: '1m ago', status: 'FLAGGED', accent: 'text-[#EF4444]' },
+                { type: 'WITHDRAWAL', desc: 'Agency #A-99 payout request approved ($2,400.00)', time: '3m ago', status: 'SETTLED', accent: 'text-[#F59E0B]' },
+              ].map((log, i) => (
+                <div key={i} className="flex items-center justify-between p-3.5 rounded-xl bg-[#1E293B]/50 border border-[#273449] text-xs">
+                  <div className="flex items-center gap-3">
+                    <span className="px-2 py-0.5 rounded-md bg-[#273449] font-mono font-bold text-[#CBD5E1] text-[10px]">
+                      {log.type}
                     </span>
+                    <span className="text-[#CBD5E1]">{log.desc}</span>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeModule === 'users' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-extrabold text-white">User Ecosystem & Creator Host Center</h2>
-                  <p className="text-xs text-slate-400">2.4M Users • 18.5K Creator Hosts • Verification Center</p>
-                </div>
-                <button onClick={() => setShowBanModal(true)} className="px-4 py-2 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold text-xs">
-                  ⛔ Ban User Account
-                </button>
-              </div>
-
-              <div className="rounded-[20px] bg-slate-900/60 border border-purple-500/20 overflow-hidden">
-                <table className="w-full text-left text-xs text-slate-300">
-                  <thead className="bg-slate-950/80 text-slate-400 font-bold uppercase text-[10px] border-b border-purple-500/15">
-                    <tr>
-                      <th className="p-4">User ID / Name</th>
-                      <th className="p-4">Level & VIP</th>
-                      <th className="p-4">Family / Guild</th>
-                      <th className="p-4">Coins / Diamonds</th>
-                      <th className="p-4">Fraud Risk</th>
-                      <th className="p-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-purple-500/10">
-                    {[
-                      { id: '100821', name: 'Sara_Vip7', level: 'Lv.45', vip: 'VIP 7', family: 'Royal Lions', coins: '1,450,000', diamonds: '820,000', risk: 'Low' },
-                      { id: '100452', name: 'Dark_Phantom', level: 'Lv.12', vip: 'VIP 1', family: 'None', coins: '12,000', diamonds: '500', risk: 'High' },
-                      { id: '100998', name: 'King_Rana_VIP', level: 'Lv.58', vip: 'VIP 7', family: 'Rana Clan', coins: '8,900,000', diamonds: '4,200,000', risk: 'Low' },
-                    ].map(u => (
-                      <tr key={u.id} className="hover:bg-white/5 transition">
-                        <td className="p-4">
-                          <div className="font-bold text-white">{u.name}</div>
-                          <div className="text-[10px] text-slate-500 font-mono">ID: {u.id}</div>
-                        </td>
-                        <td className="p-4">
-                          <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold text-[10px] mr-2">{u.level}</span>
-                          <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-bold text-[10px]">{u.vip}</span>
-                        </td>
-                        <td className="p-4 font-semibold">{u.family}</td>
-                        <td className="p-4 font-mono">
-                          <div className="text-yellow-400 font-bold">{u.coins} Coins</div>
-                          <div className="text-cyan-400 font-bold">{u.diamonds} Diamonds</div>
-                        </td>
-                        <td className="p-4">
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">
-                            {u.risk} Risk
-                          </span>
-                        </td>
-                        <td className="p-4 text-right">
-                          <button onClick={() => setShowBanModal(true)} className="px-3 py-1 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-[11px] font-bold">
-                            Ban Account
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {activeModule === 'gifts' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-extrabold text-white">Gift Store CMS & Animation Catalog</h2>
-                  <p className="text-xs text-slate-400">SVGA / Lottie 3D Animated Gifts, Pricing & Lucky Engine</p>
-                </div>
-                <button onClick={() => setShowGiftModal(true)} className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-cyan-500 text-white font-bold text-xs shadow-lg">
-                  + Upload New SVGA Gift
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {[
-                  { name: 'Supercar Phantom', cost: '50,000 Coins', vip: 'VIP 5', preview: '🏎️', type: 'SVGA 3D' },
-                  { name: 'Golden Dragon Sovereign', cost: '150,000 Coins', vip: 'VIP 7', preview: '🐉', type: 'Lottie FX' },
-                  { name: 'Romantic Rose Rain', cost: '5,000 Coins', vip: 'VIP 1', preview: '🌹', type: 'SVGA 2D' },
-                  { name: 'Crown of Galaxy', cost: '25,000 Coins', vip: 'VIP 3', preview: '👑', type: 'Lottie FX' },
-                ].map((g, i) => (
-                  <div key={i} className="p-6 rounded-[20px] bg-slate-900/60 border border-purple-500/20 flex flex-col items-center text-center space-y-3">
-                    <span className="text-5xl">{g.preview}</span>
-                    <h3 className="font-extrabold text-white text-sm">{g.name}</h3>
-                    <p className="text-[10px] text-cyan-400 font-bold uppercase">{g.type}</p>
-                    <div className="w-full p-2 rounded-xl bg-slate-950 text-xs font-bold text-yellow-400 font-mono">
-                      {g.cost}
-                    </div>
+                  <div className="flex items-center gap-4 font-mono">
+                    <span className="text-[#94A3B8] text-[11px]">{log.time}</span>
+                    <span className={`font-bold text-[11px] ${log.accent}`}>{log.status}</span>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
-          )}
+          </section>
 
         </div>
       </main>
 
-      {showBanModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md p-6 rounded-[24px] bg-slate-900 border border-purple-500/30 space-y-5 shadow-2xl">
-            <h3 className="text-lg font-black text-white">⛔ Ban Account Authorization</h3>
-            <p className="text-xs text-slate-400">Specify ban duration and audit log reason for target user.</p>
-            <div className="space-y-3">
-              <input type="text" placeholder="Reason (e.g., Voice Toxicity)" className="w-full p-3 rounded-xl bg-slate-950 border border-purple-500/20 text-xs text-white" />
-              <select className="w-full p-3 rounded-xl bg-slate-950 border border-purple-500/20 text-xs text-white">
-                <option>7 Days Suspension</option>
-                <option>30 Days Suspension</option>
-                <option>Permanent Hardware MAC/IP Ban</option>
-              </select>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => setShowBanModal(false)} className="flex-1 py-2.5 rounded-xl bg-slate-800 text-xs font-bold text-slate-300">Cancel</button>
-              <button onClick={() => { alert('Account Banned!'); setShowBanModal(false); }} className="flex-1 py-2.5 rounded-xl bg-rose-600 text-xs font-bold text-white shadow-lg shadow-rose-600/30">Confirm Ban</button>
+      {showNotifications && (
+        <div className="fixed inset-y-0 right-0 z-50 w-96 bg-[#111827] border-l border-[#273449] shadow-2xl p-6 space-y-6">
+          <div className="flex items-center justify-between border-b border-[#273449] pb-4">
+            <h3 className="text-lg font-bold text-white">System Notifications</h3>
+            <button onClick={() => setShowNotifications(false)} className="text-slate-400 hover:text-white">✕</button>
+          </div>
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-[#131C2E] border border-[#273449] space-y-1">
+              <span className="text-xs font-bold text-[#EF4444]">🚨 High Risk Withdrawal Alert</span>
+              <p className="text-xs text-[#CBD5E1]">User #100452 requested $1,200 withdrawal with High Fraud Risk Score.</p>
+              <p className="text-[10px] text-[#94A3B8]">2 mins ago</p>
             </div>
           </div>
         </div>
       )}
 
-      {showGiftModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md p-6 rounded-[24px] bg-slate-900 border border-purple-500/30 space-y-5 shadow-2xl">
-            <h3 className="text-lg font-black text-white">✨ Upload SVGA / Lottie 3D Gift</h3>
-            <div className="space-y-3">
-              <input type="text" placeholder="Gift Title (e.g., Supercar Phantom)" className="w-full p-3 rounded-xl bg-slate-950 border border-purple-500/20 text-xs text-white" />
-              <input type="number" placeholder="Cost in Coins (e.g., 50000)" className="w-full p-3 rounded-xl bg-slate-950 border border-purple-500/20 text-xs text-white" />
-              <div className="p-4 rounded-xl border border-dashed border-purple-500/40 text-center text-xs text-slate-400 cursor-pointer hover:bg-white/5">
-                📁 Click to Upload SVGA / Lottie JSON File
-              </div>
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md p-6 rounded-[20px] bg-[#131C2E] border border-[#273449] space-y-6 shadow-2xl">
+            <h3 className="text-xl font-bold text-white">Create Platform Asset</h3>
+            <div className="space-y-4">
+              <input type="text" placeholder="Asset Title / Name" className="w-full bg-[#1E293B] border border-[#273449] rounded-xl p-3 text-xs text-white placeholder-[#94A3B8]" />
+              <select className="w-full bg-[#1E293B] border border-[#273449] rounded-xl p-3 text-xs text-white">
+                <option>New SVGA Animated Gift</option>
+                <option>Global Announcement Notice</option>
+                <option>Avatar Frame Theme</option>
+              </select>
             </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => setShowGiftModal(false)} className="flex-1 py-2.5 rounded-xl bg-slate-800 text-xs font-bold text-slate-300">Cancel</button>
-              <button onClick={() => { alert('New Gift Published!'); setShowGiftModal(false); }} className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-cyan-500 text-xs font-bold text-white shadow-lg shadow-purple-500/30">Publish Gift</button>
+            <div className="flex gap-4 pt-2">
+              <button onClick={() => setShowCreateModal(false)} className="flex-1 h-[52px] rounded-[16px] bg-[#1E293B] text-xs font-bold text-[#CBD5E1] hover:bg-[#273449]">
+                Cancel
+              </button>
+              <button onClick={() => { alert('Asset Created!'); setShowCreateModal(false); }} className="flex-1 h-[52px] rounded-[16px] bg-[#4F46E5] hover:bg-[#4338CA] text-xs font-bold text-white shadow-md">
+                Confirm Create
+              </button>
             </div>
           </div>
         </div>
