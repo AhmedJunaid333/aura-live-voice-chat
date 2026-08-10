@@ -21,6 +21,14 @@ import WallpapersModule from '@/components/WallpapersModule';
 import FeatureFlagsModule from '@/components/FeatureFlagsModule';
 import SettingsModule from '@/components/SettingsModule';
 import AntiFraudModule from '@/components/AntiFraudModule';
+import AudioRoomsModule from '@/components/AudioRoomsModule';
+import TrustSafetyModule from '@/components/TrustSafetyModule';
+import ReportsCenterModule from '@/components/ReportsCenterModule';
+import MasterPortalModule from '@/components/MasterPortalModule';
+import CountryHeadModule from '@/components/CountryHeadModule';
+import RechargeHubModule from '@/components/RechargeHubModule';
+import FinanceHubModule from '@/components/FinanceHubModule';
+import DirectDiamondCreditModule from '@/components/DirectDiamondCreditModule';
 
 type TabKey =
   | 'users'
@@ -29,6 +37,16 @@ type TabKey =
   | 'lucky_gift'
   | 'agency'
   | 'sell_diamonds'
+  | 'master_portal'
+  | 'country_head'
+  | 'recharge_hub'
+  | 'finance_hub'
+  | 'wallet_payouts'
+  | 'direct_credit'
+  | 'gifts_hub'
+  | 'audio_rooms'
+  | 'trust_safety'
+  | 'reports_center'
   | 'cp'
   | 'family'
   | 'hostbd'
@@ -60,19 +78,33 @@ export default function AdminPage() {
 
   const navCategories = [
     {
-      title: 'CORE & ECONOMY',
+      title: 'CORE & USER MANAGEMENT',
       items: [
         { id: 'users', label: '👥 User Directory & Credentials', badge: telemetry.totalUsers || 4 },
         { id: 'wallet', label: '💰 Wallet & Currency Engine' },
         { id: 'vip', label: '👑 VIP & SVIP Nobility Center' },
-        { id: 'lucky_gift', label: '🎯 Lucky Gift Engine' },
         { id: 'agency', label: '🏛️ Agency Management' },
         { id: 'sell_diamonds', label: '💳 Aura Sell Diamonds' },
       ],
     },
     {
-      title: 'COMMUNITY & LOUNGE',
+      title: 'FINANCE & ECONOMY',
       items: [
+        { id: 'master_portal', label: '👤 Master Portal' },
+        { id: 'country_head', label: '🏛️ Country Head Portal' },
+        { id: 'recharge_hub', label: '💳 Recharge Hub' },
+        { id: 'finance_hub', label: '💳 Finance Hub' },
+        { id: 'wallet_payouts', label: '💳 Wallet & Payouts' },
+        { id: 'direct_credit', label: '💳 Direct Diamond Credit' },
+        { id: 'gifts_hub', label: '🎁 Gifts Hub' },
+      ],
+    },
+    {
+      title: 'ROOMS, SAFETY & COMMUNITY',
+      items: [
+        { id: 'audio_rooms', label: '🎙️ Audio Rooms' },
+        { id: 'trust_safety', label: '🛡️ Trust & Safety System' },
+        { id: 'reports_center', label: '🚩 Reports Center' },
         { id: 'cp', label: '💕 CP (Couple Pair) Center' },
         { id: 'family', label: '👨‍👩‍👧‍👦 Family Center & Guilds' },
         { id: 'hostbd', label: '🎙️ Host Center & BD Network' },
@@ -82,6 +114,7 @@ export default function AdminPage() {
     {
       title: 'ENGAGEMENT & CMS',
       items: [
+        { id: 'lucky_gift', label: '🎯 Lucky Gift Engine' },
         { id: 'emoji', label: '🎯 Emoji Management' },
         { id: 'games', label: '🎯 Games & Events' },
         { id: 'cms', label: '📢 CMS & Broadcast' },
@@ -127,7 +160,7 @@ export default function AdminPage() {
                   <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id as TabKey)}
-                    className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                    className={`w-full text-left px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
                       activeTab === item.id
                         ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-600/20 font-black'
                         : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
@@ -182,13 +215,23 @@ export default function AdminPage() {
           {activeTab === 'users' && <UserManagementModule />}
           {activeTab === 'wallet' && <WalletModule />}
           {activeTab === 'vip' && <VipSvipModule />}
-          {activeTab === 'lucky_gift' && <LuckyGiftModule />}
           {activeTab === 'agency' && <AgencyModule />}
           {activeTab === 'sell_diamonds' && <ResellerPortalModule />}
+          {activeTab === 'master_portal' && <MasterPortalModule />}
+          {activeTab === 'country_head' && <CountryHeadModule />}
+          {activeTab === 'recharge_hub' && <RechargeHubModule />}
+          {activeTab === 'finance_hub' && <FinanceHubModule />}
+          {activeTab === 'wallet_payouts' && <WalletModule />}
+          {activeTab === 'direct_credit' && <DirectDiamondCreditModule />}
+          {activeTab === 'gifts_hub' && <LuckyGiftModule />}
+          {activeTab === 'audio_rooms' && <AudioRoomsModule />}
+          {activeTab === 'trust_safety' && <TrustSafetyModule />}
+          {activeTab === 'reports_center' && <ReportsCenterModule />}
           {activeTab === 'cp' && <CpModule />}
           {activeTab === 'family' && <FamilyModule />}
           {activeTab === 'hostbd' && <HostBdModule />}
           {activeTab === 'moments' && <MomentsExploreModule />}
+          {activeTab === 'lucky_gift' && <LuckyGiftModule />}
           {activeTab === 'emoji' && <EmojiModule />}
           {activeTab === 'games' && <GamesEventsModule />}
           {activeTab === 'cms' && <CmsBroadcastModule />}
