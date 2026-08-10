@@ -948,6 +948,163 @@ adminRouter.post('/hosts/verify', async (req, res, next) => {
   }
 });
 
+// 23. Real VIP Tiers Matrix & Subscriptions Overview
+adminRouter.get('/vip', async (req, res, next) => {
+  try {
+    const vipUsers = await prisma.user.findMany({
+      where: { vipTier: { gt: 0 } },
+      select: { id: true, numericId: true, username: true, vipTier: true, coins: true, diamonds: true },
+    });
+
+    const vipTiersMatrix = Array.from({ length: 10 }, (_, i) => {
+      const tier = i + 1;
+      return {
+        tier: `VIP ${tier}`,
+        tierNumber: tier,
+        coinsPrice: tier * 10000,
+        badgeIcon: `👑 VIP ${tier}`,
+        benefits: [
+          `Exclusive VIP ${tier} Profile Frame`,
+          `Special Stream Entrance Vehicle Lv.${tier}`,
+          `VIP Chat Badge & Colored Name`,
+          `Daily VIP Coins Allowance +${tier * 500}`,
+        ],
+        activeSubscribersCount: vipUsers.filter(u => u.vipTier === tier).length,
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        vipUsers,
+        vipTiersMatrix,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 24. Grant VIP Status & Entitlements
+adminRouter.post('/vip/grant', async (req, res, next) => {
+  try {
+    const { userId, vipTier, durationDays } = req.body;
+    const numericUserId = parseInt(userId, 10);
+    const tierNum = parseInt(vipTier, 10);
+    const days = parseInt(durationDays || '30', 10);
+
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + days);
+
+    const user = await prisma.user.update({
+      where: { id: numericUserId },
+      data: {
+        vipTier: tierNum,
+      },
+    });
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'VIP_GRANTED',
+        resource: `User:${user.numericId}`,
+        details: `Granted VIP Tier ${tierNum} for ${days} days to @${user.username} (UID: ${user.numericId}).`,
+      },
+    });
+
+    emitToUser(user.numericId, 'vip.activated', {
+      vipTier: tierNum,
+      expiryDate: expiryDate.toISOString(),
+      message: `VIP ${tierNum} activated on your account!`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `VIP ${tierNum} granted to @${user.username} for ${days} days`,
+      data: { userId: user.id, numericId: user.numericId, vipTier: user.vipTier, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 25. User Levels & XP Threshold Matrix
+adminRouter.get('/levels', async (req, res, next) => {
+  try {
+    const usersByLevel = await prisma.user.groupBy({
+      by: ['level'],
+      _count: { _all: true },
+    });
+
+    const levelMatrix = [1, 5, 10, 20, 50, 100].map(lvl => {
+      const found = usersByLevel.find(u => u.level === lvl);
+      return {
+        level: `Level ${lvl}`,
+        levelNumber: lvl,
+        minXP: (lvl - 1) * 1000,
+        badge: `⭐ Lv.${lvl}`,
+        unlockedPrivilege: lvl >= 50 ? 'Royal Gold Frame & Master Badge' : lvl >= 10 ? 'Silver Badge & Custom Chat Color' : 'Standard Bronze Badge',
+        userCount: found ? found._count._all : 0,
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: levelMatrix,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 26. Grant XP & Level Progression Engine
+adminRouter.post('/levels/grant-xp', async (req, res, next) => {
+  try {
+    const { userId, xpAmount, reason } = req.body;
+    const numericUserId = parseInt(userId, 10);
+    const xp = parseInt(xpAmount, 10);
+
+    const currentUser = await prisma.user.findUnique({ where: { id: numericUserId } });
+    if (!currentUser) {
+      res.status(404).json({ success: false, error: 'User not found' });
+      return;
+    }
+
+    const newLevel = Math.max(currentUser.level, Math.floor(xp / 1000) + 1);
+
+    const updatedUser = await prisma.user.update({
+      where: { id: numericUserId },
+      data: { level: newLevel },
+    });
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'XP_GRANTED',
+        resource: `User:${updatedUser.numericId}`,
+        details: `Granted +${xp} XP to @${updatedUser.username} (Level updated to Lv.${updatedUser.level}). Reason: ${reason || 'Admin XP bonus.'}`,
+      },
+    });
+
+    emitToUser(updatedUser.numericId, 'level.updated', {
+      level: updatedUser.level,
+      xpAdded: xp,
+      message: `You earned +${xp} XP! New Level: Lv.${updatedUser.level}`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Granted +${xp} XP to @${updatedUser.username}. Current Level: Lv.${updatedUser.level}`,
+      data: { userId: updatedUser.id, numericId: updatedUser.numericId, level: updatedUser.level, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
