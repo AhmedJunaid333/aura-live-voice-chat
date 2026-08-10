@@ -80,7 +80,13 @@ const MODULE_TABS = [
 ] as const;
 
 export default function AdminDashboardScreen() {
-  const [activeTab, setActiveTab] = useState('dashboard'); // Default to Enterprise Overview & KPIs!
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const search = window.location.search.toLowerCase();
+      if (search.includes('admin')) return 'user-list';
+    }
+    return 'user-list';
+  });
   const [adminTheme, setAdminTheme] = useState<'navy' | 'cyberpunk' | 'royal'>('navy');
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
@@ -1075,6 +1081,7 @@ export default function AdminDashboardScreen() {
           activeTab === 'user-dashboard' ||
           activeTab === 'all-users' ||
           activeTab === 'user-profile' ||
+          activeTab === 'user-list' ||
           activeTab === 'certification-management' ||
           activeTab.includes('kyc')) && (
           <UserManagementAndKYCSection activeSubKey={activeTab} />
