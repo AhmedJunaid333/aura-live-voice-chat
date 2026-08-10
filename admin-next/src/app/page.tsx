@@ -29,9 +29,25 @@ import CountryHeadModule from '@/components/CountryHeadModule';
 import RechargeHubModule from '@/components/RechargeHubModule';
 import FinanceHubModule from '@/components/FinanceHubModule';
 import DirectDiamondCreditModule from '@/components/DirectDiamondCreditModule';
+import CeoGlobalPortalModule from '@/components/CeoGlobalPortalModule';
+import AllPortalsAccessModule from '@/components/AllPortalsAccessModule';
+import PerformanceHubModule from '@/components/PerformanceHubModule';
+import IntelligenceHubModule from '@/components/IntelligenceHubModule';
+import SecurityRolesModule from '@/components/SecurityRolesModule';
+import ComplianceLogsModule from '@/components/ComplianceLogsModule';
+import HostCenterModule from '@/components/HostCenterModule';
+import VipUserLevelsModule from '@/components/VipUserLevelsModule';
 
 type TabKey =
+  | 'ceo_portal'
+  | 'all_portals_access'
+  | 'performance_hub'
+  | 'intelligence_hub'
+  | 'security_roles'
+  | 'compliance_logs'
   | 'users'
+  | 'host_center'
+  | 'vip_user_levels'
   | 'wallet'
   | 'vip'
   | 'lucky_gift'
@@ -62,7 +78,7 @@ type TabKey =
   | 'antifraud';
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>('users');
+  const [activeTab, setActiveTab] = useState<TabKey>('performance_hub');
   const [telemetry, setTelemetry] = useState<any>({ totalUsers: 4, activeRooms: 1, totalResellers: 1, totalCoins: 10520000, totalDiamonds: 5535000 });
 
   const loadTelemetry = async () => {
@@ -78,13 +94,25 @@ export default function AdminPage() {
 
   const navCategories = [
     {
-      title: 'CORE & USER MANAGEMENT',
+      title: 'GOVERNANCE & ACCESS',
+      items: [
+        { id: 'ceo_portal', label: '🛡️ CEO Global Portal' },
+        { id: 'all_portals_access', label: '🛡️ All Portals Access' },
+        { id: 'performance_hub', label: '⏲️ Performance Hub' },
+        { id: 'intelligence_hub', label: '📊 Intelligence Hub' },
+        { id: 'security_roles', label: '🛡️ Security & Roles' },
+        { id: 'compliance_logs', label: '📜 Compliance Logs' },
+      ],
+    },
+    {
+      title: 'USER ECOSYSTEM',
       items: [
         { id: 'users', label: '👥 User Directory & Credentials', badge: telemetry.totalUsers || 4 },
-        { id: 'wallet', label: '💰 Wallet & Currency Engine' },
-        { id: 'vip', label: '👑 VIP & SVIP Nobility Center' },
-        { id: 'agency', label: '🏛️ Agency Management' },
-        { id: 'sell_diamonds', label: '💳 Aura Sell Diamonds' },
+        { id: 'host_center', label: '🏛️ Host Center' },
+        { id: 'vip_user_levels', label: '📊 VIP & User Levels' },
+        { id: 'cp', label: '💕 CP (Couple Pair) Center' },
+        { id: 'family', label: '👨‍👩‍👧‍👦 Family Center & Guilds' },
+        { id: 'moments', label: '📸 Moments & Explore Feed' },
       ],
     },
     {
@@ -96,25 +124,14 @@ export default function AdminPage() {
         { id: 'finance_hub', label: '💳 Finance Hub' },
         { id: 'wallet_payouts', label: '💳 Wallet & Payouts' },
         { id: 'direct_credit', label: '💳 Direct Diamond Credit' },
-        { id: 'gifts_hub', label: '🎁 Gifts Hub' },
-      ],
-    },
-    {
-      title: 'ROOMS, SAFETY & COMMUNITY',
-      items: [
-        { id: 'audio_rooms', label: '🎙️ Audio Rooms' },
-        { id: 'trust_safety', label: '🛡️ Trust & Safety System' },
-        { id: 'reports_center', label: '🚩 Reports Center' },
-        { id: 'cp', label: '💕 CP (Couple Pair) Center' },
-        { id: 'family', label: '👨‍👩‍👧‍👦 Family Center & Guilds' },
-        { id: 'hostbd', label: '🎙️ Host Center & BD Network' },
-        { id: 'moments', label: '📸 Moments & Explore Feed' },
+        { id: 'sell_diamonds', label: '💳 Aura Sell Diamonds' },
       ],
     },
     {
       title: 'ENGAGEMENT & CMS',
       items: [
         { id: 'lucky_gift', label: '🎯 Lucky Gift Engine' },
+        { id: 'gifts_hub', label: '🎁 Gifts Hub' },
         { id: 'emoji', label: '🎯 Emoji Management' },
         { id: 'games', label: '🎯 Games & Events' },
         { id: 'cms', label: '📢 CMS & Broadcast' },
@@ -126,6 +143,9 @@ export default function AdminPage() {
     {
       title: 'PLATFORM & SAFETY',
       items: [
+        { id: 'audio_rooms', label: '🎙️ Audio Rooms' },
+        { id: 'trust_safety', label: '🛡️ Trust & Safety System' },
+        { id: 'reports_center', label: '🚩 Reports Center' },
         { id: 'feature_flags', label: '🚩 Feature Flags' },
         { id: 'settings', label: '⚙️ System Config' },
         { id: 'antifraud', label: '🛡️ Anti-Fraud Center' },
@@ -212,7 +232,15 @@ export default function AdminPage() {
 
         {/* Dynamic Module Panel View */}
         <div className="p-6">
+          {activeTab === 'ceo_portal' && <CeoGlobalPortalModule />}
+          {activeTab === 'all_portals_access' && <AllPortalsAccessModule />}
+          {activeTab === 'performance_hub' && <PerformanceHubModule />}
+          {activeTab === 'intelligence_hub' && <IntelligenceHubModule />}
+          {activeTab === 'security_roles' && <SecurityRolesModule />}
+          {activeTab === 'compliance_logs' && <ComplianceLogsModule />}
           {activeTab === 'users' && <UserManagementModule />}
+          {activeTab === 'host_center' && <HostCenterModule />}
+          {activeTab === 'vip_user_levels' && <VipUserLevelsModule />}
           {activeTab === 'wallet' && <WalletModule />}
           {activeTab === 'vip' && <VipSvipModule />}
           {activeTab === 'agency' && <AgencyModule />}
