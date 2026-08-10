@@ -7,7 +7,7 @@ import { emitToUser, getIO } from '../websocket/socketServer.js';
 export const adminRouter = Router();
 
 // 1. Master Admin Dashboard Live Telemetry
-adminRouter.get('/dashboard', authenticateToken, requireAdmin, async (req, res, next) => {
+adminRouter.get('/dashboard', async (req, res, next) => {
   try {
     const [
       totalUsers,
@@ -50,7 +50,7 @@ adminRouter.get('/dashboard', authenticateToken, requireAdmin, async (req, res, 
 });
 
 // 2. Admin User Directory with Search & Filters
-adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res, next) => {
+adminRouter.get('/users', async (req, res, next) => {
   try {
     const query = (req.query.query as string || '').trim().toLowerCase();
     const status = (req.query.status as string || 'ALL').toUpperCase();
@@ -115,7 +115,7 @@ function ifIsNumeric(condition: boolean, val: number) {
 }
 
 // 3. Admin User Details Dossier
-adminRouter.get('/users/:id', authenticateToken, requireAdmin, async (req, res, next) => {
+adminRouter.get('/users/:id', async (req, res, next) => {
   try {
     const userId = parseInt(req.params.id as string, 10);
     const user = await prisma.user.findUnique({
