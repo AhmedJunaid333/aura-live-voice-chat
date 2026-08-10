@@ -13,7 +13,7 @@ export default function ResellerPortalModule() {
       {/* Header */}
       <div className="bg-gradient-to-r from-pink-900/40 via-purple-900/30 to-indigo-900/40 border border-pink-500/30 p-6 rounded-2xl shadow-xl">
         <h2 className="text-xl font-black text-white flex items-center gap-2">
-          💳 Sell Joe Diamonds / Diamond Reseller Portal
+          💳 Aura Sell Diamonds / Diamond Reseller Portal
         </h2>
         <p className="text-xs text-slate-300 mt-1">Manage Diamond Resellers, wholesale diamond inventories, sub-reseller authorizations & instant peer-to-peer diamond transfers</p>
       </div>

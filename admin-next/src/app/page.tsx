@@ -67,7 +67,7 @@ export default function AdminPage() {
         { id: 'vip', label: '👑 VIP & SVIP Nobility Center' },
         { id: 'lucky_gift', label: '🎯 Lucky Gift Engine' },
         { id: 'agency', label: '🏛️ Agency Management' },
-        { id: 'sell_diamonds', label: '💳 Sell Joe Diamonds' },
+        { id: 'sell_diamonds', label: '💳 Aura Sell Diamonds' },
       ],
     },
     {
