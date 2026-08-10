@@ -3,7 +3,7 @@ import { adminDb, type UserRecord } from '../services/adminEnterpriseDataService
 import { adminApiClient, AdminUserRecord } from '../services/adminApiClient';
 
 export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSubKey?: string }) {
-  const [users, setUsers] = useState<UserRecord[]>(adminDb.getUsers());
+  const [users, setUsers] = useState<UserRecord[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null);
@@ -18,9 +18,9 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
         id: u.numericId.toString(),
         internalId: u.id,
         name: u.username,
-        email: u.email || `${u.username}@auralive.com`,
-        phone: u.phone || '+92 300 0000000',
-        avatar: u.avatar || `https://ui-avatars.com/api/?name=${u.username}&background=7C3AED&color=fff`,
+        email: u.email || (u.phone ? `Phone: ${u.phone}` : `${u.username}@auralive.com`),
+        phone: u.phone || 'Not Provided',
+        avatar: u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username)}&background=7C3AED&color=fff`,
         level: u.level,
         vipTier: u.vipTier,
         coins: u.coins,
@@ -39,6 +39,8 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
 
   useEffect(() => {
     fetchLiveUsers();
+    const interval = setInterval(fetchLiveUsers, 5000);
+    return () => clearInterval(interval);
   }, [search, statusFilter]);
 
   useEffect(() => {
@@ -67,6 +69,19 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
     await adminApiClient.creditUserWallet(intId, val, creditType);
     setShowCreditModal(false);
     alert(`Successfully credited ${val.toLocaleString()} ${creditType} to ${selectedUser.name}!`);
+    fetchLiveUsers();
+  };
+
+  const handleToggleFreeze = async (u: UserRecord) => {
+    const intId = (u as any).internalId || parseInt(u.id, 10);
+    await adminApiClient.freezeUserWallet(intId, !u.walletFrozen);
+    fetchLiveUsers();
+  };
+
+  const handleToggleStatus = async (u: UserRecord) => {
+    const intId = (u as any).internalId || parseInt(u.id, 10);
+    const newStatus = u.status === 'ACTIVE' ? 'BANNED' : 'ACTIVE';
+    await adminApiClient.updateUserStatus(intId, newStatus, 'Admin quick toggle');
     fetchLiveUsers();
   };
 
@@ -134,7 +149,7 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
                 <th className="p-3.5">User Details</th>
                 <th className="p-3.5">Level & VIP</th>
                 <th className="p-3.5">Coins & Diamonds</th>
-                <th className="p-3.5">Family & Agency</th>
+                <th className="p-3.5">Role & Country</th>
                 <th className="p-3.5">Wallet & Status</th>
                 <th className="p-3.5 text-right">Quick Actions</th>
               </tr>
@@ -145,7 +160,7 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
                   <td colSpan={6} className="p-8 text-center text-slate-500">
                     <div className="text-2xl mb-1">👥</div>
                     <div className="font-semibold text-xs text-slate-400">No Registered Users Found in Database</div>
-                    <div className="text-[11px] text-slate-500 mt-1">Real users will automatically appear here once accounts are registered.</div>
+                    <div className="text-[11px] text-slate-500 mt-1">Real users will automatically appear here once accounts are registered via app.</div>
                   </td>
                 </tr>
               ) : (
@@ -157,7 +172,11 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
                         <div>
                           <div className="font-bold text-white flex items-center gap-1.5">
                             <span>{u.name}</span>
-                            {u.isHost && <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-bold">🎙️ HOST</span>}
+                            {u.role === 'ADMIN' || u.role === 'SUPER_ADMIN' ? (
+                              <span className="px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 text-[9px] font-bold">🛡️ ADMIN</span>
+                            ) : u.role === 'DIAMOND_RESELLER' || u.role === 'RESELLER' ? (
+                              <span className="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 text-[9px] font-bold">💎 RESELLER</span>
+                            ) : null}
                           </div>
                           <div className="text-[10px] text-cyan-400 font-mono">UID: {u.id} • {u.country}</div>
                           <div className="text-[9px] text-slate-500 truncate max-w-xs">{u.email}</div>
@@ -165,16 +184,16 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
                       </div>
                     </td>
                     <td className="p-3.5">
-                      <div className="font-bold text-amber-400">LV.{u.level} ({u.vip})</div>
-                      <div className="text-[10px] text-slate-400">{u.grade}</div>
+                      <div className="font-bold text-amber-400">LV.{u.level} (VIP {u.vipTier})</div>
+                      <div className="text-[10px] text-slate-400">{u.role}</div>
                     </td>
                     <td className="p-3.5">
                       <div className="font-bold text-emerald-400">🪙 {u.coins.toLocaleString()} Coins</div>
                       <div className="font-semibold text-pink-400 text-[11px]">💎 {u.diamonds.toLocaleString()} Diamonds</div>
                     </td>
                     <td className="p-3.5">
-                      <div className="font-semibold text-slate-200">{u.family}</div>
-                      <div className="text-[10px] text-slate-500">{u.agency}</div>
+                      <div className="font-semibold text-slate-200">{u.role}</div>
+                      <div className="text-[10px] text-slate-500">{u.country}</div>
                     </td>
                     <td className="p-3.5">
                       <div className="flex items-center gap-1.5 mb-1">
@@ -204,7 +223,7 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
                           🪙 Credit
                         </button>
                         <button
-                          onClick={() => adminDb.toggleFreezeWallet(u.id)}
+                          onClick={() => handleToggleFreeze(u)}
                           className={`px-2.5 py-1.5 rounded-xl font-bold text-[10px] border transition cursor-pointer ${
                             u.walletFrozen
                               ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
@@ -214,14 +233,14 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
                           {u.walletFrozen ? 'Unfreeze' : 'Freeze'}
                         </button>
                         <button
-                          onClick={() => adminDb.updateUserStatus(u.id, u.status === 'ACTIVE' ? 'BANNED' : 'ACTIVE')}
+                          onClick={() => handleToggleStatus(u)}
                           className={`px-2.5 py-1.5 rounded-xl font-bold text-[10px] border transition cursor-pointer ${
                             u.status === 'ACTIVE'
                               ? 'bg-rose-900/40 hover:bg-rose-600 text-rose-300 hover:text-white border-rose-700/50'
-                              : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                              : 'bg-emerald-900/40 hover:bg-emerald-600 text-emerald-300 hover:text-white border-emerald-700/50'
                           }`}
                         >
-                          {u.status === 'ACTIVE' ? 'Ban' : 'Unban'}
+                          {u.status === 'ACTIVE' ? 'Ban' : 'Activate'}
                         </button>
                       </div>
                     </td>
@@ -229,92 +248,85 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
                 ))
               )}
             </tbody>
-
           </table>
         </div>
       </div>
 
-      {/* Credit Virtual Currency Modal */}
+      {/* Credit Coins & Diamonds Modal */}
       {showCreditModal && selectedUser && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <form
-            onSubmit={handleCreditSubmit}
-            className="w-full max-w-md bg-[#111927] border border-[#1E293B] rounded-3xl p-6 space-y-4 shadow-2xl"
-          >
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#111927] border border-emerald-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="font-extrabold text-white text-base">🪙 Credit Virtual Balance</h3>
+              <div>
+                <h3 className="text-base font-black text-white">🪙 Credit Currency to User</h3>
+                <p className="text-xs text-slate-400">Target: {selectedUser.name} (UID: {selectedUser.id})</p>
+              </div>
               <button
-                type="button"
                 onClick={() => setShowCreditModal(false)}
-                className="text-slate-400 hover:text-white font-bold"
+                className="text-slate-400 hover:text-white font-bold text-sm cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="flex items-center gap-3 bg-slate-900 p-3 rounded-2xl border border-slate-800">
-              <img src={selectedUser.avatar} alt={selectedUser.name} className="w-10 h-10 rounded-full border border-blue-500 object-cover" />
+            <form onSubmit={handleCreditSubmit} className="space-y-4">
               <div>
-                <h4 className="font-bold text-white text-xs">{selectedUser.name}</h4>
-                <span className="text-[10px] text-cyan-400 font-mono">UID: {selectedUser.id}</span>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Currency Type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCreditType('coins')}
+                    className={`py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                      creditType === 'coins'
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500'
+                        : 'bg-slate-900 text-slate-400 border-slate-800'
+                    }`}
+                  >
+                    🪙 Coins
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCreditType('diamonds')}
+                    className={`py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                      creditType === 'diamonds'
+                        ? 'bg-pink-500/20 text-pink-300 border-pink-500'
+                        : 'bg-slate-900 text-slate-400 border-slate-800'
+                    }`}
+                  >
+                    💎 Diamonds
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Currency Type</label>
-              <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">Amount to Credit</label>
+                <input
+                  type="number"
+                  value={creditAmount}
+                  onChange={e => setCreditAmount(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  placeholder="e.g. 50000"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setCreditType('coins')}
-                  className={`py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                    creditType === 'coins'
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500'
-                      : 'bg-slate-900 text-slate-400 border-slate-800'
-                  }`}
+                  onClick={() => setShowCreditModal(false)}
+                  className="w-1/2 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer"
                 >
-                  🪙 Coins
+                  Cancel
                 </button>
                 <button
-                  type="button"
-                  onClick={() => setCreditType('diamonds')}
-                  className={`py-2 rounded-xl text-xs font-bold transition cursor-pointer border ${
-                    creditType === 'diamonds'
-                      ? 'bg-pink-500/20 text-pink-300 border-pink-500'
-                      : 'bg-slate-900 text-slate-400 border-slate-800'
-                  }`}
+                  type="submit"
+                  className="w-1/2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-black transition cursor-pointer shadow-lg"
                 >
-                  💎 Diamonds
+                  Confirm Credit
                 </button>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Amount to Credit</label>
-              <input
-                type="number"
-                required
-                value={creditAmount}
-                onChange={e => setCreditAmount(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-white font-mono"
-              />
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowCreditModal(false)}
-                className="flex-1 py-2.5 rounded-xl bg-slate-800 text-xs font-bold text-slate-300"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-xs font-bold text-white cursor-pointer shadow-lg"
-              >
-                Confirm Credit & Sync DB
-              </button>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       )}
     </section>
