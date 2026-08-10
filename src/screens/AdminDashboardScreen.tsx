@@ -20,6 +20,7 @@ import { ProfileModerationSection } from '../components/ProfileModerationSection
 import { DiscoveryShuffleSection } from '../components/DiscoveryShuffleSection';
 import { ResellerManagementSection } from '../components/ResellerManagementSection';
 import { RechargeManagementSection } from '../components/RechargeManagementSection';
+import { UserProfileDossierSection } from '../components/UserProfileDossierSection';
 import { apiClient } from '../services/apiClient';
 
 
@@ -2160,10 +2161,7 @@ function UserEnterprisePortal({ activeKey }: { activeKey?: string }) {
 
       {/* 3. USER PROFILE */}
       {subTab === '3-profile' && (
-        <div className="bg-[#131C2E] border border-[#273449] p-4 rounded-2xl text-xs text-white space-y-3 font-mono">
-          <h4 className="font-bold text-sm text-indigo-400">👤 Master User Identity Schema Details</h4>
-          <p>User Identity Model: UID, Avatar, Cover, Bio, Gender, Country, Language, Online Status, Last Login, Coins, Diamonds, VIP Level, XP, Level, Host Status, Family, Agency, Ban Status, Device Hardware Info, Session Tokens.</p>
-        </div>
+        <UserProfileDossierSection />
       )}
 
       {/* 4. KYC VERIFICATION */}
