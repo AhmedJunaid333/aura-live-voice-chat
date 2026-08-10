@@ -1,0 +1,14 @@
+node_modules
+dist
+.vercel
+.env
+.env.local
+server/node_modules
+server/dist
+server/dev.db
+server/dev.db-journal
+New-Live-App/apps/mobile/build/
+New-Live-App/apps/mobile/.dart_tool/
+.gradle_cache
+*.log
+*.apk
