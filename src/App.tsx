@@ -88,13 +88,15 @@ export default function App() {
     setSubScreen(null);
   }, [tab]);
 
+import { MasterAdminConsole } from './screens/MasterAdminConsole'
+
   /* ══════════════════════════════════════════════════════════ */
   /* ══ STANDALONE WEB ADMIN PANEL ════════════════════════════ */
   /* ══════════════════════════════════════════════════════════ */
   if (isAdminView) {
     return (
-      <div className="relative min-h-screen bg-[#0A0D14] text-white">
-        <AdminDashboardScreen />
+      <div className="relative min-h-screen bg-[#07090E] text-white">
+        <MasterAdminConsole />
       </div>
     );
   }
