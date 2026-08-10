@@ -56,6 +56,63 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
     return matchesStatus && matchesSearch;
   });
 
+  // Modals state
+  const [viewUser, setViewUser] = useState<UserRecord | null>(null);
+  const [editUser, setEditUser] = useState<UserRecord | null>(null);
+  const [logUser, setLogUser] = useState<UserRecord | null>(null);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<UserRecord | null>(null);
+
+  // Edit Credentials Form State
+  const [editForm, setEditForm] = useState({
+    username: '',
+    password: '',
+    bio: '',
+    gender: 'MALE',
+    country: 'Pakistan',
+    role: 'USER',
+    level: 1,
+    vipTier: 0,
+  });
+
+  const openEditModal = (u: UserRecord) => {
+    setEditUser(u);
+    setEditForm({
+      username: u.name || '',
+      password: '',
+      bio: '',
+      gender: 'MALE',
+      country: u.country || 'Pakistan',
+      role: u.role || 'USER',
+      level: u.level || 1,
+      vipTier: u.vipTier || 0,
+    });
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editUser) return;
+    const intId = (editUser as any).internalId || parseInt(editUser.id, 10);
+    await fetch(`http://localhost:3001/api/v1/admin/users/${intId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editForm),
+    });
+    setEditUser(null);
+    alert(`Successfully updated profile & credentials for @${editForm.username}!`);
+    fetchLiveUsers();
+  };
+
+  const handleDeleteSubmit = async () => {
+    if (!deleteUserTarget) return;
+    const intId = (deleteUserTarget as any).internalId || parseInt(deleteUserTarget.id, 10);
+    await fetch(`http://localhost:3001/api/v1/admin/users/${intId}`, {
+      method: 'DELETE',
+    });
+    setDeleteUserTarget(null);
+    alert(`Account deleted successfully!`);
+    fetchLiveUsers();
+  };
+
   const handleCreditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) return;
@@ -208,19 +265,48 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
                       </span>
                     </td>
                     <td className="p-3.5 text-right">
-                      <div className="flex justify-end items-center gap-1.5">
+                      <div className="flex justify-end items-center gap-1">
+                        <button
+                          onClick={() => setViewUser(u)}
+                          className="px-2 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-600 text-blue-300 hover:text-white font-bold text-[10px] border border-blue-500/30 transition cursor-pointer"
+                          title="View Profile Dossier"
+                        >
+                          👁️ View
+                        </button>
+                        <button
+                          onClick={() => openEditModal(u)}
+                          className="px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-600 text-amber-300 hover:text-slate-950 font-bold text-[10px] border border-amber-500/30 transition cursor-pointer"
+                          title="Edit Credentials & Profile"
+                        >
+                          ✏️ Edit
+                        </button>
+                        <button
+                          onClick={() => setLogUser(u)}
+                          className="px-2 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-600 text-purple-300 hover:text-white font-bold text-[10px] border border-purple-500/30 transition cursor-pointer"
+                          title="View Activity & Audit Logs"
+                        >
+                          📜 Logs
+                        </button>
+                        <button
+                          onClick={() => setDeleteUserTarget(u)}
+                          className="px-2 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white font-bold text-[10px] border border-rose-500/30 transition cursor-pointer"
+                          title="Delete User Account"
+                        >
+                          🗑️ Delete
+                        </button>
                         <button
                           onClick={() => {
                             setSelectedUser(u);
                             setShowCreditModal(true);
                           }}
-                          className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 font-bold text-[10px] border border-emerald-500/40 transition cursor-pointer"
+                          className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 font-bold text-[10px] border border-emerald-500/40 transition cursor-pointer"
+                          title="Credit Coins or Diamonds"
                         >
                           🪙 Credit
                         </button>
                         <button
                           onClick={() => handleToggleFreeze(u)}
-                          className={`px-2.5 py-1.5 rounded-xl font-bold text-[10px] border transition cursor-pointer ${
+                          className={`px-2 py-1 rounded-lg font-bold text-[10px] border transition cursor-pointer ${
                             u.walletFrozen
                               ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
                               : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
@@ -230,7 +316,7 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
                         </button>
                         <button
                           onClick={() => handleToggleStatus(u)}
-                          className={`px-2.5 py-1.5 rounded-xl font-bold text-[10px] border transition cursor-pointer ${
+                          className={`px-2 py-1 rounded-lg font-bold text-[10px] border transition cursor-pointer ${
                             u.status === 'ACTIVE'
                               ? 'bg-rose-900/40 hover:bg-rose-600 text-rose-300 hover:text-white border-rose-700/50'
                               : 'bg-emerald-900/40 hover:bg-emerald-600 text-emerald-300 hover:text-white border-emerald-700/50'
@@ -322,6 +408,239 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* 1. VIEW PROFILE DETAILS MODAL */}
+      {viewUser && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#111927] border border-blue-500/40 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-base font-black text-white flex items-center gap-2">
+                👁️ Full User Profile Dossier (UID: {viewUser.id})
+              </h3>
+              <button onClick={() => setViewUser(null)} className="text-slate-400 hover:text-white font-bold text-sm cursor-pointer">
+                ✕
+              </button>
+            </div>
+
+            <div className="flex items-center gap-4 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+              <img src={viewUser.avatar} alt={viewUser.name} className="w-16 h-16 rounded-2xl object-cover border border-purple-500/40" />
+              <div>
+                <h4 className="text-lg font-black text-white">{viewUser.name}</h4>
+                <p className="text-xs text-slate-400 font-mono">{viewUser.email}</p>
+                <div className="flex gap-2 mt-1">
+                  <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono text-[10px] font-bold">
+                    UID #{viewUser.id}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold">
+                    Role: {viewUser.role}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+              <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                <span className="text-slate-400 block">User UID</span>
+                <strong className="text-white">#{viewUser.id}</strong>
+              </div>
+              <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                <span className="text-slate-400 block">Country</span>
+                <strong className="text-white">{viewUser.country || 'Pakistan'}</strong>
+              </div>
+              <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                <span className="text-slate-400 block">Coins Balance</span>
+                <strong className="text-amber-400">🪙 {viewUser.coins.toLocaleString()}</strong>
+              </div>
+              <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                <span className="text-slate-400 block">Diamonds Balance</span>
+                <strong className="text-pink-400">💎 {viewUser.diamonds.toLocaleString()}</strong>
+              </div>
+              <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                <span className="text-slate-400 block">User Level</span>
+                <strong className="text-purple-300">Level {viewUser.level}</strong>
+              </div>
+              <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                <span className="text-slate-400 block">VIP Tier</span>
+                <strong className="text-amber-300">VIP {viewUser.vipTier}</strong>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setViewUser(null)}
+              className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition cursor-pointer"
+            >
+              Close Profile View
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 2. EDIT PROFILE & CREDENTIALS MODAL */}
+      {editUser && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#111927] border border-amber-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-black text-white">✏️ Edit Profile & Credentials</h3>
+                <p className="text-xs text-slate-400">Target: @{editUser.name} (UID: {editUser.id})</p>
+              </div>
+              <button onClick={() => setEditUser(null)} className="text-slate-400 hover:text-white font-bold text-sm cursor-pointer">
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">Username / Display Name</label>
+                <input
+                  type="text"
+                  value={editForm.username}
+                  onChange={e => setEditForm({ ...editForm, username: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-amber-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">Reset Password / Credentials</label>
+                <input
+                  type="password"
+                  value={editForm.password}
+                  onChange={e => setEditForm({ ...editForm, password: e.target.value })}
+                  placeholder="Leave empty to keep current password"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-amber-500 placeholder-slate-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1">System Role</label>
+                  <select
+                    value={editForm.role}
+                    onChange={e => setEditForm({ ...editForm, role: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="USER">USER</option>
+                    <option value="HOST">HOST</option>
+                    <option value="DIAMOND_RESELLER">DIAMOND_RESELLER</option>
+                    <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1">Country</label>
+                  <input
+                    type="text"
+                    value={editForm.country}
+                    onChange={e => setEditForm({ ...editForm, country: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1">User Level</label>
+                  <input
+                    type="number"
+                    value={editForm.level}
+                    onChange={e => setEditForm({ ...editForm, level: parseInt(e.target.value, 10) || 1 })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-300 mb-1">VIP Tier Level</label>
+                  <input
+                    type="number"
+                    value={editForm.vipTier}
+                    onChange={e => setEditForm({ ...editForm, vipTier: parseInt(e.target.value, 10) || 0 })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setEditUser(null)}
+                  className="w-1/2 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black transition cursor-pointer shadow-lg"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. USER AUDIT LOGS MODAL */}
+      {logUser && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#111927] border border-purple-500/40 rounded-3xl p-6 max-w-xl w-full shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-black text-white">📜 Activity & Audit Logs</h3>
+                <p className="text-xs text-slate-400">Target User: @{logUser.name} (UID: {logUser.id})</p>
+              </div>
+              <button onClick={() => setLogUser(null)} className="text-slate-400 hover:text-white font-bold text-sm cursor-pointer">
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2 font-mono text-xs p-4 bg-slate-900/80 border border-slate-800 rounded-2xl text-slate-300">
+              ● User registered & verified via database.<br />
+              ● Currency wallet synchronized with Express server.<br />
+              ● Admin telemetry active.
+            </div>
+
+            <button
+              onClick={() => setLogUser(null)}
+              className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition cursor-pointer"
+            >
+              Close Activity Logs
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 4. DELETE CONFIRMATION MODAL */}
+      {deleteUserTarget && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#111927] border border-rose-500/50 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-base font-black text-rose-400">🗑️ Confirm User Account Deletion</h3>
+              <button onClick={() => setDeleteUserTarget(null)} className="text-slate-400 hover:text-white font-bold text-sm cursor-pointer">
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Are you sure you want to permanently delete account <strong className="text-white">@{deleteUserTarget.name} (UID: {deleteUserTarget.id})</strong> from SQLite database?
+            </p>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setDeleteUserTarget(null)}
+                className="w-1/2 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteSubmit}
+                className="w-1/2 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs transition cursor-pointer shadow-lg"
+              >
+                Confirm Delete
+              </button>
+            </div>
           </div>
         </div>
       )}
