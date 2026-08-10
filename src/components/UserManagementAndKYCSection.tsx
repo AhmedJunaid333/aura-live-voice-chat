@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { adminDb, type UserRecord } from '../services/adminEnterpriseDataService';
+import { adminApiClient, AdminUserRecord } from '../services/adminApiClient';
 
 export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSubKey?: string }) {
   const [users, setUsers] = useState<UserRecord[]>(adminDb.getUsers());
@@ -10,11 +11,35 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
   const [creditAmount, setCreditAmount] = useState('50000');
   const [creditType, setCreditType] = useState<'coins' | 'diamonds'>('coins');
 
-  useEffect(() => {
-    return adminDb.subscribe(() => {
+  const fetchLiveUsers = async () => {
+    const list = await adminApiClient.getUsers({ query: search, status: statusFilter });
+    if (list.length > 0) {
+      const formatted: UserRecord[] = list.map(u => ({
+        id: u.numericId.toString(),
+        internalId: u.id,
+        name: u.username,
+        email: u.email || `${u.username}@auralive.com`,
+        phone: u.phone || '+92 300 0000000',
+        avatar: u.avatar || `https://ui-avatars.com/api/?name=${u.username}&background=7C3AED&color=fff`,
+        level: u.level,
+        vipTier: u.vipTier,
+        coins: u.coins,
+        diamonds: u.diamonds,
+        role: u.role,
+        status: u.status,
+        walletFrozen: u.walletFrozen,
+        country: u.country || 'Pakistan',
+        joinedAt: new Date(u.createdAt).toISOString().split('T')[0],
+      }));
+      setUsers(formatted);
+    } else {
       setUsers(adminDb.getUsers());
-    });
-  }, []);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveUsers();
+  }, [search, statusFilter]);
 
   useEffect(() => {
     const key = activeSubKey.toLowerCase();
@@ -33,17 +58,16 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
     return matchesStatus && matchesSearch;
   });
 
-  const handleCreditSubmit = (e: React.FormEvent) => {
+  const handleCreditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) return;
     const val = parseInt(creditAmount) || 0;
-    if (creditType === 'coins') {
-      adminDb.updateUserCoins(selectedUser.id, val);
-    } else {
-      adminDb.updateUserDiamonds(selectedUser.id, val);
-    }
+    const intId = (selectedUser as any).internalId || parseInt(selectedUser.id, 10);
+    
+    await adminApiClient.creditUserWallet(intId, val, creditType);
     setShowCreditModal(false);
     alert(`Successfully credited ${val.toLocaleString()} ${creditType} to ${selectedUser.name}!`);
+    fetchLiveUsers();
   };
 
   return (
