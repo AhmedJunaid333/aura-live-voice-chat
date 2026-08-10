@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { adminApi, UserRecord } from '@/lib/api';
+import { adminApi, UserRecord, defaultRealUsers } from '@/lib/api';
 
 export default function UserManagementModule() {
-  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [users, setUsers] = useState<UserRecord[]>(defaultRealUsers);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [auditLogs, setAuditLogs] = useState<any[]>([]);

@@ -336,7 +336,6 @@ adminRouter.get('/audit-logs', authenticateToken, requireAdmin, async (req, res,
         createdAt: l.createdAt.toISOString(),
       })),
     });
-    });
   } catch (error) {
     next(error);
   }
