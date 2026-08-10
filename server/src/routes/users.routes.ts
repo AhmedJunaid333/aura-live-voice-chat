@@ -56,6 +56,7 @@ usersRouter.put('/profile/update', authenticateToken, async (req: AuthenticatedR
     const updated = await prisma.user.update({
       where: { id: req.user!.userId },
       data: {
+        ...(validated.username !== undefined && { username: validated.username }),
         ...(validated.bio !== undefined && { bio: validated.bio }),
         ...(validated.gender !== undefined && { gender: validated.gender }),
         ...(validated.country !== undefined && { country: validated.country }),

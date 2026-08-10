@@ -21,13 +21,14 @@ export const adminLoginSchema = z.object({
 });
 
 export const profileUpdateSchema = z.object({
+  username: z.string().min(1).max(50).optional(),
   bio: z.string().max(300).optional(),
   gender: z.string().optional(),
   birthday: z.string().optional(),
   country: z.string().optional(),
   countryCode: z.string().optional(),
-  avatar: z.string().url().optional(),
-  cover: z.string().url().optional(),
+  avatar: z.string().optional(),
+  cover: z.string().optional(),
 });
 
 export const sendResellerInvitationSchema = z.object({
