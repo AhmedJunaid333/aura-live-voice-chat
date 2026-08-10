@@ -13,28 +13,24 @@ export function UserManagementAndKYCSection({ activeSubKey = 'all' }: { activeSu
 
   const fetchLiveUsers = async () => {
     const list = await adminApiClient.getUsers({ query: search, status: statusFilter });
-    if (list.length > 0) {
-      const formatted: UserRecord[] = list.map(u => ({
-        id: u.numericId.toString(),
-        internalId: u.id,
-        name: u.username,
-        email: u.email || (u.phone ? `Phone: ${u.phone}` : `${u.username}@auralive.com`),
-        phone: u.phone || 'Not Provided',
-        avatar: u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username)}&background=7C3AED&color=fff`,
-        level: u.level,
-        vipTier: u.vipTier,
-        coins: u.coins,
-        diamonds: u.diamonds,
-        role: u.role,
-        status: u.status,
-        walletFrozen: u.walletFrozen,
-        country: u.country || 'Pakistan',
-        joinedAt: new Date(u.createdAt).toISOString().split('T')[0],
-      }));
-      setUsers(formatted);
-    } else {
-      setUsers(adminDb.getUsers());
-    }
+    const formatted: UserRecord[] = list.map(u => ({
+      id: u.numericId.toString(),
+      internalId: u.id,
+      name: u.username,
+      email: u.email || (u.phone ? `Phone: ${u.phone}` : `Registered User`),
+      phone: u.phone || 'Not Provided',
+      avatar: u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username)}&background=7C3AED&color=fff`,
+      level: u.level,
+      vipTier: u.vipTier,
+      coins: u.coins,
+      diamonds: u.diamonds,
+      role: u.role,
+      status: u.status,
+      walletFrozen: u.walletFrozen,
+      country: u.country || 'Pakistan',
+      joinedAt: new Date(u.createdAt).toISOString().split('T')[0],
+    }));
+    setUsers(formatted);
   };
 
   useEffect(() => {
