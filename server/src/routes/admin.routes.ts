@@ -336,7 +336,81 @@ adminRouter.get('/audit-logs', authenticateToken, requireAdmin, async (req, res,
         createdAt: l.createdAt.toISOString(),
       })),
     });
+    });
   } catch (error) {
     next(error);
   }
 });
+
+// 9. Update User Profile & Credentials (Username, Password, Bio, Role, Level, VIP)
+adminRouter.put('/users/:id', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const userId = parseInt(req.params.id as string, 10);
+    const { username, password, bio, gender, country, role, level, vipTier } = req.body;
+    const adminId = req.user!.userId;
+
+    const dataToUpdate: any = {};
+    if (username !== undefined) dataToUpdate.username = username;
+    if (bio !== undefined) dataToUpdate.bio = bio;
+    if (gender !== undefined) dataToUpdate.gender = gender;
+    if (country !== undefined) dataToUpdate.country = country;
+    if (role !== undefined) dataToUpdate.role = role;
+    if (level !== undefined) dataToUpdate.level = parseInt(level, 10);
+    if (vipTier !== undefined) dataToUpdate.vipTier = parseInt(vipTier, 10);
+
+    if (password && password.trim().length > 0) {
+      const bcrypt = (await import('bcryptjs')).default;
+      dataToUpdate.passwordHash = await bcrypt.hash(password.trim(), 12);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: dataToUpdate,
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: adminId,
+        actorRole: 'ADMIN',
+        action: 'UPDATE_USER_PROFILE_CREDENTIALS',
+        resource: `User:${updatedUser.numericId}`,
+        details: `Updated profile/credentials for @${updatedUser.username}. Password reset: ${password ? 'YES' : 'NO'}.`,
+      },
+    });
+
+    res.status(200).json({ success: true, data: updatedUser });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 10. Delete User Account
+adminRouter.delete('/users/:id', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const userId = parseInt(req.params.id as string, 10);
+    const adminId = req.user!.userId;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      res.status(404).json({ success: false, error: 'User not found' });
+      return;
+    }
+
+    await prisma.user.delete({ where: { id: userId } });
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: adminId,
+        actorRole: 'ADMIN',
+        action: 'DELETE_USER_ACCOUNT',
+        resource: `User:${user.numericId}`,
+        details: `Deleted user account @${user.username} (UID: ${user.numericId}).`,
+      },
+    });
+
+    res.status(200).json({ success: true, message: `User @${user.username} deleted successfully` });
+  } catch (error) {
+    next(error);
+  }
+});
+

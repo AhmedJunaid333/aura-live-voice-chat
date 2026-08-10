@@ -102,4 +102,28 @@ export const adminApi = {
       return [];
     }
   },
+
+  async updateUser(id: number, data: Partial<UserRecord> & { password?: string }) {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return await res.json();
+    } catch {
+      return { success: false };
+    }
+  },
+
+  async deleteUser(id: number) {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/users/${id}`, {
+        method: 'DELETE',
+      });
+      return await res.json();
+    } catch {
+      return { success: false };
+    }
+  },
 };
