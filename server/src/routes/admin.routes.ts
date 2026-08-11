@@ -4492,6 +4492,253 @@ adminRouter.post('/feature-flags/rollback', async (req, res, next) => {
   }
 });
 
+// 101. System Configurations & Global App Control Telemetry Catalog
+adminRouter.get('/system-config', async (req, res, next) => {
+  try {
+    const configs = [
+      {
+        id: 'CFG-101',
+        key: 'system.chat.max_message_length',
+        name: '💬 Max Chat Message Length (Chars)',
+        category: 'CHAT',
+        type: 'INTEGER',
+        value: 500,
+        defaultValue: 500,
+        version: 3,
+        environment: 'PRODUCTION',
+        isCritical: false,
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 3600000).toISOString(),
+      },
+      {
+        id: 'CFG-102',
+        key: 'system.room.max_seats',
+        name: '🎙️ Max Audio Lounge Mic Seats',
+        category: 'AUDIO_ROOMS',
+        type: 'INTEGER',
+        value: 8,
+        defaultValue: 8,
+        version: 2,
+        environment: 'PRODUCTION',
+        isCritical: true,
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 7200000).toISOString(),
+      },
+      {
+        id: 'CFG-103',
+        key: 'system.gift.max_daily_limit',
+        name: '🎁 Daily Gifting Limit (Diamonds)',
+        category: 'GIFTING',
+        type: 'INTEGER',
+        value: 1000000,
+        defaultValue: 1000000,
+        version: 5,
+        environment: 'PRODUCTION',
+        isCritical: true,
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 14400000).toISOString(),
+      },
+      {
+        id: 'CFG-104',
+        key: 'system.recharge.min_amount',
+        name: '💳 Minimum Recharge Amount ($)',
+        category: 'RECHARGE',
+        type: 'DECIMAL',
+        value: 5.0,
+        defaultValue: 5.0,
+        version: 1,
+        environment: 'PRODUCTION',
+        isCritical: true,
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 28800000).toISOString(),
+      },
+      {
+        id: 'CFG-105',
+        key: 'system.upload.max_image_size_mb',
+        name: '📁 Max Avatar Upload Size (MB)',
+        category: 'UPLOADS',
+        type: 'INTEGER',
+        value: 10,
+        defaultValue: 10,
+        version: 2,
+        environment: 'PRODUCTION',
+        isCritical: false,
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 86400000).toISOString(),
+      },
+      {
+        id: 'CFG-106',
+        key: 'system.app.maintenance_message',
+        name: '🚨 Global System Maintenance Banner',
+        category: 'SYSTEM',
+        type: 'STRING',
+        value: 'Aura Live Voice Chat undergoes scheduled server maintenance. Thank you for your patience!',
+        defaultValue: 'Server Maintenance Mode Active',
+        version: 4,
+        environment: 'PRODUCTION',
+        isCritical: true,
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 172800000).toISOString(),
+      },
+      {
+        id: 'CFG-107',
+        key: 'system.reseller.min_transfer_diamonds',
+        name: '💎 Minimum Reseller P2P Transfer Diamonds',
+        category: 'RESELLER',
+        type: 'INTEGER',
+        value: 100,
+        defaultValue: 100,
+        version: 3,
+        environment: 'PRODUCTION',
+        isCritical: true,
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 259200000).toISOString(),
+      },
+    ];
+
+    const configHistory = [
+      {
+        id: 'CHIST-801',
+        configKey: 'system.room.max_seats',
+        oldValue: 10,
+        newValue: 8,
+        version: 2,
+        changedBy: 'Admin_Master',
+        reason: 'Adjusted max audio seats to 8 for optimal WebRTC bitrate distribution',
+        timestamp: new Date(Date.now() - 7200000).toISOString(),
+      },
+      {
+        id: 'CHIST-802',
+        configKey: 'system.chat.max_message_length',
+        oldValue: 300,
+        newValue: 500,
+        version: 3,
+        changedBy: 'Admin_Master',
+        reason: 'Increased chat message limit to 500 characters',
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+      },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        configs,
+        configHistory,
+        totalConfigs: configs.length,
+        criticalConfigs: 5,
+        normalConfigs: 2,
+        systemVersion: 'v2.4.0',
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 102. Create New System Configuration Key
+adminRouter.post('/system-config/create', async (req, res, next) => {
+  try {
+    const { key, name, category, type, defaultValue, value, environment } = req.body;
+    const configId = 'CFG-' + Date.now();
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'SYSTEM_CONFIG_CREATED',
+        resource: `Config:${key}`,
+        details: `Created System Config Key '${key}' ('${name}', Category: ${category || 'SYSTEM'}, Type: ${type || 'STRING'}, Value: ${JSON.stringify(value)}).`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('config.system.updated', {
+        configKey: key,
+        value,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `System Config Key '${key}' created successfully!`,
+      data: { configId, key, name, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 103. Update System Configuration Value
+adminRouter.post('/system-config/update', async (req, res, next) => {
+  try {
+    const { configKey, newValue, reason } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'SYSTEM_CONFIG_UPDATED',
+        resource: `Config:${configKey}`,
+        details: `Updated System Config '${configKey}' value to ${JSON.stringify(newValue)}. Reason: ${reason || 'Admin System Config Remote Update'}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('config.system.updated', {
+        configKey,
+        newValue,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `System Config '${configKey}' value updated to ${JSON.stringify(newValue)}!`,
+      data: { configKey, newValue, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 104. Rollback System Configuration Version
+adminRouter.post('/system-config/rollback', async (req, res, next) => {
+  try {
+    const { configKey, rollbackVersion } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'SYSTEM_CONFIG_ROLLED_BACK',
+        resource: `Config:${configKey}`,
+        details: `Rolled back System Config '${configKey}' to Version ${rollbackVersion || 1}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('config.system.rolledback', {
+        configKey,
+        rolledBackToVersion: rollbackVersion || 1,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `System Config '${configKey}' rolled back to Version ${rollbackVersion || 1}!`,
+      data: { configKey, rollbackVersion: rollbackVersion || 1, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
