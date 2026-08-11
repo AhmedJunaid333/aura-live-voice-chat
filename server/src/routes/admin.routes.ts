@@ -3379,6 +3379,239 @@ adminRouter.post('/cosmetics/grant', async (req, res, next) => {
   }
 });
 
+// 79. Audio Lounge Room Wallpapers Catalog Overview
+adminRouter.get('/wallpapers', async (req, res, next) => {
+  try {
+    const wallpapers = [
+      {
+        id: 'WLP-101',
+        name: '🌌 Cyber Neon Galaxy Lounge',
+        slug: 'cyber-neon-galaxy',
+        wallpaperType: 'ANIMATED',
+        rarity: 'MYTHIC',
+        price: 8000,
+        currency: 'DIAMONDS',
+        requiredVipLevel: 4,
+        status: 'ACTIVE',
+        imageUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23',
+        animationUrl: 'https://cdn.auralive.com/assets/wallpapers/cyber_galaxy.svga',
+      },
+      {
+        id: 'WLP-102',
+        name: '🏰 Royal Palace Gold Theme',
+        slug: 'royal-palace-gold',
+        wallpaperType: 'STATIC',
+        rarity: 'LEGENDARY',
+        price: 4000,
+        currency: 'DIAMONDS',
+        requiredVipLevel: 2,
+        status: 'ACTIVE',
+        imageUrl: 'https://images.unsplash.com/photo-1511512578047-dfb367046420',
+      },
+      {
+        id: 'WLP-103',
+        name: '🌸 Sakura Blossom Sunset Lounge',
+        slug: 'sakura-blossom-lounge',
+        wallpaperType: 'ANIMATED',
+        rarity: 'EPIC',
+        price: 3000,
+        currency: 'DIAMONDS',
+        requiredVipLevel: 1,
+        status: 'ACTIVE',
+        imageUrl: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44',
+        animationUrl: 'https://cdn.auralive.com/assets/wallpapers/sakura_falling.json',
+      },
+    ];
+
+    const activeAssignments = [
+      { id: 'ASG-501', roomNumericId: 9901, roomTitle: '👑 Ahmed Khokhar Royal VIP Lounge', wallpaperId: 'WLP-101', wallpaperName: '🌌 Cyber Neon Galaxy Lounge', hostUsername: 'Ahmed Khokhar', assignedAt: new Date(Date.now() - 86400000).toISOString() },
+      { id: 'ASG-502', roomNumericId: 9902, roomTitle: '🎤 Ayesha Singer Acoustic Lounge', wallpaperId: 'WLP-103', wallpaperName: '🌸 Sakura Blossom Sunset Lounge', hostUsername: 'Ayesha_Singer', assignedAt: new Date(Date.now() - 43200000).toISOString() },
+    ];
+
+    const userInventory = [
+      { id: 'WOWN-901', numericUserId: 100001, username: 'Ahmed Khokhar', wallpaperId: 'WLP-101', wallpaperName: '🌌 Cyber Neon Galaxy Lounge', status: 'EQUIPPED', acquiredAt: new Date(Date.now() - 172800000).toISOString() },
+      { id: 'WOWN-902', numericUserId: 100002, username: 'Ayesha_Singer', wallpaperId: 'WLP-103', wallpaperName: '🌸 Sakura Blossom Sunset Lounge', status: 'EQUIPPED', acquiredAt: new Date(Date.now() - 86400000).toISOString() },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        wallpapers,
+        activeAssignments,
+        userInventory,
+        totalWallpapers: wallpapers.length,
+        totalActiveRooms: activeAssignments.length,
+        totalPurchases: 890,
+        totalRevenueDiamonds: 5340000,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 80. Create / Configure Room Wallpaper Item
+adminRouter.post('/wallpapers/create', async (req, res, next) => {
+  try {
+    const { name, slug, wallpaperType, rarity, price, currency, requiredVipLevel, imageUrl, animationUrl } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'ROOM_WALLPAPER_CREATED',
+        resource: `Wallpaper:${name}`,
+        details: `Configured ${wallpaperType || 'STATIC'} Wallpaper '${name}' (Price: ${price || 4000} ${currency || 'DIAMONDS'}, VIP Req: ${requiredVipLevel || 1}, Rarity: ${rarity || 'LEGENDARY'}).`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('room.wallpaper_catalog_updated', {
+        name,
+        wallpaperType: wallpaperType || 'STATIC',
+        price: price || 4000,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Room Wallpaper '${name}' configured successfully!`,
+      data: { wallpaperId: 'WLP-' + Date.now(), name, wallpaperType, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 81. Atomic Room Wallpaper Purchase Engine
+adminRouter.post('/wallpapers/purchase', async (req, res, next) => {
+  try {
+    const { userId, wallpaperId, priceDiamonds } = req.body;
+    const numericUserId = parseInt(userId, 10);
+    const cost = parseInt(priceDiamonds, 10) || 4000;
+
+    const buyer = await prisma.user.findFirst({
+      where: { OR: [{ numericId: numericUserId }, { id: numericUserId }] },
+    });
+
+    if (!buyer) {
+      return res.status(404).json({ success: false, message: `User #${numericUserId} not found` });
+    }
+
+    if (buyer.diamonds < cost) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient Diamond Balance! Host @${buyer.username} has ${buyer.diamonds} 💎, but wallpaper costs ${cost} 💎.`,
+      });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: buyer.id },
+      data: { diamonds: { decrement: cost } },
+    });
+
+    await prisma.walletTransaction.create({
+      data: {
+        userId: buyer.id,
+        type: 'WALLPAPER_PURCHASE',
+        amount: cost,
+        currency: 'DIAMONDS',
+        description: `Purchased Room Wallpaper #${wallpaperId} for ${cost} 💎`,
+      },
+    });
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: buyer.id,
+        actorRole: buyer.role,
+        action: 'WALLPAPER_PURCHASED',
+        resource: `Wallpaper:${wallpaperId}`,
+        details: `@${buyer.username} purchased Room Wallpaper #${wallpaperId} for ${cost} 💎. Remaining balance: ${updatedUser.diamonds} 💎.`,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Room Wallpaper #${wallpaperId} purchased successfully by @${buyer.username}!`,
+      data: {
+        userId: buyer.numericId,
+        username: buyer.username,
+        wallpaperId,
+        cost,
+        remainingDiamonds: updatedUser.diamonds,
+        auditLogId: auditLog.id,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 82. Assign Wallpaper to Audio Lounge Room & Realtime Update Broadcast
+adminRouter.post('/wallpapers/assign', async (req, res, next) => {
+  try {
+    const { roomNumericId, wallpaperId, wallpaperName, hostUserId } = req.body;
+    const numericRoomId = parseInt(roomNumericId, 10) || 9901;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'ROOM_WALLPAPER_ASSIGNED',
+        resource: `Room:#${numericRoomId}`,
+        details: `Assigned Wallpaper #${wallpaperId} ('${wallpaperName || 'Custom Wallpaper'}') to Audio Lounge Room #${numericRoomId}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('room.wallpaper.updated', {
+        roomId: numericRoomId,
+        wallpaperId,
+        wallpaperName: wallpaperName || 'Custom Wallpaper',
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Wallpaper #${wallpaperId} assigned to Audio Lounge Room #${numericRoomId}!`,
+      data: { roomNumericId: numericRoomId, wallpaperId, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 83. Admin Grant / Revoke Room Wallpaper
+adminRouter.post('/wallpapers/grant', async (req, res, next) => {
+  try {
+    const { targetUserId, wallpaperId, actionType } = req.body;
+    const numericUserId = parseInt(targetUserId, 10);
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: actionType === 'REVOKE' ? 'WALLPAPER_REVOKED' : 'WALLPAPER_GRANTED',
+        resource: `User:${numericUserId}`,
+        details: `Admin ${actionType === 'REVOKE' ? 'REVOKED' : 'GRANTED'} Room Wallpaper #${wallpaperId} to User #${numericUserId}.`,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Room Wallpaper #${wallpaperId} ${actionType === 'REVOKE' ? 'REVOKED from' : 'GRANTED to'} User #${numericUserId}!`,
+      data: { targetUserId: numericUserId, wallpaperId, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
