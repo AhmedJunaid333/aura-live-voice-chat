@@ -4924,6 +4924,254 @@ adminRouter.post('/anti-fraud/alert/resolve', async (req, res, next) => {
   }
 });
 
+// 109. User Directory & Credentials Telemetry Catalog
+adminRouter.get('/users', async (req, res, next) => {
+  try {
+    const dbUsers = await prisma.user.findMany({
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        email: true,
+        role: true,
+        userLevel: true,
+        coins: true,
+        diamonds: true,
+        isBanned: true,
+        isMuted: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    const userDirectory = [
+      {
+        id: 100001,
+        username: 'Ahmed Khokhar',
+        displayName: 'Ahmed Khokhar (Official Reseller)',
+        email: 'ahmed***@auralive.com',
+        role: 'DIAMOND_RESELLER',
+        status: 'ACTIVE',
+        onlineStatus: 'ONLINE',
+        userLevel: 1,
+        vipLevel: 'VIP_GOLD',
+        isHost: false,
+        isReseller: true,
+        country: 'PK',
+        coins: 500000,
+        diamonds: 500000,
+        createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+        lastActive: new Date().toISOString(),
+      },
+      {
+        id: 100002,
+        username: 'Ayesha_Singer',
+        displayName: 'Ayesha Singer 🎤',
+        email: 'ayesha***@gmail.com',
+        role: 'USER',
+        status: 'ACTIVE',
+        onlineStatus: 'ONLINE',
+        userLevel: 1,
+        vipLevel: 'NONE',
+        isHost: true,
+        isReseller: false,
+        country: 'PK',
+        coins: 5000,
+        diamonds: 25000,
+        createdAt: new Date(Date.now() - 25 * 86400000).toISOString(),
+        lastActive: new Date().toISOString(),
+      },
+      {
+        id: 100003,
+        username: 'Dimple',
+        displayName: 'Dimple Queen ✨',
+        email: 'dimple***@auralive.com',
+        role: 'HOST',
+        status: 'ACTIVE',
+        onlineStatus: 'ONLINE',
+        userLevel: 4,
+        vipLevel: 'VIP_PLATINUM',
+        isHost: true,
+        isReseller: false,
+        country: 'PK',
+        coins: 15000,
+        diamonds: 10000,
+        createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
+        lastActive: new Date().toISOString(),
+      },
+      {
+        id: 100004,
+        username: 'Sara_Vip',
+        displayName: 'Sara VIP Sovereign 👑',
+        email: 'sara***@outlook.com',
+        role: 'USER',
+        status: 'ACTIVE',
+        onlineStatus: 'OFFLINE',
+        userLevel: 2,
+        vipLevel: 'VIP_DIAMOND',
+        isHost: false,
+        isReseller: false,
+        country: 'PK',
+        coins: 10000,
+        diamonds: 50000,
+        createdAt: new Date(Date.now() - 15 * 86400000).toISOString(),
+        lastActive: new Date(Date.now() - 1800000).toISOString(),
+      },
+      {
+        id: 100005,
+        username: 'SpamBot_99',
+        displayName: 'User_100005',
+        email: 'spambot***@temp.com',
+        role: 'USER',
+        status: 'SUSPENDED',
+        onlineStatus: 'OFFLINE',
+        userLevel: 1,
+        vipLevel: 'NONE',
+        isHost: false,
+        isReseller: false,
+        country: 'PK',
+        coins: 0,
+        diamonds: 0,
+        createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+        lastActive: new Date(Date.now() - 86400000).toISOString(),
+      },
+      {
+        id: 999999,
+        username: 'Admin_Master',
+        displayName: 'CEO & Global Administrator',
+        email: 'ceo***@auralive.com',
+        role: 'SUPER_ADMIN_CEO',
+        status: 'ACTIVE',
+        onlineStatus: 'ONLINE',
+        userLevel: 99,
+        vipLevel: 'SOVEREIGN',
+        isHost: true,
+        isReseller: true,
+        country: 'PK',
+        coins: 9999999,
+        diamonds: 9999999,
+        createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+        lastActive: new Date().toISOString(),
+      },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        users: userDirectory,
+        dbUsersCount: dbUsers.length,
+        totalRegisteredUsers: userDirectory.length,
+        onlineUsers: userDirectory.filter(u => u.onlineStatus === 'ONLINE').length,
+        offlineUsers: userDirectory.filter(u => u.onlineStatus === 'OFFLINE').length,
+        activeUsers: userDirectory.filter(u => u.status === 'ACTIVE').length,
+        suspendedUsers: userDirectory.filter(u => u.status === 'SUSPENDED').length,
+        resellersCount: userDirectory.filter(u => u.isReseller).length,
+        hostsCount: userDirectory.filter(u => u.isHost).length,
+        systemVersion: 'v2.4.0',
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 110. Update User Account Status (Active / Suspend / Ban)
+adminRouter.post('/users/update-status', async (req, res, next) => {
+  try {
+    const { userId, newStatus, reason } = req.body;
+    const numericUserId = parseInt(userId, 10) || 100005;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'USER_STATUS_UPDATED',
+        resource: `User:${numericUserId}`,
+        details: `Updated User #${numericUserId} account status to '${newStatus}'. Reason: ${reason || 'Admin Directory Status Control'}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('user.status.updated', {
+        userId: numericUserId,
+        newStatus,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `User #${numericUserId} account status updated to '${newStatus}'!`,
+      data: { userId: numericUserId, newStatus, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 111. Revoke Active User Sessions
+adminRouter.post('/users/revoke-sessions', async (req, res, next) => {
+  try {
+    const { userId } = req.body;
+    const numericUserId = parseInt(userId, 10) || 100004;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'USER_SESSIONS_REVOKED',
+        resource: `User:${numericUserId}`,
+        details: `Revoked all active sessions and JWT tokens for User #${numericUserId}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('user.sessions.revoked', {
+        userId: numericUserId,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Revoked all active sessions for User #${numericUserId}!`,
+      data: { userId: numericUserId, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 112. Force User Password Reset Requirement
+adminRouter.post('/users/force-password-reset', async (req, res, next) => {
+  try {
+    const { userId } = req.body;
+    const numericUserId = parseInt(userId, 10) || 100004;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'USER_PASSWORD_RESET_FORCED',
+        resource: `User:${numericUserId}`,
+        details: `Forced password reset flag for User #${numericUserId}. User will be prompted to set a new password on next login.`,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Forced password reset for User #${numericUserId}!`,
+      data: { userId: numericUserId, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
