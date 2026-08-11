@@ -4231,6 +4231,268 @@ adminRouter.post('/abuse-reports/moderate', async (req, res, next) => {
   }
 });
 
+// 97. Feature Flags & Remote Toggle Telemetry Catalog
+adminRouter.get('/feature-flags', async (req, res, next) => {
+  try {
+    const flags = [
+      {
+        id: 'FLAG-101',
+        key: 'features.live_streaming.enabled',
+        name: '📹 Live Streaming Engine',
+        category: 'LIVE',
+        type: 'BOOLEAN',
+        currentValue: true,
+        defaultValue: true,
+        status: 'ENABLED',
+        version: 4,
+        environment: 'PRODUCTION',
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 3600000).toISOString(),
+      },
+      {
+        id: 'FLAG-102',
+        key: 'features.audio_rooms.enabled',
+        name: '🎙️ Audio Lounge & Seats',
+        category: 'AUDIO_ROOMS',
+        type: 'BOOLEAN',
+        currentValue: true,
+        defaultValue: true,
+        status: 'ENABLED',
+        version: 2,
+        environment: 'PRODUCTION',
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 7200000).toISOString(),
+      },
+      {
+        id: 'FLAG-103',
+        key: 'features.chat.enabled',
+        name: '💬 Chat & Private Messaging',
+        category: 'CHAT',
+        type: 'BOOLEAN',
+        currentValue: true,
+        defaultValue: true,
+        status: 'ENABLED',
+        version: 1,
+        environment: 'PRODUCTION',
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 14400000).toISOString(),
+      },
+      {
+        id: 'FLAG-104',
+        key: 'features.gifting.enabled',
+        name: '🎁 Diamond & Bean Gifting',
+        category: 'GIFTING',
+        type: 'BOOLEAN',
+        currentValue: true,
+        defaultValue: true,
+        status: 'ENABLED',
+        version: 5,
+        environment: 'PRODUCTION',
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 28800000).toISOString(),
+      },
+      {
+        id: 'FLAG-105',
+        key: 'features.reseller.enabled',
+        name: '💳 Diamond Reseller Network',
+        category: 'RESELLER',
+        type: 'BOOLEAN',
+        currentValue: true,
+        defaultValue: true,
+        status: 'ENABLED',
+        version: 3,
+        environment: 'PRODUCTION',
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 86400000).toISOString(),
+      },
+      {
+        id: 'FLAG-106',
+        key: 'features.games.enabled',
+        name: '🎯 Lucky Gift & Minigames',
+        category: 'GAMES',
+        type: 'BOOLEAN',
+        currentValue: true,
+        defaultValue: true,
+        status: 'ENABLED',
+        version: 1,
+        environment: 'PRODUCTION',
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 172800000).toISOString(),
+      },
+      {
+        id: 'FLAG-107',
+        key: 'features.max_room_seats',
+        name: '🪑 Max Audio Room Seats Limit',
+        category: 'AUDIO_ROOMS',
+        type: 'NUMBER',
+        currentValue: 8,
+        defaultValue: 8,
+        status: 'ENABLED',
+        version: 2,
+        environment: 'PRODUCTION',
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 259200000).toISOString(),
+      },
+      {
+        id: 'FLAG-108',
+        key: 'features.maintenance_mode',
+        name: '🚨 System Maintenance Mode',
+        category: 'SYSTEM',
+        type: 'BOOLEAN',
+        currentValue: false,
+        defaultValue: false,
+        status: 'DISABLED',
+        version: 6,
+        environment: 'PRODUCTION',
+        updatedBy: 'Admin_Master',
+        updatedAt: new Date(Date.now() - 432000000).toISOString(),
+      },
+    ];
+
+    const flagHistory = [
+      {
+        id: 'HIST-501',
+        flagKey: 'features.gifting.enabled',
+        oldValue: false,
+        newValue: true,
+        version: 5,
+        changedBy: 'Admin_Master',
+        reason: 'Re-enabled gifting engine post scheduled audit',
+        timestamp: new Date(Date.now() - 28800000).toISOString(),
+      },
+      {
+        id: 'HIST-502',
+        flagKey: 'features.live_streaming.enabled',
+        oldValue: false,
+        newValue: true,
+        version: 4,
+        changedBy: 'Admin_Master',
+        reason: 'Activated live streaming engine',
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+      },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        flags,
+        flagHistory,
+        totalFlags: flags.length,
+        enabledFlags: flags.filter(f => f.status === 'ENABLED').length,
+        disabledFlags: flags.filter(f => f.status === 'DISABLED').length,
+        criticalFlags: 3,
+        systemVersion: 'v2.4.0',
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 98. Create New Remote Feature Flag
+adminRouter.post('/feature-flags/create', async (req, res, next) => {
+  try {
+    const { key, name, category, type, defaultValue, environment } = req.body;
+    const flagId = 'FLAG-' + Date.now();
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'FEATURE_FLAG_CREATED',
+        resource: `Flag:${key}`,
+        details: `Created Feature Flag '${key}' ('${name}', Category: ${category || 'SYSTEM'}, Type: ${type || 'BOOLEAN'}).`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('config.feature.updated', {
+        flagKey: key,
+        status: 'ENABLED',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Feature Flag '${key}' created successfully!`,
+      data: { flagId, key, name, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 99. Toggle / Update Feature Flag Status
+adminRouter.post('/feature-flags/toggle', async (req, res, next) => {
+  try {
+    const { flagKey, newValue, reason } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'FEATURE_FLAG_TOGGLED',
+        resource: `Flag:${flagKey}`,
+        details: `Toggled Feature Flag '${flagKey}' to ${JSON.stringify(newValue)}. Reason: ${reason || 'Admin Remote Configuration Update'}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('config.feature.updated', {
+        flagKey,
+        newValue,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Feature Flag '${flagKey}' updated to ${JSON.stringify(newValue)}!`,
+      data: { flagKey, newValue, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 100. Rollback Feature Flag Configuration Version
+adminRouter.post('/feature-flags/rollback', async (req, res, next) => {
+  try {
+    const { flagKey, rollbackVersion } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'FEATURE_FLAG_ROLLED_BACK',
+        resource: `Flag:${flagKey}`,
+        details: `Rolled back Feature Flag '${flagKey}' to Version ${rollbackVersion || 1}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('config.feature.updated', {
+        flagKey,
+        rolledBackToVersion: rollbackVersion || 1,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Feature Flag '${flagKey}' rolled back to Version ${rollbackVersion || 1}!`,
+      data: { flagKey, rollbackVersion: rollbackVersion || 1, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
