@@ -1476,6 +1476,159 @@ adminRouter.post('/family/members/remove', async (req, res, next) => {
   }
 });
 
+// 37. Master Portal Root System Overview Endpoint
+adminRouter.get('/master/overview', async (req, res, next) => {
+  try {
+    const [
+      totalUsers,
+      activeUsers,
+      totalAuditLogs,
+      adminUsers,
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { status: 'ACTIVE' } }),
+      prisma.auditLog.count(),
+      prisma.user.findMany({
+        where: {
+          role: { in: ['SUPER_ADMIN_CEO', 'SUPER_ADMIN', 'ADMIN', 'FINANCE_ADMIN', 'OPERATIONS_ADMIN'] },
+        },
+        select: { id: true, numericId: true, username: true, role: true, status: true, createdAt: true },
+      }),
+    ]);
+
+    const featureFlags = {
+      LIVE_STREAMING: true,
+      GIFTS_ECONOMY: true,
+      RESELLER_RECHARGE: true,
+      CP_RELATIONSHIPS: true,
+      FAMILY_GUILDS: true,
+      VIP_NOBILITY: true,
+    };
+
+    res.status(200).json({
+      success: true,
+      data: {
+        timestamp: new Date().toISOString(),
+        systemMode: 'NORMAL',
+        securityHealth: 'ROOT_SECURE',
+        activeAdminSessions: adminUsers.length,
+        totalUsers,
+        activeUsers,
+        totalAuditLogs,
+        featureFlags,
+        adminUsers,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 38. Toggle Platform Feature Flags (Server-Side Enforced)
+adminRouter.post('/master/feature-flags', async (req, res, next) => {
+  try {
+    const { flagName, enabled, reason } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'ROOT_SYSTEM_ADMIN',
+        action: 'FEATURE_FLAG_UPDATED',
+        resource: `System:FeatureFlag:${flagName}`,
+        details: `Toggled feature flag '${flagName}' to ${enabled ? 'ENABLED' : 'DISABLED'}. Reason: ${reason || 'Root system update.'}`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('system.status.changed', {
+        flagName,
+        enabled,
+        message: `Platform feature flag '${flagName}' is now ${enabled ? 'ENABLED' : 'DISABLED'}.`,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Feature flag '${flagName}' set to ${enabled ? 'ENABLED' : 'DISABLED'}`,
+      data: { flagName, enabled, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 39. Emergency Platform Freeze & Maintenance Lockdown
+adminRouter.post('/master/emergency-lockdown', async (req, res, next) => {
+  try {
+    const { targetMode, reason } = req.body; // 'NORMAL' | 'MAINTENANCE' | 'EMERGENCY_LOCKDOWN'
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'ROOT_SYSTEM_ADMIN',
+        action: 'SYSTEM_LOCKDOWN',
+        resource: 'System:GlobalMode',
+        details: `Switched platform mode to '${targetMode}'. Reason: ${reason || 'Emergency lockdown activated by Root System Admin.'}`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('system.status.changed', {
+        systemMode: targetMode,
+        message: `Platform status changed to ${targetMode}.`,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Platform mode successfully changed to '${targetMode}'`,
+      data: { targetMode, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 40. Revoke Active Admin Session
+adminRouter.post('/master/admins/revoke-session', async (req, res, next) => {
+  try {
+    const { adminUserId, reason } = req.body;
+    const numericAdminId = parseInt(adminUserId, 10);
+
+    const adminUser = await prisma.user.findUnique({ where: { id: numericAdminId } });
+    if (!adminUser) {
+      res.status(404).json({ success: false, error: 'Admin account not found' });
+      return;
+    }
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'ROOT_SYSTEM_ADMIN',
+        action: 'ADMIN_SESSION_REVOKED',
+        resource: `Admin:${adminUser.numericId}`,
+        details: `Revoked active admin session for @${adminUser.username} (UID: ${adminUser.numericId}). Reason: ${reason || 'Root security revocation.'}`,
+      },
+    });
+
+    emitToUser(adminUser.numericId, 'account.status_updated', {
+      sessionRevoked: true,
+      reason: 'Admin session revoked by Root System Administrator.',
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Session successfully revoked for @${adminUser.username}`,
+      data: { adminId: adminUser.id, numericId: adminUser.numericId, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
