@@ -5171,6 +5171,238 @@ adminRouter.post('/users/force-password-reset', async (req, res, next) => {
   }
 });
 
+// 113. Moments Feed & Explore Discovery Catalog
+adminRouter.get('/moments', async (req, res, next) => {
+  try {
+    const momentsCatalog = [
+      {
+        id: 'MM-8001',
+        authorId: 100002,
+        authorUsername: 'Ayesha_Singer',
+        authorDisplayName: 'Ayesha Singer 🎤',
+        mediaType: 'IMAGE',
+        mediaUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
+        caption: 'Live acoustic performance at Lahore Music Lounge! 🎸✨ Thank you everyone for joining!',
+        visibility: 'PUBLIC',
+        status: 'PUBLISHED',
+        likesCount: 245,
+        commentsCount: 42,
+        viewsCount: 1890,
+        sharesCount: 18,
+        reportsCount: 0,
+        riskLevel: 'LOW',
+        assignedModerator: 'Unassigned',
+        createdAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+        publishedAt: new Date(Date.now() - 2 * 3600000).toISOString(),
+      },
+      {
+        id: 'MM-8002',
+        authorId: 100003,
+        authorUsername: 'Dimple',
+        authorDisplayName: 'Dimple Queen ✨',
+        mediaType: 'VIDEO',
+        mediaUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=600&q=80',
+        caption: 'VIP Lounge highlights & diamond celebration party! 💎🎉 Sending love to all my fans!',
+        visibility: 'PUBLIC',
+        status: 'PUBLISHED',
+        likesCount: 512,
+        commentsCount: 89,
+        viewsCount: 4320,
+        sharesCount: 54,
+        reportsCount: 0,
+        riskLevel: 'LOW',
+        assignedModerator: 'Unassigned',
+        createdAt: new Date(Date.now() - 5 * 3600000).toISOString(),
+        publishedAt: new Date(Date.now() - 5 * 3600000).toISOString(),
+      },
+      {
+        id: 'MM-8003',
+        authorId: 100004,
+        authorUsername: 'Sara_Vip',
+        authorDisplayName: 'Sara VIP Sovereign 👑',
+        mediaType: 'TEXT',
+        mediaUrl: '',
+        caption: 'Exclusive giveaway announcement for sovereign VIP members! Check out my story for entry details! 👑🎁',
+        visibility: 'PUBLIC',
+        status: 'PUBLISHED',
+        likesCount: 128,
+        commentsCount: 15,
+        viewsCount: 980,
+        sharesCount: 8,
+        reportsCount: 0,
+        riskLevel: 'LOW',
+        assignedModerator: 'Unassigned',
+        createdAt: new Date(Date.now() - 8 * 3600000).toISOString(),
+        publishedAt: new Date(Date.now() - 8 * 3600000).toISOString(),
+      },
+      {
+        id: 'MM-8004',
+        authorId: 100005,
+        authorUsername: 'SpamBot_99',
+        authorDisplayName: 'User_100005',
+        mediaType: 'TEXT',
+        mediaUrl: '',
+        caption: 'Click here for free 500,000 diamonds and coins instantly! http://scam-site.temp/claim-coins',
+        visibility: 'PUBLIC',
+        status: 'RESTRICTED',
+        likesCount: 0,
+        commentsCount: 1,
+        viewsCount: 45,
+        sharesCount: 0,
+        reportsCount: 14,
+        riskLevel: 'CRITICAL',
+        assignedModerator: '@Admin_Master',
+        createdAt: new Date(Date.now() - 12 * 3600000).toISOString(),
+        publishedAt: new Date(Date.now() - 12 * 3600000).toISOString(),
+      },
+      {
+        id: 'MM-8005',
+        authorId: 100001,
+        authorUsername: 'Ahmed Khokhar',
+        authorDisplayName: 'Ahmed Khokhar (Official Reseller)',
+        mediaType: 'IMAGE',
+        mediaUrl: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=600&q=80',
+        caption: 'Official Reseller diamond recharge discounts active now! Contact me directly for bulk coin packages! 💎⚡',
+        visibility: 'PUBLIC',
+        status: 'PUBLISHED',
+        likesCount: 320,
+        commentsCount: 28,
+        viewsCount: 2100,
+        sharesCount: 22,
+        reportsCount: 0,
+        riskLevel: 'LOW',
+        assignedModerator: 'Unassigned',
+        createdAt: new Date(Date.now() - 16 * 3600000).toISOString(),
+        publishedAt: new Date(Date.now() - 16 * 3600000).toISOString(),
+      },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        moments: momentsCatalog,
+        totalMoments: momentsCatalog.length,
+        publishedMoments: momentsCatalog.filter(m => m.status === 'PUBLISHED').length,
+        restrictedMoments: momentsCatalog.filter(m => m.status === 'RESTRICTED').length,
+        reportedMoments: momentsCatalog.filter(m => m.reportsCount > 0).length,
+        totalLikes: momentsCatalog.reduce((acc, m) => acc + m.likesCount, 0),
+        totalComments: momentsCatalog.reduce((acc, m) => acc + m.commentsCount, 0),
+        totalViews: momentsCatalog.reduce((acc, m) => acc + m.viewsCount, 0),
+        systemVersion: 'v2.4.0',
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 114. Moderate Moment (Approve / Restrict / Remove)
+adminRouter.post('/moments/moderate', async (req, res, next) => {
+  try {
+    const { momentId, newStatus, reason } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'MOMENT_MODERATED',
+        resource: `Moment:${momentId}`,
+        details: `Updated Moment #${momentId} status to '${newStatus}'. Reason: ${reason || 'Admin Content Moderation'}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('moment.moderated', {
+        momentId,
+        newStatus,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Updated Moment #${momentId} status to '${newStatus}'!`,
+      data: { momentId, newStatus, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 115. Assign Moment Moderation Case
+adminRouter.post('/moments/assign', async (req, res, next) => {
+  try {
+    const { momentId, assignedModerator } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'MOMENT_CASE_ASSIGNED',
+        resource: `Moment:${momentId}`,
+        details: `Assigned Moment Moderation Case #${momentId} to Moderator @${assignedModerator || 'Admin_Master'}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('moment.assigned', {
+        momentId,
+        assignedModerator: assignedModerator || 'Admin_Master',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Assigned Moment Case #${momentId} to @${assignedModerator || 'Admin_Master'}!`,
+      data: { momentId, assignedModerator: assignedModerator || 'Admin_Master', auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 116. Create New Moment via API
+adminRouter.post('/moments/create', async (req, res, next) => {
+  try {
+    const { authorId, mediaType, caption, mediaUrl } = req.body;
+    const numericAuthorId = parseInt(authorId, 10) || 100002;
+    const momentId = `MM-${Math.floor(8000 + Math.random() * 1000)}`;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: numericAuthorId,
+        actorRole: 'USER',
+        action: 'MOMENT_CREATED',
+        resource: `Moment:${momentId}`,
+        details: `Created new Moment #${momentId} (${mediaType || 'TEXT'}) for Author #${numericAuthorId}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('moment.created', {
+        momentId,
+        authorId: numericAuthorId,
+        mediaType: mediaType || 'TEXT',
+        caption: caption || 'New Moment',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Created Moment #${momentId} successfully!`,
+      data: { momentId, authorId: numericAuthorId, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
