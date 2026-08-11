@@ -345,31 +345,56 @@ export default function LiveRoomScreen({ room, roomId = 'RM-8821', onBack }: Pro
       ))}
 
       {/* BOTTOM CONTROLS TOOLBAR */}
-      <nav className="fixed bottom-4 left-4 right-4 z-50 flex items-center gap-2 max-w-lg mx-auto h-16 bg-[#111827]/90 backdrop-blur-2xl border border-[#273449] rounded-2xl px-4 shadow-2xl">
-        <form onSubmit={handleSendChatMessage} className="flex-1 flex items-center">
+      <nav className="fixed bottom-4 left-4 right-4 z-50 flex items-center gap-2 max-w-lg mx-auto h-16 bg-[#0B132B]/90 backdrop-blur-2xl border border-white/10 rounded-2xl px-3 shadow-2xl">
+        <form onSubmit={handleSendChatMessage} className="flex-1 flex items-center bg-[#1E293B] border border-[#334155] rounded-xl px-2.5 py-1">
+          <span className="text-slate-400 mr-2 text-sm">💬</span>
           <input
             type="text"
-            placeholder="Say something nice..."
+            placeholder="Type a message..."
             value={chatInput}
             onChange={e => setChatInput(e.target.value)}
-            className="w-full bg-[#1E293B] border border-[#273449] rounded-xl px-3 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#4F46E5]"
+            className="w-full bg-transparent text-xs text-white placeholder-slate-400 focus:outline-none"
           />
+          <button
+            type="submit"
+            className="w-7 h-7 rounded-full bg-gradient-to-r from-purple-500 to-cyan-500 text-white flex items-center justify-center text-xs ml-1 hover:scale-105 active:scale-95 transition"
+          >
+            ➤
+          </button>
         </form>
 
+        {/* 🎁 Gift Button */}
+        <button
+          onClick={() => setShowGiftDrawer(true)}
+          className="w-9 h-9 rounded-full bg-gradient-to-r from-amber-400 to-pink-500 text-white font-black text-sm flex items-center justify-center shadow-lg shadow-amber-500/20 active:scale-95 transition"
+        >
+          🎁
+        </button>
+
+        {/* ⚔️ PK Battle Button */}
+        <button
+          onClick={() => alert('⚔️ PK Battle Challenge Initiated!')}
+          className="w-9 h-9 rounded-full bg-gradient-to-r from-red-500 to-orange-500 text-white font-black text-sm flex items-center justify-center shadow-lg shadow-red-500/20 active:scale-95 transition"
+        >
+          ⚔️
+        </button>
+
+        {/* 🎙️ Mic Button */}
         <button
           onClick={() => setMicOn(!micOn)}
-          className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg border transition ${
-            micOn ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-[#1E293B] text-slate-400 border-[#273449]'
+          className={`w-9 h-9 rounded-full flex items-center justify-center text-sm transition shadow-lg ${
+            micOn ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-white' : 'bg-gradient-to-r from-red-500 to-rose-700 text-white'
           }`}
         >
           {micOn ? '🎙️' : '🔇'}
         </button>
 
+        {/* ☰ Menu Button */}
         <button
-          onClick={() => setShowGiftDrawer(true)}
-          className="w-11 h-11 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xl flex items-center justify-center shadow-lg shadow-amber-500/30 active:scale-95 transition"
+          onClick={() => alert('☰ Room Settings & Tools Menu')}
+          className="w-9 h-9 rounded-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-sm flex items-center justify-center shadow-lg shadow-purple-500/20 active:scale-95 transition"
         >
-          🎁
+          ☰
         </button>
       </nav>
 
