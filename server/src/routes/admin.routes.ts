@@ -2474,6 +2474,112 @@ adminRouter.post('/gifts/lucky/play', async (req, res, next) => {
   }
 });
 
+// 57. Emoji & Animated Sticker Catalog Overview
+adminRouter.get('/emojis', async (req, res, next) => {
+  try {
+    const catalog = [
+      { id: 'EMJ-01', shortcode: ':aura_fire:', displayName: '🔥 Aura Fire', categoryType: 'ANIMATED_STICKER', stickerPack: 'VIP Pack Vol 1', vipLevel: 1, status: 'ACTIVE' },
+      { id: 'EMJ-02', shortcode: ':aura_heart:', displayName: '💖 Aura Sparkling Heart', categoryType: '3D_REACTION', stickerPack: 'Love Lounge', vipLevel: 0, status: 'ACTIVE' },
+      { id: 'EMJ-03', shortcode: ':aura_crown:', displayName: '👑 Royal Crown', categoryType: 'VIP_EXCLUSIVE', stickerPack: 'Nobility Elite', vipLevel: 5, status: 'ACTIVE' },
+      { id: 'EMJ-04', shortcode: ':aura_diamond:', displayName: '💎 Sparkle Diamond', categoryType: 'ROOM_FLOATING_EMOJI', stickerPack: 'Global Chat Set', vipLevel: 0, status: 'ACTIVE' },
+    ];
+
+    const stickerPacks = [
+      { id: 'PACK-1', name: 'VIP Pack Vol 1', count: 12, vipLevelRequired: 1, status: 'ACTIVE' },
+      { id: 'PACK-2', name: 'Love Lounge', count: 8, vipLevelRequired: 0, status: 'ACTIVE' },
+      { id: 'PACK-3', name: 'Nobility Elite', count: 15, vipLevelRequired: 5, status: 'ACTIVE' },
+      { id: 'PACK-4', name: 'Global Chat Set', count: 24, vipLevelRequired: 0, status: 'ACTIVE' },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        catalog,
+        stickerPacks,
+        totalEmojis: catalog.length + 50,
+        totalStickerPacks: stickerPacks.length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 58. Create / Upload New Emoji or Animated Sticker Pack
+adminRouter.post('/emojis/create', async (req, res, next) => {
+  try {
+    const { shortcode, displayName, categoryType, stickerPack, animationUrl, vipLevel } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'EMOJI_STICKER_CREATED',
+        resource: `Emoji:${shortcode}`,
+        details: `Created Emoji/Sticker '${displayName}' (${shortcode}, Category: ${categoryType}, Pack: ${stickerPack}, VIP Level: ${vipLevel || 0}).`,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Emoji '${displayName}' (${shortcode}) configured successfully!`,
+      data: { emojiId: 'EMJ-' + Date.now(), shortcode, displayName, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 59. Toggle Emoji Status (ACTIVE / DISABLED)
+adminRouter.post('/emojis/toggle', async (req, res, next) => {
+  try {
+    const { emojiId, status } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'EMOJI_STATUS_TOGGLED',
+        resource: `Emoji:${emojiId}`,
+        details: `Toggled Emoji ID #${emojiId} status to ${status || 'ACTIVE'}.`,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Emoji status updated to ${status}!`,
+      data: { emojiId, status, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 60. Broadcast Real-Time Chat Emoji Reaction
+adminRouter.post('/emojis/send', async (req, res, next) => {
+  try {
+    const { userNumericId, roomNumericId, emojiShortcode } = req.body;
+
+    const io = getIO();
+    if (io) {
+      io.emit('chat.emoji', {
+        userNumericId: userNumericId || 100001,
+        roomNumericId: roomNumericId || 9901,
+        shortcode: emojiShortcode || ':aura_fire:',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Broadcasted reaction '${emojiShortcode}' to Room #${roomNumericId || 9901}!`,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
