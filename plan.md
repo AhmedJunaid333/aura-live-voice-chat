@@ -1,6 +1,11 @@
 # Aura Live Voice Chat – Production Implementation Plan
 
 ## 🏆 Completed & Active Milestones
+- **⚡ Universal Portal Action Framework (COMPLETED)**:
+  - Centralized, context-aware action framework implemented across all portal modules (User Directory: `View`/`Search`/`Suspend`/`Ban`/`Restore`/`Reset Password`/`Revoke Session`, Diamond Reseller: `View`/`Approve`/`Activate`/`Deactivate`/`Allocate Diamonds`, Moments Feed: `View`/`Moderate`/`Hide`/`Remove`/`Restore`, Anti-Fraud: `View`/`Investigate`/`Assign`/`Resolve`, System Config: `View`/`Create`/`Update`/`Rollback`, Feature Flags: `View`/`Create`/`Toggle`/`Rollback`).
+  - Strict context-aware scoping, multi-step confirmation modals for high-risk actions, RBAC role permissions (`SUPER_ADMIN_CEO`, `COUNTRY_HEAD`, `SAFETY_MODERATOR`), Express backend APIs (`admin.routes.ts`), append-only audit logging (`prisma.auditLog`), and real-time Socket.IO event broadcasts.
+  - Audit reports generated at [`PORTAL_ACTION_AUDIT.md`](file:///d:/Auralive/PORTAL_ACTION_AUDIT.md), [`ACTION_PERMISSION_MATRIX.md`](file:///d:/Auralive/ACTION_PERMISSION_MATRIX.md), [`ACTION_API_MAP.md`](file:///d:/Auralive/ACTION_API_MAP.md), [`ACTION_DATABASE_MAP.md`](file:///d:/Auralive/ACTION_DATABASE_MAP.md), [`ACTION_RBAC.md`](file:///d:/Auralive/ACTION_RBAC.md), [`ACTION_REALTIME.md`](file:///d:/Auralive/ACTION_REALTIME.md), [`ACTION_AUDIT_LOG.md`](file:///d:/Auralive/ACTION_AUDIT_LOG.md), [`ACTION_SECURITY.md`](file:///d:/Auralive/ACTION_SECURITY.md), and [`ACTION_QA.md`](file:///d:/Auralive/ACTION_QA.md).
+
 - **📸 Moments Feed & Explore Discovery Feed Moderation (COMPLETED)**:
   - Real production database moments feed catalog (`MM-8001` `@Ayesha_Singer`, `MM-8002` `@Dimple`, `MM-8003` `@Sara_Vip`, `MM-8004` `@SpamBot_99`, `MM-8005` `@Ahmed Khokhar`), explore discovery ranking, real likes (1,205), comments (175), views (9,335), and content abuse moderation connected to Express backend (`GET /api/v1/admin/moments`, `POST /api/v1/admin/moments/moderate`, `POST /api/v1/admin/moments/assign`, `POST /api/v1/admin/moments/create`), Socket.IO WebSockets, and SQLite DB (`server/prisma/dev.db`).
   - Features: Interactive Modal Dialog for `+ Create Moment`, `🛠️ Moderate Post (Approve/Restrict/Remove)`, and `👤 Assign Moderator` buttons, Sub-Tabs, Media Preview, and Immutable Audit Logging (`prisma.auditLog`).
