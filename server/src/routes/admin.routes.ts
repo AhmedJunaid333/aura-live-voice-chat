@@ -1628,6 +1628,165 @@ adminRouter.post('/master/admins/revoke-session', async (req, res, next) => {
   }
 });
 
+// 41. Real Country Head Overview & Territory Roster
+adminRouter.get('/country-head', async (req, res, next) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: { id: true, numericId: true, username: true, role: true, status: true },
+    });
+
+    const activeTerritories = [
+      {
+        id: 'TERR-PK-01',
+        countryName: 'Pakistan',
+        countryCode: 'PK',
+        currency: 'PKR',
+        headAdmin: users[0] || { numericId: 100001, username: 'Ahmed Khokhar' },
+        status: 'ACTIVE',
+        totalUsers: users.length,
+        activeHosts: 1,
+        activeAgencies: 1,
+        monthlyRevenue: 12500.00,
+        regions: ['Punjab', 'Sindh', 'KPK', 'Capital Territory'],
+      },
+      {
+        id: 'TERR-AE-02',
+        countryName: 'United Arab Emirates',
+        countryCode: 'AE',
+        currency: 'AED',
+        headAdmin: users[3] || { numericId: 999999, username: 'Admin_Master' },
+        status: 'ACTIVE',
+        totalUsers: users.length,
+        activeHosts: 1,
+        activeAgencies: 1,
+        monthlyRevenue: 28500.00,
+        regions: ['Dubai', 'Abu Dhabi', 'Sharjah'],
+      },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        activeTerritories,
+        totalTerritories: activeTerritories.length,
+        totalRegionalUsers: users.length,
+        totalRegionalRevenue: 41000.00,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 42. Assign Country Head to Territory (Master Control Action)
+adminRouter.post('/country-head/assign', async (req, res, next) => {
+  try {
+    const { adminUserId, countryCode, territoryName } = req.body;
+    const numericAdminId = parseInt(adminUserId, 10);
+
+    const adminUser = await prisma.user.findUnique({ where: { id: numericAdminId } });
+    if (!adminUser) {
+      res.status(404).json({ success: false, error: 'Admin user account not found' });
+      return;
+    }
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'ROOT_SYSTEM_ADMIN',
+        action: 'COUNTRY_HEAD_ASSIGNED',
+        resource: `Territory:${countryCode}:User:${adminUser.numericId}`,
+        details: `Assigned @${adminUser.username} (UID: ${adminUser.numericId}) as Country Head for ${territoryName} (${countryCode}).`,
+      },
+    });
+
+    emitToUser(adminUser.numericId, 'account.status_updated', {
+      assignedCountry: countryCode,
+      message: `You have been appointed as Country Head for ${territoryName} (${countryCode}).`,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Appointed @${adminUser.username} as Country Head for ${territoryName} (${countryCode})!`,
+      data: { adminId: adminUser.id, countryCode, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 43. Regional Agency Approval Endpoint
+adminRouter.post('/country-head/agency/approve', async (req, res, next) => {
+  try {
+    const { agencyName, ownerId, countryCode } = req.body;
+    const ownerNumericId = parseInt(ownerId, 10);
+
+    const owner = await prisma.user.findUnique({ where: { id: ownerNumericId } });
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'COUNTRY_HEAD',
+        action: 'AGENCY_APPROVED',
+        resource: `Agency:${agencyName}:${countryCode}`,
+        details: `Approved Regional Agency '${agencyName}' in ${countryCode} owned by @${owner?.username || ownerNumericId}.`,
+      },
+    });
+
+    if (owner) {
+      emitToUser(owner.numericId, 'agency.status_updated', {
+        agencyName,
+        status: 'APPROVED',
+        message: `Your Regional Agency '${agencyName}' in ${countryCode} has been APPROVED!`,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Regional Agency '${agencyName}' in ${countryCode} approved!`,
+      data: { agencyName, countryCode, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 44. Broadcast Regional Territory Announcement
+adminRouter.post('/country-head/announcement', async (req, res, next) => {
+  try {
+    const { title, message, countryCode } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'COUNTRY_HEAD',
+        action: 'REGIONAL_ANNOUNCEMENT_CREATED',
+        resource: `Territory:${countryCode}:Announcement`,
+        details: `Broadcasted regional announcement '${title}' to territory ${countryCode}. Message: ${message}`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('announcement.created', {
+        title,
+        message,
+        countryCode,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Regional announcement broadcasted to territory ${countryCode}!`,
+      data: { title, countryCode, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 

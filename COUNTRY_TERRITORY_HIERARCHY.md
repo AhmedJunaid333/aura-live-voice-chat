@@ -1,0 +1,13 @@
+# COUNTRY & TERRITORY HIERARCHY SPECIFICATION
+
+```
+GLOBAL MASTER CONTROL PLANE / CEO PORTAL
+                    ↓
+COUNTRY HEAD ROLE (Assigned Territory e.g. PK / AE)
+                    ↓
+REGIONAL OPERATIONAL SCOPE (Punjab, Sindh, Dubai, Sharjah)
+                    ↓
+REGIONAL AGENCIES & BUSINESS DEVELOPMENT (BD) MANAGERS
+                    ↓
+VERIFIED BROADCASTER HOSTS & LOCAL USER ROSTER
+```
