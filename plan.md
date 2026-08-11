@@ -1,6 +1,11 @@
 # Aura Live Voice Chat – Production Implementation Plan
 
 ## 🏆 Completed & Active Milestones
+- **💎 Aura Sell Diamonds / Diamond Reseller Portal (COMPLETED)**:
+  - Production reseller diamond distribution and inventory portal connected to Express backend (`GET /api/v1/admin/resellers`, `POST /api/v1/admin/resellers/allocate`, `POST /api/v1/admin/resellers/sell-diamonds`, `POST /api/v1/admin/resellers/apply`), Socket.IO WebSockets, and SQLite DB (`server/prisma/dev.db`).
+  - Features: Master Reseller Inventory (`Aura Sell Diamonds` / `@Ahmed Khokhar` UID `100001` - `500,000` Diamonds), Atomic Reseller Debit & Customer Credit (`prisma.$transaction`), Double-Entry Ledger (`prisma.walletTransaction`), Wholesale Company Allocation, and Real-Time Socket.IO Notifications (`wallet.credited`).
+  - Audit reports generated at [`AURA_RESELLER_AUDIT.md`](file:///d:/Auralive/AURA_RESELLER_AUDIT.md), [`AURA_DIAMOND_RESELLER_FLOW.md`](file:///d:/Auralive/AURA_DIAMOND_RESELLER_FLOW.md), [`RESELLER_PERMISSION_MATRIX.md`](file:///d:/Auralive/RESELLER_PERMISSION_MATRIX.md), [`DIAMOND_LEDGER_SPEC.md`](file:///d:/Auralive/DIAMOND_LEDGER_SPEC.md), [`RESELLER_DISTRIBUTION_RULES.md`](file:///d:/Auralive/RESELLER_DISTRIBUTION_RULES.md), [`RESELLER_REALTIME_EVENTS.md`](file:///d:/Auralive/RESELLER_REALTIME_EVENTS.md), [`RESELLER_SECURITY_TEST.md`](file:///d:/Auralive/RESELLER_SECURITY_TEST.md), and [`RESELLER_TRANSACTION_FLOW.md`](file:///d:/Auralive/RESELLER_TRANSACTION_FLOW.md).
+
 - **💳 Recharge Hub & Real Payment Ecosystem (COMPLETED)**:
   - Real-money payment gateway, wallet ledger, and diamond credit system connected to Express backend (`GET /api/v1/admin/recharge`, `POST /api/v1/admin/recharge/packages/create`, `POST /api/v1/admin/recharge/webhook`, `POST /api/v1/admin/recharge/orders/verify-manual`), Socket.IO WebSockets, and SQLite DB (`server/prisma/dev.db`).
   - Features: Configured Recharge Packages (Starter 100 PKR -> 1000 Diamonds, Pro Streamer 500 PKR -> 5500 Diamonds, Royal Whale 1000 PKR -> 12000 Diamonds), Server-Verified Payment Webhook (HMAC Signature & Idempotency Key Guard), Manual Bank Proof Verification Engine, Immutable Ledger Records (`prisma.walletTransaction`), and Real-Time Socket.IO Notifications (`wallet.credited`).
