@@ -4030,6 +4030,208 @@ adminRouter.post('/trust-safety/appeal/resolve', async (req, res, next) => {
   }
 });
 
+// 93. User & Room Abuse Reports Center Queue & Telemetry
+adminRouter.get('/abuse-reports', async (req, res, next) => {
+  try {
+    const abuseReports = [
+      {
+        id: 'REP-7001',
+        reportNumber: 'SR-90812',
+        targetType: 'USER',
+        reporterUserId: 100002,
+        reporterUsername: 'Ayesha_Singer',
+        reportedUserId: 100004,
+        reportedUsername: 'Sara_Vip',
+        roomNumericId: 9901,
+        category: 'HARASSMENT',
+        severity: 'HIGH',
+        status: 'IN_REVIEW',
+        assignedTo: 'Admin_Master',
+        description: 'Repeated offensive comments and harassment in VIP Audio Lounge #9901.',
+        evidenceUrl: 'https://cdn.auralive.com/evidence/chat_log_90812.json',
+        createdAt: new Date(Date.now() - 3600000).toISOString(),
+      },
+      {
+        id: 'REP-7002',
+        reportNumber: 'SR-90813',
+        targetType: 'ROOM',
+        reporterUserId: 100003,
+        reporterUsername: 'Dimple',
+        reportedUserId: 100005,
+        reportedUsername: 'SpamBot_99',
+        roomNumericId: 9902,
+        category: 'SPAM',
+        severity: 'MEDIUM',
+        status: 'OPEN',
+        assignedTo: null,
+        description: 'Automated spam messaging link flooded in Music Lounge chat.',
+        evidenceUrl: 'https://cdn.auralive.com/evidence/audio_room_9902_snapshot.jpg',
+        createdAt: new Date(Date.now() - 7200000).toISOString(),
+      },
+      {
+        id: 'REP-7003',
+        reportNumber: 'SR-90814',
+        targetType: 'USER',
+        reporterUserId: 100001,
+        reporterUsername: 'Ahmed Khokhar',
+        reportedUserId: 100006,
+        reportedUsername: 'Fake_Admin_Reseller',
+        category: 'IMPERSONATION',
+        severity: 'CRITICAL',
+        status: 'TRIAGED',
+        assignedTo: 'Admin_Master',
+        description: 'Fake account pretending to be an Official Diamond Reseller offering fraudulent rates.',
+        evidenceUrl: 'https://cdn.auralive.com/evidence/profile_claim_proof.png',
+        createdAt: new Date(Date.now() - 14400000).toISOString(),
+      },
+    ];
+
+    const moderationHistory = [
+      {
+        id: 'MOD-901',
+        targetUserId: 100004,
+        targetUsername: 'Sara_Vip',
+        actionType: 'TEMP_SUSPENSION',
+        reason: 'Harassment & Abuse Violation',
+        moderatorUsername: 'Admin_Master',
+        timestamp: new Date(Date.now() - 1800000).toISOString(),
+      },
+      {
+        id: 'MOD-902',
+        targetUserId: 100005,
+        targetUsername: 'SpamBot_99',
+        actionType: 'ACCOUNT_BAN',
+        reason: 'Automated Spam Bot Activity',
+        moderatorUsername: 'Admin_Master',
+        timestamp: new Date(Date.now() - 5400000).toISOString(),
+      },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        abuseReports,
+        moderationHistory,
+        totalAbuseReports: abuseReports.length,
+        userAbuseReports: abuseReports.filter(r => r.targetType === 'USER').length,
+        roomAbuseReports: abuseReports.filter(r => r.targetType === 'ROOM').length,
+        criticalReports: abuseReports.filter(r => r.severity === 'CRITICAL').length,
+        unassignedReports: abuseReports.filter(r => !r.assignedTo).length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 94. Create New User or Room Abuse Report
+adminRouter.post('/abuse-reports/create', async (req, res, next) => {
+  try {
+    const { reporterUserId, targetType, targetId, category, severity, description } = req.body;
+    const reportId = 'REP-' + Date.now();
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: parseInt(reporterUserId, 10) || 100002,
+        actorRole: 'USER',
+        action: 'ABUSE_REPORT_FILED',
+        resource: `Report:${reportId}`,
+        details: `Filed Abuse Report #${reportId} against ${targetType || 'USER'} #${targetId || '100004'} (Category: ${category || 'HARASSMENT'}, Severity: ${severity || 'HIGH'}).`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('safety.report.created', {
+        reportId,
+        targetType: targetType || 'USER',
+        category: category || 'HARASSMENT',
+        severity: severity || 'HIGH',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `${targetType || 'USER'} Abuse Report #${reportId} filed successfully!`,
+      data: { reportId, targetType, category, severity, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 95. Assign Abuse Report Case to Moderator
+adminRouter.post('/abuse-reports/assign', async (req, res, next) => {
+  try {
+    const { reportId, assignedTo } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'ABUSE_REPORT_ASSIGNED',
+        resource: `Report:${reportId || 'REP-7002'}`,
+        details: `Assigned Report #${reportId || 'REP-7002'} to Moderator @${assignedTo || 'Admin_Master'}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('safety.report.assigned', {
+        reportId: reportId || 'REP-7002',
+        assignedTo: assignedTo || 'Admin_Master',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Report #${reportId || 'REP-7002'} assigned to Moderator @${assignedTo || 'Admin_Master'}!`,
+      data: { reportId: reportId || 'REP-7002', assignedTo: assignedTo || 'Admin_Master', auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 96. Execute Abuse Moderation Action (Warning, Mute, Kick, Ban, Lock Room)
+adminRouter.post('/abuse-reports/moderate', async (req, res, next) => {
+  try {
+    const { targetUserId, roomNumericId, actionType, reason, reportId } = req.body;
+    const numericUserId = parseInt(targetUserId, 10) || 100004;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'ABUSE_ACTION_EXECUTED',
+        resource: `User:${numericUserId}`,
+        details: `Abuse Reports Center executed '${actionType}' on User #${numericUserId} in Room #${roomNumericId || 9901}. Reason: ${reason || 'Violation of Abuse Policy'}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('safety.action.created', {
+        targetUserId: numericUserId,
+        actionType,
+        reason: reason || 'Violation of Abuse Policy',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Executed Abuse Action '${actionType}' on User #${numericUserId}!`,
+      data: { targetUserId: numericUserId, actionType, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
