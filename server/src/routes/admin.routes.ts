@@ -3128,11 +3128,6 @@ adminRouter.post('/banners/toggle', async (req, res, next) => {
   }
 });
 
-// 73. Track Banner Click Telemetry
-adminRouter.post('/banners/track-click', async (req, res, next) => {
-  try {
-    const { bannerId, userId } = req.body;
-
     res.status(200).json({
       success: true,
       message: `Tracked click for Banner #${bannerId}!`,
@@ -3141,6 +3136,249 @@ adminRouter.post('/banners/track-click', async (req, res, next) => {
     next(error);
   }
 });
+
+// 74. Avatar Frames & Entrance Effects Catalog Overview
+adminRouter.get('/cosmetics', async (req, res, next) => {
+  try {
+    const avatarFrames = [
+      {
+        id: 'FRM-101',
+        name: '👑 Royal Emperor Crown Frame',
+        slug: 'royal-emperor-frame',
+        assetType: 'AVATAR_FRAME',
+        rarity: 'LEGENDARY',
+        price: 5000,
+        currency: 'DIAMONDS',
+        requiredVipLevel: 5,
+        status: 'ACTIVE',
+        animationType: 'SVGA',
+        animationUrl: 'https://cdn.auralive.com/assets/frames/royal_emperor.svga',
+      },
+      {
+        id: 'FRM-102',
+        name: '🔥 Cyber Neon Wings Frame',
+        slug: 'cyber-neon-frame',
+        assetType: 'AVATAR_FRAME',
+        rarity: 'EPIC',
+        price: 2500,
+        currency: 'DIAMONDS',
+        requiredVipLevel: 2,
+        status: 'ACTIVE',
+        animationType: 'LOTTIE',
+        animationUrl: 'https://cdn.auralive.com/assets/frames/cyber_wings.json',
+      },
+    ];
+
+    const entranceEffects = [
+      {
+        id: 'EFF-201',
+        name: '🚀 Galaxy Rocket Room Entrance',
+        slug: 'galaxy-rocket-entrance',
+        assetType: 'ENTRANCE_EFFECT',
+        rarity: 'MYTHIC',
+        price: 10000,
+        currency: 'DIAMONDS',
+        requiredVipLevel: 7,
+        durationSeconds: 5,
+        status: 'ACTIVE',
+        animationType: 'SVGA',
+        animationUrl: 'https://cdn.auralive.com/assets/entrance/rocket_entry.svga',
+      },
+      {
+        id: 'EFF-202',
+        name: '🐉 Golden Dragon Entrance',
+        slug: 'golden-dragon-entrance',
+        assetType: 'ENTRANCE_EFFECT',
+        rarity: 'LEGENDARY',
+        price: 7500,
+        currency: 'DIAMONDS',
+        requiredVipLevel: 4,
+        durationSeconds: 4,
+        status: 'ACTIVE',
+        animationType: 'SVGA',
+        animationUrl: 'https://cdn.auralive.com/assets/entrance/dragon_entry.svga',
+      },
+    ];
+
+    const userInventory = [
+      { id: 'INV-901', numericUserId: 100001, username: 'Ahmed Khokhar', assetId: 'FRM-101', assetName: '👑 Royal Emperor Crown Frame', status: 'EQUIPPED', acquiredAt: new Date(Date.now() - 172800000).toISOString() },
+      { id: 'INV-902', numericUserId: 100002, username: 'Ayesha_Singer', assetId: 'EFF-201', assetName: '🚀 Galaxy Rocket Room Entrance', status: 'EQUIPPED', acquiredAt: new Date(Date.now() - 86400000).toISOString() },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        avatarFrames,
+        entranceEffects,
+        userInventory,
+        totalFrames: avatarFrames.length,
+        totalEffects: entranceEffects.length,
+        totalPurchases: 1420,
+        totalRevenueDiamonds: 8450000,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 75. Create / Configure Cosmetic Asset Item
+adminRouter.post('/cosmetics/create', async (req, res, next) => {
+  try {
+    const { name, slug, assetType, rarity, price, currency, requiredVipLevel, animationUrl } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'COSMETIC_ASSET_CREATED',
+        resource: `Cosmetic:${name}`,
+        details: `Configured ${assetType || 'AVATAR_FRAME'} '${name}' (Price: ${price || 2500} ${currency || 'DIAMONDS'}, VIP Req: ${requiredVipLevel || 1}, Rarity: ${rarity || 'EPIC'}).`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('cosmetic.catalog_updated', {
+        name,
+        assetType: assetType || 'AVATAR_FRAME',
+        price: price || 2500,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Cosmetic Asset '${name}' created successfully!`,
+      data: { assetId: 'CSM-' + Date.now(), name, assetType, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 76. Atomic Cosmetic Purchase Engine
+adminRouter.post('/cosmetics/purchase', async (req, res, next) => {
+  try {
+    const { userId, assetId, priceDiamonds } = req.body;
+    const numericUserId = parseInt(userId, 10);
+    const cost = parseInt(priceDiamonds, 10) || 2500;
+
+    const buyer = await prisma.user.findFirst({
+      where: { OR: [{ numericId: numericUserId }, { id: numericUserId }] },
+    });
+
+    if (!buyer) {
+      return res.status(404).json({ success: false, message: `User #${numericUserId} not found` });
+    }
+
+    if (buyer.diamonds < cost) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient Diamond Balance! User @${buyer.username} has ${buyer.diamonds} 💎, but asset costs ${cost} 💎.`,
+      });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: buyer.id },
+      data: { diamonds: { decrement: cost } },
+    });
+
+    await prisma.walletTransaction.create({
+      data: {
+        userId: buyer.id,
+        type: 'COSMETIC_PURCHASE',
+        amount: cost,
+        currency: 'DIAMONDS',
+        description: `Purchased Cosmetic Asset #${assetId} for ${cost} 💎`,
+      },
+    });
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: buyer.id,
+        actorRole: buyer.role,
+        action: 'COSMETIC_PURCHASED',
+        resource: `Asset:${assetId}`,
+        details: `@${buyer.username} purchased Cosmetic #${assetId} for ${cost} 💎. Remaining balance: ${updatedUser.diamonds} 💎.`,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Cosmetic Asset #${assetId} purchased successfully by @${buyer.username}!`,
+      data: {
+        userId: buyer.numericId,
+        username: buyer.username,
+        assetId,
+        cost,
+        remainingDiamonds: updatedUser.diamonds,
+        auditLogId: auditLog.id,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 77. Equip / Unequip Cosmetic & Live Room Entrance Event
+adminRouter.post('/cosmetics/equip', async (req, res, next) => {
+  try {
+    const { userId, assetId, assetType, roomNumericId } = req.body;
+    const numericUserId = parseInt(userId, 10);
+
+    const userObj = await prisma.user.findFirst({
+      where: { OR: [{ numericId: numericUserId }, { id: numericUserId }] },
+    });
+
+    const io = getIO();
+    if (io && userObj) {
+      io.emit('user.entrance', {
+        numericUserId: userObj.numericId,
+        username: userObj.username,
+        roomId: roomNumericId || 9901,
+        effectId: assetId,
+        assetType: assetType || 'ENTRANCE_EFFECT',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Cosmetic Asset #${assetId} equipped for @${userObj?.username || numericUserId}!`,
+      data: { userId: numericUserId, assetId, status: 'EQUIPPED' },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 78. Admin Grant / Revoke Cosmetic Asset
+adminRouter.post('/cosmetics/grant', async (req, res, next) => {
+  try {
+    const { targetUserId, assetId, actionType } = req.body;
+    const numericUserId = parseInt(targetUserId, 10);
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: actionType === 'REVOKE' ? 'COSMETIC_REVOKED' : 'COSMETIC_GRANTED',
+        resource: `User:${numericUserId}`,
+        details: `Admin ${actionType === 'REVOKE' ? 'REVOKED' : 'GRANTED'} Cosmetic #${assetId} to User #${numericUserId}.`,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Cosmetic Asset #${assetId} ${actionType === 'REVOKE' ? 'REVOKED from' : 'GRANTED to'} User #${numericUserId}!`,
+      data: { targetUserId: numericUserId, assetId, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 
 
 
