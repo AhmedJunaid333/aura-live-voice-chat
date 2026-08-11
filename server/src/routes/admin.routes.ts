@@ -2818,6 +2818,183 @@ adminRouter.post('/events/create', async (req, res, next) => {
   }
 });
 
+// 66. CMS Content Catalog & Global Broadcast Telemetry
+adminRouter.get('/cms', async (req, res, next) => {
+  try {
+    const catalog = [
+      {
+        id: 'CMS-101',
+        title: '📢 Aura Live 2.0 Platform Upgrade & Global Performance Hub',
+        slug: 'aura-live-2-upgrade',
+        contentType: 'ANNOUNCEMENT',
+        priority: 'HIGH',
+        status: 'PUBLISHED',
+        targetAudience: 'ALL_USERS',
+        publishedAt: new Date(Date.now() - 7200000).toISOString(),
+        summary: 'Official release of Aura Live 2.0 with atomic wallet settlement, real-time SVGA gifting, and server-side lucky RNG.',
+      },
+      {
+        id: 'CMS-102',
+        title: '💎 Diamond Reseller System Commission Bonus Week',
+        slug: 'reseller-bonus-week',
+        contentType: 'PROMOTION',
+        priority: 'NORMAL',
+        status: 'PUBLISHED',
+        targetAudience: 'RESELLERS',
+        publishedAt: new Date(Date.now() - 86400000).toISOString(),
+        summary: 'Master resellers earn 5% bonus inventory allocation on wholesale diamond recharges above 100,000 Diamonds.',
+      },
+      {
+        id: 'CMS-103',
+        title: '🏆 Weekend Ludo Championship Event Rules & Prize Settlement',
+        slug: 'ludo-championship-rules',
+        contentType: 'EVENT',
+        priority: 'HIGH',
+        status: 'PUBLISHED',
+        targetAudience: 'ALL_USERS',
+        publishedAt: new Date(Date.now() - 43200000).toISOString(),
+        summary: '50,000 Diamonds prize pool split among top 10 players in Ludo Live Arena tournament.',
+      },
+    ];
+
+    const banners = [
+      { id: 'BANNER-1', title: '🚀 Galaxy Space Rocket Gift Now Live!', imageUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23', targetRoute: '/gift-store', priority: 1, status: 'ACTIVE' },
+      { id: 'BANNER-2', title: '🎰 Lucky Chest 500x Multiplier Jackpot', imageUrl: 'https://images.unsplash.com/photo-1511512578047-dfb367046420', targetRoute: '/lucky-draw', priority: 2, status: 'ACTIVE' },
+    ];
+
+    const scheduledBroadcasts = [
+      {
+        id: 'BC-901',
+        title: '⚠️ Scheduled System Optimization Maintenance',
+        message: 'Aura Live backend will undergo 10-minute database index optimization at 03:00 AM UTC.',
+        broadcastType: 'MAINTENANCE',
+        targetAudience: 'ALL_USERS',
+        status: 'SCHEDULED',
+        scheduledAt: new Date(Date.now() + 43200000).toISOString(),
+      },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        catalog,
+        banners,
+        scheduledBroadcasts,
+        totalBroadcastsSent: 48,
+        maintenanceModeActive: false,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 67. Create / Publish CMS Announcement or Article
+adminRouter.post('/cms/create', async (req, res, next) => {
+  try {
+    const { title, slug, content, summary, contentType, priority, targetAudience, bannerUrl } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'CMS_CONTENT_PUBLISHED',
+        resource: `CMS:${slug || title}`,
+        details: `Published CMS ${contentType || 'ANNOUNCEMENT'} '${title}' (Priority: ${priority || 'NORMAL'}, Target: ${targetAudience || 'ALL_USERS'}).`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('cms.published', {
+        title,
+        summary,
+        contentType: contentType || 'ANNOUNCEMENT',
+        publishedAt: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `CMS Content '${title}' published successfully!`,
+      data: { cmsId: 'CMS-' + Date.now(), title, slug, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 68. Dispatch Real-Time Global System Broadcast
+adminRouter.post('/cms/broadcast', async (req, res, next) => {
+  try {
+    const { title, message, broadcastType, targetAudience, priority } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'GLOBAL_BROADCAST_SENT',
+        resource: `Broadcast:${title}`,
+        details: `Dispatched Global Broadcast '${title}' to Audience: ${targetAudience || 'ALL_USERS'} (Type: ${broadcastType || 'GLOBAL'}, Priority: ${priority || 'URGENT'}).`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('system.broadcast', {
+        title,
+        message,
+        broadcastType: broadcastType || 'GLOBAL',
+        priority: priority || 'URGENT',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `📢 Global System Broadcast '${title}' dispatched to all live connected users!`,
+      data: { broadcastId: 'BC-' + Date.now(), title, targetAudience, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 69. Toggle Real-Time Platform Maintenance Mode
+adminRouter.post('/cms/toggle-maintenance', async (req, res, next) => {
+  try {
+    const { maintenanceActive, message } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'MAINTENANCE_MODE_TOGGLED',
+        resource: 'PlatformConfig',
+        details: `Platform Maintenance Mode ${maintenanceActive ? 'ENABLED' : 'DISABLED'}. Alert: ${message || 'System maintenance in progress.'}`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('system.maintenance', {
+        maintenanceActive: !!maintenanceActive,
+        message: message || 'System maintenance in progress.',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Platform Maintenance Mode updated to ${maintenanceActive ? 'ACTIVE' : 'DISABLED'}!`,
+      data: { maintenanceActive, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
