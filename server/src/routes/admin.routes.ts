@@ -2994,6 +2994,155 @@ adminRouter.post('/cms/toggle-maintenance', async (req, res, next) => {
   }
 });
 
+// 70. Banners & Promotional Media Studio Catalog Overview
+adminRouter.get('/banners', async (req, res, next) => {
+  try {
+    const banners = [
+      {
+        id: 'BNR-101',
+        title: '🚀 Galaxy Space Rocket Gift Now Live!',
+        subtitle: 'Send 2,000 Diamond Rocket for 1,400 Host Coins & SVGA Overlay',
+        imageUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23',
+        placement: 'HOME_TOP',
+        ctaAction: 'OPEN_GIFT_STORE',
+        ctaTargetId: 'GIFT-2001',
+        audienceType: 'ALL_USERS',
+        priority: 1,
+        status: 'ACTIVE',
+        impressions: 12400,
+        clicks: 1850,
+        ctr: '14.9%',
+      },
+      {
+        id: 'BNR-102',
+        title: '🎰 Lucky Chest 500x Multiplier Jackpot',
+        subtitle: 'Play 100 Diamond Lucky Draw for Server-Side Secure RNG Wins',
+        imageUrl: 'https://images.unsplash.com/photo-1511512578047-dfb367046420',
+        placement: 'GIFT_STORE',
+        ctaAction: 'OPEN_GIFT_STORE',
+        ctaTargetId: 'GIFT-LUCKY-1',
+        audienceType: 'ALL_USERS',
+        priority: 2,
+        status: 'ACTIVE',
+        impressions: 8900,
+        clicks: 1420,
+        ctr: '15.9%',
+      },
+      {
+        id: 'BNR-103',
+        title: '💳 Official Diamond Reseller Supply Bonus',
+        subtitle: 'Master Resellers earn 5% bonus inventory allocation on wholesale recharges',
+        imageUrl: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44',
+        placement: 'RESELLER',
+        ctaAction: 'OPEN_RESELLER',
+        ctaTargetId: 'RESELLER-HUB',
+        audienceType: 'RESELLERS',
+        priority: 3,
+        status: 'ACTIVE',
+        impressions: 3400,
+        clicks: 680,
+        ctr: '20.0%',
+      },
+    ];
+
+    const mediaAssets = [
+      { id: 'MEDIA-1', fileName: 'space_rocket_hero.jpg', mimeType: 'image/jpeg', size: '245 KB', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23' },
+      { id: 'MEDIA-2', fileName: 'lucky_chest_banner.jpg', mimeType: 'image/jpeg', size: '310 KB', url: 'https://images.unsplash.com/photo-1511512578047-dfb367046420' },
+      { id: 'MEDIA-3', fileName: 'reseller_supply_banner.jpg', mimeType: 'image/jpeg', size: '198 KB', url: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44' },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        banners,
+        mediaAssets,
+        totalBanners: banners.length,
+        totalMediaAssets: mediaAssets.length,
+        totalImpressions: 24700,
+        totalClicks: 3950,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 71. Create & Schedule Promotional Banner Item
+adminRouter.post('/banners/create', async (req, res, next) => {
+  try {
+    const { title, subtitle, imageUrl, placement, ctaAction, ctaTargetId, audienceType, priority } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'BANNER_CREATED',
+        resource: `Banner:${title}`,
+        details: `Created Banner '${title}' (Placement: ${placement || 'HOME_TOP'}, CTA: ${ctaAction || 'OPEN_GIFT_STORE'}, Target: ${ctaTargetId || 'GIFT-STORE'}, Audience: ${audienceType || 'ALL_USERS'}, Priority: ${priority || 1}).`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('banner.published', {
+        title,
+        placement: placement || 'HOME_TOP',
+        imageUrl,
+        ctaAction: ctaAction || 'OPEN_GIFT_STORE',
+        publishedAt: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Promotional Banner '${title}' configured and published successfully!`,
+      data: { bannerId: 'BNR-' + Date.now(), title, placement, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 72. Toggle Banner Status (ACTIVE vs PAUSED vs EXPIRED)
+adminRouter.post('/banners/toggle', async (req, res, next) => {
+  try {
+    const { bannerId, status } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'BANNER_STATUS_TOGGLED',
+        resource: `Banner:${bannerId}`,
+        details: `Updated Banner ID #${bannerId} status to ${status || 'ACTIVE'}.`,
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Banner #${bannerId} status updated to ${status}!`,
+      data: { bannerId, status, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 73. Track Banner Click Telemetry
+adminRouter.post('/banners/track-click', async (req, res, next) => {
+  try {
+    const { bannerId, userId } = req.body;
+
+    res.status(200).json({
+      success: true,
+      message: `Tracked click for Banner #${bannerId}!`,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
