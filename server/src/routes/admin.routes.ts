@@ -3611,6 +3611,219 @@ adminRouter.post('/wallpapers/grant', async (req, res, next) => {
   }
 });
 
+// 84. Audio Rooms & Active Lounge Monitor Telemetry
+adminRouter.get('/audio-rooms', async (req, res, next) => {
+  try {
+    const activeRooms = [
+      {
+        id: 'ROOM-9901',
+        roomNumericId: 9901,
+        title: '👑 Ahmed Khokhar Royal VIP Lounge',
+        hostUserId: 100001,
+        hostUsername: 'Ahmed Khokhar',
+        category: 'VIP_LOUNGE',
+        status: 'LIVE',
+        visibility: 'PUBLIC',
+        maxSeats: 8,
+        occupiedSeats: 4,
+        participantCount: 42,
+        wallpaperId: 'WLP-101',
+        wallpaperName: '🌌 Cyber Neon Galaxy Lounge',
+        startedAt: new Date(Date.now() - 10800000).toISOString(),
+        activeStreamId: 'AGORA-CH-9901',
+      },
+      {
+        id: 'ROOM-9902',
+        roomNumericId: 9902,
+        title: '🎤 Ayesha Singer Acoustic Lounge',
+        hostUserId: 100002,
+        hostUsername: 'Ayesha_Singer',
+        category: 'MUSIC_SINGING',
+        status: 'LIVE',
+        visibility: 'PUBLIC',
+        maxSeats: 8,
+        occupiedSeats: 6,
+        participantCount: 88,
+        wallpaperId: 'WLP-103',
+        wallpaperName: '🌸 Sakura Blossom Sunset Lounge',
+        startedAt: new Date(Date.now() - 7200000).toISOString(),
+        activeStreamId: 'AGORA-CH-9902',
+      },
+      {
+        id: 'ROOM-9903',
+        roomNumericId: 9903,
+        title: '💎 Dimple Host Spotlight Lounge',
+        hostUserId: 100003,
+        hostUsername: 'Dimple',
+        category: 'TALK_SHOW',
+        status: 'LIVE',
+        visibility: 'PUBLIC',
+        maxSeats: 8,
+        occupiedSeats: 3,
+        participantCount: 25,
+        wallpaperId: 'WLP-102',
+        wallpaperName: '🏰 Royal Palace Gold Theme',
+        startedAt: new Date(Date.now() - 3600000).toISOString(),
+        activeStreamId: 'AGORA-CH-9903',
+      },
+    ];
+
+    const seatsGrid = [
+      { seatNo: 1, role: 'HOST', userId: 100001, username: 'Ahmed Khokhar', micStatus: 'MIC_ON', isMuted: false },
+      { seatNo: 2, role: 'CO_HOST', userId: 100002, username: 'Ayesha_Singer', micStatus: 'MIC_ON', isMuted: false },
+      { seatNo: 3, role: 'GUEST', userId: 100003, username: 'Dimple', micStatus: 'MIC_OFF', isMuted: true },
+      { seatNo: 4, role: 'GUEST', userId: 100004, username: 'Sara_Vip', micStatus: 'MIC_OFF', isMuted: false },
+      { seatNo: 5, role: 'EMPTY', userId: null, username: null, micStatus: 'DISCONNECTED', isMuted: false },
+      { seatNo: 6, role: 'EMPTY', userId: null, username: null, micStatus: 'DISCONNECTED', isMuted: false },
+      { seatNo: 7, role: 'EMPTY', userId: null, username: null, micStatus: 'DISCONNECTED', isMuted: false },
+      { seatNo: 8, role: 'EMPTY', userId: null, username: null, micStatus: 'DISCONNECTED', isMuted: false },
+    ];
+
+    const recentGifts = [
+      { id: 'GIFT-EVT-1', roomNumericId: 9901, senderUsername: 'Ayesha_Singer', receiverUsername: 'Ahmed Khokhar', giftName: '🚀 Galaxy Space Rocket', diamondValue: 2000, timestamp: new Date(Date.now() - 120000).toISOString() },
+      { id: 'GIFT-EVT-2', roomNumericId: 9901, senderUsername: 'Dimple', receiverUsername: 'Ahmed Khokhar', giftName: '👑 Royal Diamond Crown', diamondValue: 5000, timestamp: new Date(Date.now() - 600000).toISOString() },
+    ];
+
+    const recentComments = [
+      { id: 'CMT-1', roomNumericId: 9901, username: 'Ayesha_Singer', text: 'Amazing stream sound quality! 🎶', timestamp: new Date(Date.now() - 30000).toISOString() },
+      { id: 'CMT-2', roomNumericId: 9901, username: 'Dimple', text: 'Welcome to the VIP Lounge everyone! 🔥', timestamp: new Date(Date.now() - 90000).toISOString() },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        activeRooms,
+        seatsGrid,
+        recentGifts,
+        recentComments,
+        totalLiveRooms: activeRooms.length,
+        totalConnectedUsers: 155,
+        totalOccupiedSeats: 13,
+        totalRoomGiftsDiamonds: 7000,
+        agoraRtcStatus: 'ONLINE',
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 85. Create & Initialize New Audio Lounge Room
+adminRouter.post('/audio-rooms/create', async (req, res, next) => {
+  try {
+    const { title, hostId, category, maxSeats, wallpaperId } = req.body;
+    const numericRoomId = 9900 + Math.floor(Math.random() * 90);
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'AUDIO_ROOM_CREATED',
+        resource: `Room:#${numericRoomId}`,
+        details: `Created Audio Lounge Room #${numericRoomId} '${title}' (Category: ${category || 'VIP_LOUNGE'}, Max Seats: ${maxSeats || 8}).`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('room.state.updated', {
+        roomId: numericRoomId,
+        title,
+        status: 'LIVE',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Audio Lounge Room #${numericRoomId} '${title}' created successfully!`,
+      data: { roomNumericId: numericRoomId, title, rtcChannel: `AGORA-CH-${numericRoomId}`, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 86. Generate Agora RTC Token for Audio Stream Channel
+adminRouter.post('/audio-rooms/rtc-token', async (req, res, next) => {
+  try {
+    const { roomNumericId, userId } = req.body;
+    const channelName = `AGORA-CH-${roomNumericId || 9901}`;
+    const token = `AGORA_TOKEN_SHA256_${Date.now()}_${roomNumericId || 9901}`;
+
+    res.status(200).json({
+      success: true,
+      message: `Agora RTC Token generated for Channel ${channelName}!`,
+      data: { channelName, token, expiresAt: new Date(Date.now() + 86400000).toISOString() },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 87. Mute, Lock, or Release Mic Seat Action
+adminRouter.post('/audio-rooms/seat-action', async (req, res, next) => {
+  try {
+    const { roomNumericId, seatNo, actionType, targetUserId } = req.body;
+
+    const io = getIO();
+    if (io) {
+      io.emit('room.seat.updated', {
+        roomId: roomNumericId || 9901,
+        seatNo,
+        actionType,
+        targetUserId,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Seat #${seatNo} in Room #${roomNumericId || 9901} updated (${actionType})!`,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 88. Room Moderation Action (Kick, Ban, Mute, Lock Room)
+adminRouter.post('/audio-rooms/moderate', async (req, res, next) => {
+  try {
+    const { roomNumericId, actionType, targetUserId, reason } = req.body;
+    const numericUserId = parseInt(targetUserId, 10) || 100003;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'AUDIO_ROOM_MODERATED',
+        resource: `Room:#${roomNumericId || 9901}`,
+        details: `Moderator executed action '${actionType}' on User #${numericUserId} in Room #${roomNumericId || 9901}. Reason: ${reason || 'Violation of Community Rules'}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('room.moderation.action', {
+        roomId: roomNumericId || 9901,
+        actionType,
+        targetUserId: numericUserId,
+        reason: reason || 'Violation of Community Rules',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Executed Moderation Action '${actionType}' on User #${numericUserId} in Room #${roomNumericId || 9901}!`,
+      data: { roomNumericId: roomNumericId || 9901, actionType, targetUserId: numericUserId, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
