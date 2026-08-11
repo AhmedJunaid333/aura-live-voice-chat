@@ -269,7 +269,7 @@ export default function CeoGlobalPortalModule() {
               {auditLogs.slice(0, 5).map(log => (
                 <div key={log.id} className="bg-slate-900/80 border border-slate-800 p-3 rounded-xl flex items-center justify-between gap-3">
                   <div>
-                    <span className="text-cyan-400 font-bold">[{new Date(log.createdAt).toLocaleTimeString()}]</span>{' '}
+                    <span className="text-cyan-400 font-bold" suppressHydrationWarning>[{new Date(log.createdAt).toLocaleTimeString()}]</span>{' '}
                     <span className="text-purple-300 font-bold">{log.actorRole}</span>{' '}
                     <span className="text-amber-300 font-bold">{log.action}</span>
                     <p className="text-slate-300 text-[11px] mt-0.5">{log.details}</p>

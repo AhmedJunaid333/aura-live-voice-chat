@@ -148,7 +148,7 @@ export default function PerformanceHubModule() {
       <div className="bg-[#111827] border border-[#1F2937] p-6 rounded-2xl space-y-5 shadow-xl">
         <h3 className="text-base font-black text-white flex items-center justify-between">
           <span>🛠️ Service Infrastructure Health Status</span>
-          <span className="text-xs text-slate-400 font-mono">Last Heartbeat: {new Date(telemetry.timestamp).toLocaleTimeString()}</span>
+          <span className="text-xs text-slate-400 font-mono" suppressHydrationWarning>Last Heartbeat: {new Date(telemetry.timestamp).toLocaleTimeString()}</span>
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 font-mono">
