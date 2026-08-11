@@ -4738,6 +4738,193 @@ adminRouter.post('/system-config/rollback', async (req, res, next) => {
   }
 });
 
+// 105. Anti-Fraud & Risk Security Telemetry Catalog
+adminRouter.get('/anti-fraud', async (req, res, next) => {
+  try {
+    const alerts = [
+      {
+        id: 'ALT-9001',
+        alertNumber: 'FA-10081',
+        subjectType: 'USER',
+        subjectId: '100004',
+        subjectUsername: 'Sara_Vip',
+        riskScore: 88,
+        riskLevel: 'HIGH',
+        ruleKey: 'VELOCITY_DIAMOND_TRANSFER',
+        ruleName: 'Rapid Repeated Diamond P2P Transfers',
+        reason: 'Executed 12 consecutive diamond transfers to unverified accounts in < 5 mins.',
+        evidence: 'https://cdn.auralive.com/security/transfer_graph_100004.png',
+        status: 'INVESTIGATING',
+        assignedTo: 'Admin_Master',
+        createdAt: new Date(Date.now() - 1800000).toISOString(),
+      },
+      {
+        id: 'ALT-9002',
+        alertNumber: 'FA-10082',
+        subjectType: 'USER',
+        subjectId: '100005',
+        subjectUsername: 'SpamBot_99',
+        riskScore: 95,
+        riskLevel: 'CRITICAL',
+        ruleKey: 'LOGIN_FAILED_ATTEMPTS',
+        ruleName: 'Account Takeover Credential Stuffing',
+        reason: 'Detected 45 failed login attempts from 3 distinct IP subnets in 1 minute.',
+        evidence: 'https://cdn.auralive.com/security/ip_log_100005.json',
+        status: 'OPEN',
+        assignedTo: null,
+        createdAt: new Date(Date.now() - 3600000).toISOString(),
+      },
+      {
+        id: 'ALT-9003',
+        alertNumber: 'FA-10083',
+        subjectType: 'RESELLER',
+        subjectId: '100001',
+        subjectUsername: 'Ahmed Khokhar',
+        riskScore: 45,
+        riskLevel: 'MEDIUM',
+        ruleKey: 'RESELLER_ALLOCATION_SPIKE',
+        ruleName: 'Unusual Reseller Diamond Allocation Volume',
+        reason: 'Allocated 500,000 Diamonds within single session.',
+        evidence: 'https://cdn.auralive.com/security/reseller_alloc_100001.json',
+        status: 'RESOLVED',
+        assignedTo: 'Admin_Master',
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+      },
+    ];
+
+    const fraudRules = [
+      { key: 'VELOCITY_DIAMOND_TRANSFER', name: 'Rapid Diamond Transfer Velocity', category: 'DIAMOND', enabled: true, severity: 'HIGH' },
+      { key: 'LOGIN_FAILED_ATTEMPTS', name: 'Account Takeover & Credential Attacks', category: 'AUTH', enabled: true, severity: 'CRITICAL' },
+      { key: 'RESELLER_ALLOCATION_SPIKE', name: 'Reseller Diamond Spike Monitoring', category: 'RESELLER', enabled: true, severity: 'MEDIUM' },
+      { key: 'RECHARGE_GATEWAY_SPIKE', name: 'Card Chargeback & Gateway Anomalies', category: 'RECHARGE', enabled: true, severity: 'HIGH' },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        alerts,
+        fraudRules,
+        totalAlerts: alerts.length,
+        criticalAlerts: alerts.filter(a => a.riskLevel === 'CRITICAL').length,
+        highRiskAlerts: alerts.filter(a => a.riskLevel === 'HIGH').length,
+        openAlerts: alerts.filter(a => a.status === 'OPEN').length,
+        investigatingAlerts: alerts.filter(a => a.status === 'INVESTIGATING').length,
+        maxRiskScore: 95,
+        systemVersion: 'v2.4.0',
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 106. Trigger New Fraud Security Alert
+adminRouter.post('/anti-fraud/alert/create', async (req, res, next) => {
+  try {
+    const { subjectType, subjectId, riskLevel, ruleKey, reason, evidence } = req.body;
+    const alertId = 'ALT-' + Date.now();
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'FRAUD_ALERT_CREATED',
+        resource: `${subjectType || 'USER'}:${subjectId}`,
+        details: `Triggered Fraud Security Alert #${alertId} (${riskLevel} Risk, Rule: ${ruleKey || 'MANUAL_FLAG'}, Target: ${subjectId}). Reason: ${reason}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('security.alert.created', {
+        alertId,
+        subjectType,
+        subjectId,
+        riskLevel,
+        reason,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Fraud Security Alert #${alertId} triggered successfully!`,
+      data: { alertId, subjectId, riskLevel, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 107. Assign Fraud Alert Case to Security Analyst
+adminRouter.post('/anti-fraud/alert/assign', async (req, res, next) => {
+  try {
+    const { alertId, assignedTo } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'FRAUD_ALERT_ASSIGNED',
+        resource: `Alert:${alertId}`,
+        details: `Assigned Fraud Alert Case #${alertId} to Security Analyst @${assignedTo || 'Admin_Master'}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('security.alert.assigned', {
+        alertId,
+        assignedTo: assignedTo || 'Admin_Master',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Assigned Fraud Case #${alertId} to @${assignedTo || 'Admin_Master'}!`,
+      data: { alertId, assignedTo: assignedTo || 'Admin_Master', auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 108. Resolve / Close Fraud Alert Case
+adminRouter.post('/anti-fraud/alert/resolve', async (req, res, next) => {
+  try {
+    const { alertId, status, resolutionNote } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'FRAUD_ALERT_RESOLVED',
+        resource: `Alert:${alertId}`,
+        details: `Resolved Fraud Alert Case #${alertId} with Status '${status || 'RESOLVED'}'. Note: ${resolutionNote || 'Investigated and verified clean'}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('security.alert.resolved', {
+        alertId,
+        status: status || 'RESOLVED',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Resolved Fraud Alert Case #${alertId} as '${status || 'RESOLVED'}'!`,
+      data: { alertId, status: status || 'RESOLVED', auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
