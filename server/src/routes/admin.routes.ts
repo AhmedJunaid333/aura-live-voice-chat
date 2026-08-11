@@ -5402,6 +5402,187 @@ adminRouter.post('/moments/create', async (req, res, next) => {
   }
 });
 
+// 117. Diamond Reseller Catalog & Telemetry
+adminRouter.get('/reseller', async (req, res, next) => {
+  try {
+    const resellerCatalog = [
+      {
+        id: 'RSL-901',
+        userId: 100001,
+        username: 'Ahmed Khokhar',
+        displayName: 'Ahmed Khokhar (Official Reseller)',
+        role: 'MASTER_RESELLER',
+        status: 'ACTIVE',
+        diamondStock: 500000,
+        totalSold: 2500000,
+        wholesaleDiscount: '10% Wholesaler',
+        country: 'PK',
+        riskStatus: 'LOW',
+        createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+      },
+      {
+        id: 'RSL-902',
+        userId: 100002,
+        username: 'Ayesha_Singer',
+        displayName: 'Ayesha Singer 🎤',
+        role: 'SUB_RESELLER',
+        status: 'ACTIVE',
+        diamondStock: 25000,
+        totalSold: 150000,
+        wholesaleDiscount: '5% Standard',
+        country: 'PK',
+        riskStatus: 'LOW',
+        createdAt: new Date(Date.now() - 15 * 86400000).toISOString(),
+      },
+      {
+        id: 'RSL-903',
+        userId: 100003,
+        username: 'Dimple',
+        displayName: 'Dimple Queen ✨',
+        role: 'SUB_RESELLER',
+        status: 'PENDING',
+        diamondStock: 0,
+        totalSold: 0,
+        wholesaleDiscount: '5% Standard',
+        country: 'PK',
+        riskStatus: 'LOW',
+        createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+      },
+    ];
+
+    const allocationLedger = [
+      { id: 'TX-7001', resellerId: 'RSL-901', username: 'Ahmed Khokhar', amount: 200000, type: 'COMPANY_ALLOCATION', status: 'COMPLETED', date: new Date(Date.now() - 3600000).toISOString() },
+      { id: 'TX-7002', resellerId: 'RSL-901', username: 'Ahmed Khokhar', amount: 50000, type: 'P2P_TRANSFER', status: 'COMPLETED', date: new Date(Date.now() - 7200000).toISOString() },
+      { id: 'TX-7003', resellerId: 'RSL-902', username: 'Ayesha_Singer', amount: 25000, type: 'SUB_ALLOCATION', status: 'COMPLETED', date: new Date(Date.now() - 14400000).toISOString() },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        resellers: resellerCatalog,
+        ledger: allocationLedger,
+        totalResellers: resellerCatalog.length,
+        activeResellers: resellerCatalog.filter(r => r.status === 'ACTIVE').length,
+        pendingApplications: resellerCatalog.filter(r => r.status === 'PENDING').length,
+        totalStock: resellerCatalog.reduce((acc, r) => acc + r.diamondStock, 0),
+        totalVolumeSold: resellerCatalog.reduce((acc, r) => acc + r.totalSold, 0),
+        systemVersion: 'v2.4.0',
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 118. Approve New Reseller Account
+adminRouter.post('/reseller/approve', async (req, res, next) => {
+  try {
+    const { userId, role, wholesaleDiscount } = req.body;
+    const numericUserId = parseInt(userId, 10) || 100003;
+    const resellerId = `RSL-${Math.floor(900 + Math.random() * 100)}`;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'RESELLER_APPROVED',
+        resource: `Reseller:${resellerId}`,
+        details: `Approved Reseller Account #${resellerId} for User #${numericUserId} with Role '${role || 'SUB_RESELLER'}'.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('reseller.approved', {
+        resellerId,
+        userId: numericUserId,
+        role: role || 'SUB_RESELLER',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Approved Reseller Account #${resellerId} for User #${numericUserId}!`,
+      data: { resellerId, userId: numericUserId, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 119. Allocate Diamonds to Reseller Wallet
+adminRouter.post('/reseller/allocate', async (req, res, next) => {
+  try {
+    const { resellerId, amount, note } = req.body;
+    const numericAmount = parseInt(amount, 10) || 100000;
+    const txId = `TX-${Math.floor(7000 + Math.random() * 1000)}`;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'RESELLER_DIAMONDS_ALLOCATED',
+        resource: `Reseller:${resellerId || 'RSL-901'}`,
+        details: `Allocated ${numericAmount.toLocaleString()} Diamonds to Reseller #${resellerId || 'RSL-901'}. Note: ${note || 'Wholesale allocation'}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('reseller.diamonds.allocated', {
+        resellerId: resellerId || 'RSL-901',
+        amount: numericAmount,
+        transactionId: txId,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Allocated ${numericAmount.toLocaleString()} Diamonds to Reseller #${resellerId || 'RSL-901'}!`,
+      data: { resellerId: resellerId || 'RSL-901', amount: numericAmount, transactionId: txId, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 120. Update Reseller Account Status (Active / Suspend)
+adminRouter.post('/reseller/update-status', async (req, res, next) => {
+  try {
+    const { resellerId, newStatus, reason } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'RESELLER_STATUS_UPDATED',
+        resource: `Reseller:${resellerId || 'RSL-901'}`,
+        details: `Updated Reseller #${resellerId || 'RSL-901'} status to '${newStatus}'. Reason: ${reason || 'Admin Security Control'}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('reseller.status.updated', {
+        resellerId: resellerId || 'RSL-901',
+        newStatus,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Updated Reseller #${resellerId || 'RSL-901'} status to '${newStatus}'!`,
+      data: { resellerId: resellerId || 'RSL-901', newStatus, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
