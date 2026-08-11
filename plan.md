@@ -1,10 +1,11 @@
 # Aura Live Voice Chat – Production Implementation Plan
 
 ## 🏆 Completed & Active Milestones
-- **🎙️ Dedicated Audio Room Screen (COMPLETED)**:
-  - Created [`lib/features/live_room/presentation/screens/audio_room_screen.dart`](file:///d:/Auralive/New-Live-App/apps/mobile/lib/features/live_room/presentation/screens/audio_room_screen.dart) with the exact 10 circular seats layout (Row 1 = 5, Row 2 = 5), glowing speaking pulse animations, host header, guidelines card, activity logs, audience count, floating bottom action bar, and real user session integration (`UserSessionService`).
-  - Registered `/audio-room` in `app_router.dart`.
-  - Compiled and verified with 0 build errors in `AuraLive-latest.apk`.
+- **👑 Top Center Host Seat Frame & 10 Circular Guest Seats Grid (COMPLETED)**:
+  - Designed and implemented a dedicated **Royal Host Seat Frame (Seat 1 / Host)** positioned majestically at the **Top Center** above the two 5-seat rows across Flutter (`seat_grid.dart`, `live_room_screen.dart`, `audio_meetup_screen.dart`) and Web (`LiveRoomScreen.tsx`, `AudioMeetupScreen.tsx`).
+  - Features: Ornate golden stage ring frame (`LinearGradient([Color(0xFFFFD700), Color(0xFFF59E0B), Color(0xFF7C3AED)])`), royal crown badge `👑 HOST`, dynamic pulsing speaking aura, live soundwave equalizer, mic status indicator, host name and level pill (`Lv.99`).
+  - Arranged 10 circular guest seats below the host frame in a clean, balanced 5x2 grid (Row 1: Seats 2-6, Row 2: Seats 7-11) with responsive centering and zero layout breakage.
+  - Recompiled latest Android package (`AuraLive-latest.apk`) and verified with 0 build errors.
 
 - **🎙️ 10 Circular Seats Audio Broadcast UI Grid (COMPLETED)**:
   - Upgraded Flutter Live Audio Room screens (`lib/features/live_room/presentation/widgets/seat_grid.dart`, `live_room_screen.dart`, and `audio_meetup_screen.dart`) to an exact 10 circular seats layout (Row 1 = 5 seats, Row 2 = 5 seats) centered gracefully with fixed 5-column layout.

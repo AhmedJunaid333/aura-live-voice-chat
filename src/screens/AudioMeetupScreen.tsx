@@ -71,39 +71,48 @@ export default function AudioMeetupScreen({ onBack }: Props) {
             </div>
           </div>
 
-          {/* Speaker Grid (4 cols x 2 rows) */}
-          <div className="grid grid-cols-4 gap-y-6 gap-x-3 mb-8">
-            {/* Evelyn */}
-            <div className="flex flex-col items-center gap-1.5">
-              <div className="relative w-14 h-14">
-                <div className="w-full h-full rounded-full overflow-hidden border-2 border-[#d4af37] shadow-md">
+          {/* 👑 TOP CENTER HOST SEAT FRAME (SEAT 1) */}
+          <div className="flex flex-col items-center mb-6">
+            <div className="relative flex items-center justify-center">
+              {/* Gold Host Frame */}
+              <div className="w-18 h-18 rounded-full p-[3px] bg-gradient-to-br from-amber-400 via-amber-500 to-purple-600 shadow-xl shadow-amber-500/25 flex items-center justify-center relative">
+                <div className="w-full h-full rounded-full bg-[#0F172A] p-0.5 overflow-hidden flex items-center justify-center">
                   <img
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover rounded-full"
                     src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&auto=format"
                     alt="Evelyn"
                   />
                 </div>
-                <div className="absolute -top-1 -right-1 bg-[#735c00] text-white text-[10px] p-0.5 rounded-full shadow-sm">
-                  👑
+
+                {/* 👑 Royal Crown Badge */}
+                <div className="absolute -top-3 inset-x-0 mx-auto w-fit px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 text-[8px] font-black shadow-md flex items-center gap-0.5">
+                  <span>👑</span>
+                  <span>HOST</span>
                 </div>
               </div>
-              <div className="text-center">
-                <p className="text-xs font-semibold text-[#1e1b18] truncate max-w-[60px]">Evelyn</p>
-                <p className="text-[9px] text-[#735c00] font-bold">Noble</p>
-              </div>
             </div>
 
+            <div className="flex items-center gap-1 mt-1.5">
+              <span className="px-1.5 py-0.2 rounded bg-gradient-to-r from-purple-500 to-cyan-500 text-white text-[8px] font-black">
+                Lv.99
+              </span>
+              <p className="text-xs font-bold text-[#1e1b18]">Evelyn (Host)</p>
+            </div>
+          </div>
+
+          {/* 🎙️ 10 CIRCULAR GUEST SEATS (Row 1: 5 seats, Row 2: 5 seats) */}
+          <div className="grid grid-cols-5 gap-y-4 gap-x-2.5 mb-8">
             {/* Seat 2 */}
-            <div className="flex flex-col items-center gap-1.5">
-              <div className="w-14 h-14 rounded-full border-2 border-dashed border-[#d0c5af] flex items-center justify-center bg-[#fbf2ed] text-slate-400 hover:bg-[#d4af37]/10 cursor-pointer">
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-full border-2 border-dashed border-[#d0c5af] flex items-center justify-center bg-[#fbf2ed] text-slate-400 hover:bg-[#d4af37]/10 cursor-pointer">
                 +
               </div>
-              <p className="text-[9px] text-[#4d4635] uppercase font-semibold">Seat 2</p>
+              <p className="text-[8.5px] text-[#4d4635] font-semibold">Seat 2</p>
             </div>
 
-            {/* Julian */}
-            <div className="flex flex-col items-center gap-1.5">
-              <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-transparent shadow-md">
+            {/* Julian (Seat 3) */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-[#06B6D4] shadow-md relative">
                 <img
                   className="w-full h-full object-cover"
                   src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&h=120&fit=crop&auto=format"
@@ -111,22 +120,21 @@ export default function AudioMeetupScreen({ onBack }: Props) {
                 />
               </div>
               <div className="text-center">
-                <p className="text-xs font-semibold text-[#1e1b18] truncate max-w-[60px]">Julian</p>
-                <p className="text-[9px] text-[#4d4635] font-medium">ID: 042</p>
+                <p className="text-[9px] font-bold text-[#1e1b18] truncate max-w-[50px]">Julian</p>
               </div>
             </div>
 
             {/* Seat 4 */}
-            <div className="flex flex-col items-center gap-1.5">
-              <div className="w-14 h-14 rounded-full border-2 border-dashed border-[#d0c5af] flex items-center justify-center bg-[#fbf2ed] text-slate-400">
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-full border-2 border-dashed border-[#d0c5af] flex items-center justify-center bg-[#fbf2ed] text-slate-400">
                 +
               </div>
-              <p className="text-[9px] text-[#4d4635] uppercase font-semibold">Seat 4</p>
+              <p className="text-[8.5px] text-[#4d4635] font-semibold">Seat 4</p>
             </div>
 
-            {/* Seraphina */}
-            <div className="flex flex-col items-center gap-1.5">
-              <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-transparent shadow-md">
+            {/* Seraphina (Seat 5) */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-[#8B5CF6] shadow-md">
                 <img
                   className="w-full h-full object-cover"
                   src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&auto=format"
@@ -134,33 +142,56 @@ export default function AudioMeetupScreen({ onBack }: Props) {
                 />
               </div>
               <div className="text-center">
-                <p className="text-xs font-semibold text-[#1e1b18] truncate max-w-[60px]">Seraphina</p>
-                <p className="text-[9px] text-[#4d4635] font-medium">ID: 109</p>
+                <p className="text-[9px] font-bold text-[#1e1b18] truncate max-w-[50px]">Seraphina</p>
               </div>
             </div>
 
-            {/* Locked */}
-            <div className="flex flex-col items-center gap-1.5">
-              <div className="w-14 h-14 rounded-full border-2 border-dashed border-[#d0c5af] flex items-center justify-center bg-[#fbf2ed] text-slate-400">
-                🔒
-              </div>
-              <p className="text-[9px] text-[#4d4635] uppercase font-semibold">Locked</p>
-            </div>
-
-            {/* Seat 7 */}
-            <div className="flex flex-col items-center gap-1.5">
-              <div className="w-14 h-14 rounded-full border-2 border-dashed border-[#d0c5af] flex items-center justify-center bg-[#fbf2ed] text-slate-400">
+            {/* Seat 6 */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-full border-2 border-dashed border-[#d0c5af] flex items-center justify-center bg-[#fbf2ed] text-slate-400">
                 +
               </div>
-              <p className="text-[9px] text-[#4d4635] uppercase font-semibold">Seat 7</p>
+              <p className="text-[8.5px] text-[#4d4635] font-semibold">Seat 6</p>
+            </div>
+
+            {/* Seat 7 (Locked) */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-full border-2 border-dashed border-[#d0c5af] flex items-center justify-center bg-[#fbf2ed] text-slate-400">
+                🔒
+              </div>
+              <p className="text-[8.5px] text-[#4d4635] font-semibold">Locked</p>
             </div>
 
             {/* Seat 8 */}
-            <div className="flex flex-col items-center gap-1.5">
-              <div className="w-14 h-14 rounded-full border-2 border-dashed border-[#d0c5af] flex items-center justify-center bg-[#fbf2ed] text-slate-400">
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-full border-2 border-dashed border-[#d0c5af] flex items-center justify-center bg-[#fbf2ed] text-slate-400">
                 +
               </div>
-              <p className="text-[9px] text-[#4d4635] uppercase font-semibold">Seat 8</p>
+              <p className="text-[8.5px] text-[#4d4635] font-semibold">Seat 8</p>
+            </div>
+
+            {/* Seat 9 */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-full border-2 border-dashed border-[#d0c5af] flex items-center justify-center bg-[#fbf2ed] text-slate-400">
+                +
+              </div>
+              <p className="text-[8.5px] text-[#4d4635] font-semibold">Seat 9</p>
+            </div>
+
+            {/* Seat 10 */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-full border-2 border-dashed border-[#d0c5af] flex items-center justify-center bg-[#fbf2ed] text-slate-400">
+                +
+              </div>
+              <p className="text-[8.5px] text-[#4d4635] font-semibold">Seat 10</p>
+            </div>
+
+            {/* Seat 11 */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="w-12 h-12 rounded-full border-2 border-dashed border-[#d0c5af] flex items-center justify-center bg-[#fbf2ed] text-slate-400">
+                +
+              </div>
+              <p className="text-[8.5px] text-[#4d4635] font-semibold">Seat 11</p>
             </div>
           </div>
 
