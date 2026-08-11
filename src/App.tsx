@@ -10,7 +10,6 @@ import PremiumProfileScreen from './screens/PremiumProfileScreen'
 import FamilyScreen from './screens/FamilyScreen'
 import LeaderboardScreen from './screens/LeaderboardScreen'
 import AIDiscoverScreen from './screens/AIDiscoverScreen'
-import AdminDashboardScreen from './screens/AdminDashboardScreen'
 import HelpSupportScreen from './screens/HelpSupportScreen'
 import HelpCenterScreen from './screens/HelpCenterScreen'
 import ChatScreen from './screens/ChatScreen'
@@ -25,13 +24,15 @@ type AppPhase = 'splash' | 'onboarding' | 'main'
 type SubScreen = 'family' | 'leaderboard' | 'helpsupport' | 'helpcenter' | 'level' | 'invitation' | 'chat' | 'rewards' | null
 type ActiveRoom = { title: string; host: string; listeners: number; bg: string; isPK: boolean } | null
 
-/* ── Detect standalone Admin Panel mode via URL ── */
-const isAdminPanel = () => {
-  if (typeof window === 'undefined') return false;
+/* ── Redirect legacy /#admin route to official Enterprise Admin Portal ── */
+const handleLegacyAdminRedirect = () => {
+  if (typeof window === 'undefined') return;
   const hash = window.location.hash.toLowerCase();
   const search = window.location.search.toLowerCase();
   const path = window.location.pathname.toLowerCase();
-  return hash.includes('admin') || search.includes('admin') || path.includes('admin');
+  if (hash.includes('admin') || search.includes('admin') || path.includes('admin')) {
+    window.location.href = 'https://aura-live-voice-chat-app.web.app';
+  }
 };
 
 /* ── Detect /rewards route via URL ── */
@@ -44,7 +45,6 @@ const isRewardsRoute = () => {
 };
 
 export default function App() {
-  const [isAdminView, setIsAdminView] = useState<boolean>(() => isAdminPanel());
   const [isRewardsView, setIsRewardsView] = useState<boolean>(() => isRewardsRoute());
   const [phase, setPhase] = useState<AppPhase>('main');
   const [tab, setTab] = useState<Tab>('home');
@@ -53,8 +53,9 @@ export default function App() {
   const [prevTab, setPrevTab] = useState<Tab>('home');
 
   useEffect(() => {
+    handleLegacyAdminRedirect();
     const handleUrlChange = () => {
-      setIsAdminView(isAdminPanel());
+      handleLegacyAdminRedirect();
       setIsRewardsView(isRewardsRoute());
     };
     window.addEventListener('hashchange', handleUrlChange);
@@ -87,19 +88,6 @@ export default function App() {
     setTab(t);
     setSubScreen(null);
   }, [tab]);
-
-import { MasterAdminConsole } from './screens/MasterAdminConsole'
-
-  /* ══════════════════════════════════════════════════════════ */
-  /* ══ STANDALONE WEB ADMIN PANEL ════════════════════════════ */
-  /* ══════════════════════════════════════════════════════════ */
-  if (isAdminView) {
-    return (
-      <div className="relative min-h-screen bg-[#07090E] text-white">
-        <MasterAdminConsole />
-      </div>
-    );
-  }
 
   /* ══════════════════════════════════════════════════════════ */
   /* ══ MOBILE APP FLOW (Splash → Onboarding → Main) ════════ */
