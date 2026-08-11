@@ -272,9 +272,9 @@ export default function LiveRoomScreen({ room, roomId = 'RM-8821', onBack }: Pro
             )
           })()}
 
-          {/* 🎙️ 10 CIRCULAR GUEST SEATS (Row 1 = 5 seats, Row 2 = 5 seats) */}
+          {/* 🎙️ DYNAMIC CIRCULAR GUEST SEATS (5 per row: 10 = 2 rows, 15 = 3 rows, 20 = 4 rows) */}
           <div className="grid grid-cols-5 gap-2.5 w-full max-w-md px-1">
-            {visibleSeats.slice(1, 11).map((s, idx) => {
+            {visibleSeats.slice(1, seatCount + 1).map((s, idx) => {
               const hasUser = !!s.avatar
               const seatNum = idx + 2
               return (
