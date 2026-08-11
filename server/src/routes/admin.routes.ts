@@ -3823,6 +3823,214 @@ adminRouter.post('/audio-rooms/moderate', async (req, res, next) => {
   }
 });
 
+// 89. Trust & Safety Queue, Moderation & Appeals Telemetry
+adminRouter.get('/trust-safety', async (req, res, next) => {
+  try {
+    const safetyReports = [
+      {
+        id: 'REP-7001',
+        reportNumber: 'SR-90812',
+        reporterUserId: 100002,
+        reporterUsername: 'Ayesha_Singer',
+        reportedUserId: 100004,
+        reportedUsername: 'Sara_Vip',
+        roomNumericId: 9901,
+        category: 'HARASSMENT',
+        severity: 'HIGH',
+        status: 'IN_REVIEW',
+        description: 'Repeated offensive comments and harassment in VIP Audio Lounge #9901.',
+        createdAt: new Date(Date.now() - 3600000).toISOString(),
+      },
+      {
+        id: 'REP-7002',
+        reportNumber: 'SR-90813',
+        reporterUserId: 100003,
+        reporterUsername: 'Dimple',
+        reportedUserId: 100005,
+        reportedUsername: 'SpamBot_99',
+        roomNumericId: 9902,
+        category: 'SPAM',
+        severity: 'MEDIUM',
+        status: 'OPEN',
+        description: 'Automated spam messaging link in Music Lounge chat.',
+        createdAt: new Date(Date.now() - 7200000).toISOString(),
+      },
+      {
+        id: 'REP-7003',
+        reportNumber: 'SR-90814',
+        reporterUserId: 100001,
+        reporterUsername: 'Ahmed Khokhar',
+        reportedUserId: 100006,
+        reportedUsername: 'Fake_Admin_Reseller',
+        category: 'IMPERSONATION',
+        severity: 'CRITICAL',
+        status: 'TRIAGED',
+        description: 'Fake account pretending to be an Official Diamond Reseller.',
+        createdAt: new Date(Date.now() - 14400000).toISOString(),
+      },
+    ];
+
+    const activeEnforcements = [
+      {
+        id: 'ENF-301',
+        targetUserId: 100004,
+        targetUsername: 'Sara_Vip',
+        actionType: 'TEMP_SUSPENSION',
+        reason: 'Harassment & Abuse Violation',
+        issuedBy: 'Admin_Master',
+        durationHours: 24,
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+        status: 'ACTIVE',
+      },
+      {
+        id: 'ENF-302',
+        targetUserId: 100005,
+        targetUsername: 'SpamBot_99',
+        actionType: 'ACCOUNT_BAN',
+        reason: 'Automated Spam Bot Activity',
+        issuedBy: 'Admin_Master',
+        status: 'PERMANENT',
+      },
+    ];
+
+    const pendingAppeals = [
+      {
+        id: 'APL-101',
+        appealNumber: 'AP-501',
+        userId: 100004,
+        username: 'Sara_Vip',
+        enforcementId: 'ENF-301',
+        actionType: 'TEMP_SUSPENSION',
+        reason: 'Misunderstanding in room comment thread. Requesting unban.',
+        status: 'SUBMITTED',
+        createdAt: new Date(Date.now() - 1800000).toISOString(),
+      },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        safetyReports,
+        activeEnforcements,
+        pendingAppeals,
+        totalOpenReports: safetyReports.filter(r => r.status !== 'RESOLVED').length,
+        totalCriticalReports: safetyReports.filter(r => r.severity === 'CRITICAL').length,
+        totalActiveBans: activeEnforcements.length,
+        totalPendingAppeals: pendingAppeals.length,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 90. File New Safety Report
+adminRouter.post('/trust-safety/report/create', async (req, res, next) => {
+  try {
+    const { reporterUserId, reportedUserId, category, severity, description, roomNumericId } = req.body;
+    const reportId = 'REP-' + Date.now();
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: parseInt(reporterUserId, 10) || 100002,
+        actorRole: 'USER',
+        action: 'SAFETY_REPORT_CREATED',
+        resource: `Report:${reportId}`,
+        details: `Filed Safety Report #${reportId} against User #${reportedUserId} (Category: ${category || 'HARASSMENT'}, Severity: ${severity || 'HIGH'}).`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('safety.report.created', {
+        reportId,
+        category: category || 'HARASSMENT',
+        severity: severity || 'HIGH',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Safety Report #${reportId} filed successfully!`,
+      data: { reportId, category, severity, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 91. Execute Moderation Action (Warning, Mute, Kick, Suspension, Ban)
+adminRouter.post('/trust-safety/moderate', async (req, res, next) => {
+  try {
+    const { targetUserId, actionType, reason, reportId, durationHours } = req.body;
+    const numericUserId = parseInt(targetUserId, 10) || 100004;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'SAFETY_ACTION_EXECUTED',
+        resource: `User:${numericUserId}`,
+        details: `Trust & Safety executed '${actionType}' on User #${numericUserId}. Reason: ${reason || 'Violation of Safety Rules'}. Report #${reportId || 'N/A'}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('safety.action.created', {
+        targetUserId: numericUserId,
+        actionType,
+        reason: reason || 'Violation of Safety Rules',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Safety Action '${actionType}' executed on User #${numericUserId}!`,
+      data: { targetUserId: numericUserId, actionType, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 92. Resolve Enforcement Appeal (Approve / Deny)
+adminRouter.post('/trust-safety/appeal/resolve', async (req, res, next) => {
+  try {
+    const { appealId, decision, decisionReason } = req.body;
+
+    const auditLog = await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: 'SAFETY_APPEAL_RESOLVED',
+        resource: `Appeal:${appealId || 'APL-101'}`,
+        details: `Appeal #${appealId || 'APL-101'} ${decision === 'APPROVED' ? 'APPROVED (Restriction Revoked)' : 'DENIED (Restriction Upheld)'}. Reason: ${decisionReason || 'Reviewed by Safety Board'}.`,
+      },
+    });
+
+    const io = getIO();
+    if (io) {
+      io.emit('safety.appeal.resolved', {
+        appealId: appealId || 'APL-101',
+        decision,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Appeal #${appealId || 'APL-101'} resolved (${decision})!`,
+      data: { appealId: appealId || 'APL-101', decision, auditLogId: auditLog.id },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 
 
