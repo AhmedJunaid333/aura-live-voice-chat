@@ -9,6 +9,13 @@ An enterprise-grade live broadcasting, multi-seat voice lounge (10, 15, 20 seats
 - **Realtime Gateway**: Socket.IO WebSockets on Port 3001
 - **Detailed Audit Plan**: See [`plan.md`](file:///d:/Auralive/plan.md)
 
+## 🆔 Global Permanent Unique User Identity System
+- **Dual-ID Architecture**: Internal Database Primary Key (`id: Int`) handles relational storage, while Public User ID (`numericId: Int @unique`, e.g. `100001`, `10045827`) serves as the permanent, immutable public identity.
+- **Identity Invariance**: Public User ID never changes across username updates, display name changes, avatar changes, password resets, Google SSO logins, or account recovery.
+- **Zero-Trust Token Authorization**: Backend derives actor identity strictly from validated JWT sessions (`req.user.userId`), completely preventing IDOR attacks.
+- **Universal Ecosystem Consistency**: Connects User Profiles, Search, Follow/Following, Profile Visitors, 1-to-1 Chat, Virtual Gifting, Wallets, Live Rooms (Host, Seats, Audience), Family Guilds, CP Pairs, VIP/Levels, and Admin Console.
+- **100% Automated E2E Verification**: Verified via `server/src/scripts/test_permanent_unique_user_id.ts`.
+
 ## 🎙️ 10 Guest Seats Grid & Numbering Standards
 - **Top Center Host Frame**: Dedicated Host stage with animated speaking aura, crown badge (`👑 HOST`), equalizer, and host name (`Ahmed Khokhar`).
 - **10 Circular Guest Seats (2 Rows of 5)**:

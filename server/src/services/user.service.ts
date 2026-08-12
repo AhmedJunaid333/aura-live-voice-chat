@@ -157,7 +157,7 @@ export class UserService {
       id: user.id,
       numericId: user.numericId,
       username: user.username,
-      displayName: user.username,
+      displayName: user.displayName || user.username,
       avatar: user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop',
       cover: user.cover || 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800&h=300&fit=crop',
       bio: user.bio || 'Aura Live Registered User ✨',

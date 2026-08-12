@@ -180,6 +180,7 @@ usersRouter.put('/profile/update', authenticateToken, async (req: AuthenticatedR
       where: { id: req.user!.userId },
       data: {
         ...(validated.username !== undefined && { username: validated.username }),
+        ...(validated.displayName !== undefined && { displayName: validated.displayName }),
         ...(validated.bio !== undefined && { bio: validated.bio }),
         ...(validated.gender !== undefined && { gender: validated.gender }),
         ...(validated.country !== undefined && { country: validated.country }),

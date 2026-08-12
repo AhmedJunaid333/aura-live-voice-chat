@@ -22,6 +22,7 @@ export const adminLoginSchema = z.object({
 
 export const profileUpdateSchema = z.object({
   username: z.string().min(1).max(50).optional(),
+  displayName: z.string().min(1).max(50).optional(),
   bio: z.string().max(300).optional(),
   gender: z.string().optional(),
   birthday: z.string().optional(),

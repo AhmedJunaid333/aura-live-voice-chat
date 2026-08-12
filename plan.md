@@ -1,6 +1,20 @@
 # Aura Live Voice Chat – Production Implementation Plan
 
 ## 🏆 Completed & Active Milestones
+- **🆔 Global Permanent Unique User Identity System (COMPLETED & 100% VERIFIED)**:
+  - **Identity Architecture & Dual-ID Standard**:
+    - **Internal Database Primary Key (`id: Int`)**: Auto-incrementing internal integer primary key used exclusively for foreign-key relational integrity in SQLite/PostgreSQL. Never exposed directly as public identity.
+    - **Permanent Public User ID (`numericId: Int @unique`)**: Globally unique, immutable numeric ID (e.g. `100001`, `777002`, `10045827`) assigned once upon user registration / Google onboarding and indexed with `@@index([numericId])`.
+    - **Identity Invariance Guarantees**: Public User ID never changes or gets reassigned when username changes, display name changes, profile photo changes, during Google/password logins, or account recovery.
+  - **Zero-Trust Token Authorization (IDOR Protection)**:
+    - Client-supplied `userId` is never trusted for authorization.
+    - Authenticated identity is securely resolved exclusively from validated server-side JWT session (`req.user.userId` -> internal `id`, `req.user.numericId` -> public `numericId`).
+    - Mutation operations (wallet, diamonds, VIP, level, roles, profile ownership, private data) strictly protect against unauthorized access.
+  - **Universal Ecosystem Wiring**:
+    - Same permanent identity connects Profiles, User Search, Follow/Following/Visitors, Chat/Messaging, Gifts, Wallets, Live Rooms (Host, Seats, Audience), Family Guilds, CP Pairs, VIP/Levels, Reports, Blocks, Mutes, Agencies, Admin Portal, and Socket.IO real-time events.
+  - **100% E2E Automated Verification (`test_permanent_unique_user_id.ts`)**:
+    - Automated test created User A (`777001`) and User B (`777002`), completed cross-user profile fetch, follow, visit, gift transaction, live room broadcast, admin search, and executed identity mutation (updating User B username, display name, and avatar) confirming 100% ID preservation and relationship persistence.
+
 - **🎙️ 10 Guest Seats Grid Numbering Fix & Resilient Profile Loading (COMPLETED)**:
   - **Seat Grid & Numbering Overhaul (`seat_grid.dart` & `live_room_controller.dart`)**:
     - **Top Center Host Seat Frame**: Majestically centered at the top labeled `👑 HOST` / `Ahmed Khokhar`.

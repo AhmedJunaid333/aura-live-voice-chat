@@ -11,6 +11,7 @@ model User {
   id              Int               @id @default(autoincrement())
   numericId       Int               @unique
   username        String            @unique
+  displayName     String?
   email           String?           @unique
   phone           String?           @unique
   passwordHash    String
@@ -77,6 +78,9 @@ model User {
   mutedBy               MutedUser[]             @relation("UserMuted")
   userReportsFiled      UserReport[]            @relation("UserReportedBy")
   userReportsReceived   UserReport[]            @relation("UserReportedTarget")
+
+  @@index([numericId])
+  @@index([username])
 }
 
 model AuthAccount {
