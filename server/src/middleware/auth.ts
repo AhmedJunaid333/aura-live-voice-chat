@@ -29,3 +29,16 @@ export function authenticateToken(req: AuthenticatedRequest, res: Response, next
   req.user = payload;
   next();
 }
+
+export function optionalAuthenticateToken(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+
+  if (token) {
+    const payload = verifyAccessToken(token);
+    if (payload) {
+      req.user = payload;
+    }
+  }
+  next();
+}

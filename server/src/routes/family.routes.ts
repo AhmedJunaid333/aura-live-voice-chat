@@ -1,14 +1,13 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { FamilyService } from '../services/family.service.js';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
-import { prisma } from '../config/database.js';
 
 export const familyRouter = Router();
 
 // -----------------------------------------------------------------------------
 // 1. Discover & List Families
 // -----------------------------------------------------------------------------
-familyRouter.get('/', async (req, res, next) => {
+familyRouter.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { search, country, page, limit } = req.query;
     const result = await FamilyService.listFamilies({
@@ -26,7 +25,7 @@ familyRouter.get('/', async (req, res, next) => {
 // -----------------------------------------------------------------------------
 // 2. Get Realtime Family Rankings
 // -----------------------------------------------------------------------------
-familyRouter.get('/rankings', async (req, res, next) => {
+familyRouter.get('/rankings', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const period = (req.query.period as 'all' | 'weekly' | 'monthly') || 'all';
     const rankings = await FamilyService.getFamilyRankings(period);
@@ -39,9 +38,9 @@ familyRouter.get('/rankings', async (req, res, next) => {
 // -----------------------------------------------------------------------------
 // 3. Get Logged-in User's Family
 // -----------------------------------------------------------------------------
-familyRouter.get('/my-family', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+familyRouter.get('/my-family', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const membership = await FamilyService.getMyFamily(req.user!.id);
+    const membership = await FamilyService.getMyFamily(req.user!.userId);
     res.status(200).json({ success: true, data: membership });
   } catch (error) {
     next(error);
@@ -51,9 +50,9 @@ familyRouter.get('/my-family', authenticateToken, async (req: AuthenticatedReque
 // -----------------------------------------------------------------------------
 // 4. Get My Pending Family Invitations
 // -----------------------------------------------------------------------------
-familyRouter.get('/invitations/me', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+familyRouter.get('/invitations/me', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const invitations = await FamilyService.getMyInvitations(req.user!.id);
+    const invitations = await FamilyService.getMyInvitations(req.user!.userId);
     res.status(200).json({ success: true, data: invitations });
   } catch (error) {
     next(error);
@@ -63,7 +62,7 @@ familyRouter.get('/invitations/me', authenticateToken, async (req: Authenticated
 // -----------------------------------------------------------------------------
 // 5. Respond to Invitation (Accept / Reject)
 // -----------------------------------------------------------------------------
-familyRouter.post('/invitations/:invitationId/respond', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+familyRouter.post('/invitations/:invitationId/respond', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { action } = req.body;
     if (!action || !['ACCEPTED', 'REJECTED'].includes(action)) {
@@ -71,8 +70,8 @@ familyRouter.post('/invitations/:invitationId/respond', authenticateToken, async
       return;
     }
     const result = await FamilyService.respondInvitation({
-      invitationId: req.params.invitationId,
-      userId: req.user!.id,
+      invitationId: String(req.params.invitationId),
+      userId: req.user!.userId,
       action,
     });
     res.status(200).json({ success: true, message: `Invitation ${action.toLowerCase()} successfully!`, data: result });
@@ -84,7 +83,7 @@ familyRouter.post('/invitations/:invitationId/respond', authenticateToken, async
 // -----------------------------------------------------------------------------
 // 6. Create Family (Authenticated Owner)
 // -----------------------------------------------------------------------------
-familyRouter.post('/', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+familyRouter.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { name, description, rules, logo, icon, country } = req.body;
     if (!name || name.trim().length < 3) {
@@ -92,7 +91,7 @@ familyRouter.post('/', authenticateToken, async (req: AuthenticatedRequest, res,
       return;
     }
     const result = await FamilyService.createFamily({
-      ownerId: req.user!.id,
+      ownerId: req.user!.userId,
       name,
       description,
       rules,
@@ -109,14 +108,9 @@ familyRouter.post('/', authenticateToken, async (req: AuthenticatedRequest, res,
 // -----------------------------------------------------------------------------
 // 7. Get Family Profile Details
 // -----------------------------------------------------------------------------
-familyRouter.get('/:familyId', async (req, res, next) => {
+familyRouter.get('/:familyId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    let currentUserId: number | undefined;
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      // optional token decoding
-    }
-    const family = await FamilyService.getFamilyProfile(req.params.familyId, currentUserId);
+    const family = await FamilyService.getFamilyProfile(String(req.params.familyId));
     res.status(200).json({ success: true, data: family });
   } catch (error) {
     next(error);
@@ -126,7 +120,7 @@ familyRouter.get('/:familyId', async (req, res, next) => {
 // -----------------------------------------------------------------------------
 // 8. Invite a User to Family
 // -----------------------------------------------------------------------------
-familyRouter.post('/:familyId/invite', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+familyRouter.post('/:familyId/invite', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { targetUserId } = req.body;
     if (!targetUserId) {
@@ -134,8 +128,8 @@ familyRouter.post('/:familyId/invite', authenticateToken, async (req: Authentica
       return;
     }
     const invitation = await FamilyService.inviteMember({
-      familyId: req.params.familyId,
-      inviterId: req.user!.id,
+      familyId: String(req.params.familyId),
+      inviterId: req.user!.userId,
       targetUserId: Number(targetUserId),
     });
     res.status(201).json({ success: true, message: 'Invitation sent successfully! 💌', data: invitation });
@@ -147,11 +141,11 @@ familyRouter.post('/:familyId/invite', authenticateToken, async (req: Authentica
 // -----------------------------------------------------------------------------
 // 9. Leave Family
 // -----------------------------------------------------------------------------
-familyRouter.post('/:familyId/leave', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+familyRouter.post('/:familyId/leave', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const result = await FamilyService.leaveFamily({
-      familyId: req.params.familyId,
-      userId: req.user!.id,
+      familyId: String(req.params.familyId),
+      userId: req.user!.userId,
     });
     res.status(200).json({ success: true, data: result });
   } catch (error) {
@@ -162,7 +156,7 @@ familyRouter.post('/:familyId/leave', authenticateToken, async (req: Authenticat
 // -----------------------------------------------------------------------------
 // 10. Update Member Role (Promote / Demote)
 // -----------------------------------------------------------------------------
-familyRouter.post('/:familyId/members/:userId/role', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+familyRouter.post('/:familyId/members/:userId/role', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { newRole } = req.body;
     if (!newRole || !['ADMIN', 'CO_ADMIN', 'HOST', 'MEMBER'].includes(newRole)) {
@@ -170,9 +164,9 @@ familyRouter.post('/:familyId/members/:userId/role', authenticateToken, async (r
       return;
     }
     const updated = await FamilyService.updateMemberRole({
-      familyId: req.params.familyId,
-      actorId: req.user!.id,
-      targetUserId: parseInt(req.params.userId),
+      familyId: String(req.params.familyId),
+      actorId: req.user!.userId,
+      targetUserId: parseInt(String(req.params.userId), 10),
       newRole,
     });
     res.status(200).json({ success: true, message: `Member role updated to ${newRole}! 🛡️`, data: updated });
@@ -184,13 +178,13 @@ familyRouter.post('/:familyId/members/:userId/role', authenticateToken, async (r
 // -----------------------------------------------------------------------------
 // 11. Kick Member
 // -----------------------------------------------------------------------------
-familyRouter.post('/:familyId/members/:userId/remove', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+familyRouter.post('/:familyId/members/:userId/remove', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { reason } = req.body;
     const result = await FamilyService.removeMember({
-      familyId: req.params.familyId,
-      actorId: req.user!.id,
-      targetUserId: parseInt(req.params.userId),
+      familyId: String(req.params.familyId),
+      actorId: req.user!.userId,
+      targetUserId: parseInt(String(req.params.userId), 10),
       reason,
     });
     res.status(200).json({ success: true, data: result });
@@ -202,13 +196,13 @@ familyRouter.post('/:familyId/members/:userId/remove', authenticateToken, async 
 // -----------------------------------------------------------------------------
 // 12. Ban Member
 // -----------------------------------------------------------------------------
-familyRouter.post('/:familyId/members/:userId/ban', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+familyRouter.post('/:familyId/members/:userId/ban', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { reason } = req.body;
     const result = await FamilyService.banMember({
-      familyId: req.params.familyId,
-      actorId: req.user!.id,
-      targetUserId: parseInt(req.params.userId),
+      familyId: String(req.params.familyId),
+      actorId: req.user!.userId,
+      targetUserId: parseInt(String(req.params.userId), 10),
       reason,
     });
     res.status(200).json({ success: true, data: result });
@@ -220,7 +214,7 @@ familyRouter.post('/:familyId/members/:userId/ban', authenticateToken, async (re
 // -----------------------------------------------------------------------------
 // 13. Transfer Family Ownership
 // -----------------------------------------------------------------------------
-familyRouter.post('/:familyId/transfer-owner', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+familyRouter.post('/:familyId/transfer-owner', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { newOwnerUserId } = req.body;
     if (!newOwnerUserId) {
@@ -228,8 +222,8 @@ familyRouter.post('/:familyId/transfer-owner', authenticateToken, async (req: Au
       return;
     }
     const result = await FamilyService.transferOwnership({
-      familyId: req.params.familyId,
-      currentOwnerId: req.user!.id,
+      familyId: String(req.params.familyId),
+      currentOwnerId: req.user!.userId,
       newOwnerUserId: Number(newOwnerUserId),
     });
     res.status(200).json({ success: true, message: 'Ownership transferred successfully! 👑', data: result });
@@ -241,7 +235,7 @@ familyRouter.post('/:familyId/transfer-owner', authenticateToken, async (req: Au
 // -----------------------------------------------------------------------------
 // 14. Create Family Audio Room
 // -----------------------------------------------------------------------------
-familyRouter.post('/:familyId/rooms', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+familyRouter.post('/:familyId/rooms', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { title, isFamilyOnly, seatCount } = req.body;
     if (!title) {
@@ -249,8 +243,8 @@ familyRouter.post('/:familyId/rooms', authenticateToken, async (req: Authenticat
       return;
     }
     const result = await FamilyService.createFamilyRoom({
-      familyId: req.params.familyId,
-      hostUserId: req.user!.id,
+      familyId: String(req.params.familyId),
+      hostUserId: req.user!.userId,
       title,
       isFamilyOnly,
       seatCount: seatCount || 10,
@@ -264,17 +258,17 @@ familyRouter.post('/:familyId/rooms', authenticateToken, async (req: Authenticat
 // -----------------------------------------------------------------------------
 // 15. Post & Get Family Chat Messages
 // -----------------------------------------------------------------------------
-familyRouter.get('/:familyId/chat', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+familyRouter.get('/:familyId/chat', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-    const messages = await FamilyService.getFamilyMessages(req.params.familyId, limit);
+    const messages = await FamilyService.getFamilyMessages(String(req.params.familyId), limit);
     res.status(200).json({ success: true, data: messages });
   } catch (error) {
     next(error);
   }
 });
 
-familyRouter.post('/:familyId/chat', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+familyRouter.post('/:familyId/chat', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { content, type, mediaUrl, replyToId } = req.body;
     if (!content || content.trim().length === 0) {
@@ -282,8 +276,8 @@ familyRouter.post('/:familyId/chat', authenticateToken, async (req: Authenticate
       return;
     }
     const message = await FamilyService.postFamilyMessage({
-      familyId: req.params.familyId,
-      senderId: req.user!.id,
+      familyId: String(req.params.familyId),
+      senderId: req.user!.userId,
       content,
       type,
       mediaUrl,
@@ -298,7 +292,7 @@ familyRouter.post('/:familyId/chat', authenticateToken, async (req: Authenticate
 // -----------------------------------------------------------------------------
 // 16. Post Family Announcement
 // -----------------------------------------------------------------------------
-familyRouter.post('/:familyId/announcements', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+familyRouter.post('/:familyId/announcements', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const { title, content, isPinned } = req.body;
     if (!title || !content) {
@@ -306,8 +300,8 @@ familyRouter.post('/:familyId/announcements', authenticateToken, async (req: Aut
       return;
     }
     const announcement = await FamilyService.postAnnouncement({
-      familyId: req.params.familyId,
-      authorId: req.user!.id,
+      familyId: String(req.params.familyId),
+      authorId: req.user!.userId,
       title,
       content,
       isPinned,

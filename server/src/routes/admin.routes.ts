@@ -2022,7 +2022,7 @@ adminRouter.post('/recharge/webhook', async (req, res, next) => {
         type: 'CREDIT',
         amount: totalDiamonds,
         currency: 'DIAMOND',
-        description: `Verified Recharge Order #${orderId || 'ORD-' + Date.now()} via Payment Webhook (Txn: ${providerTxnId || 'TXN-SECURE'})`,
+        notes: `Verified Recharge Order #${orderId || 'ORD-' + Date.now()} via Payment Webhook (Txn: ${providerTxnId || 'TXN-SECURE'})`,
       },
     });
 
@@ -2089,7 +2089,7 @@ adminRouter.post('/recharge/orders/verify-manual', async (req, res, next) => {
         type: 'CREDIT',
         amount: totalDiamonds,
         currency: 'DIAMOND',
-        description: `Manual Bank Transfer Verification for Order #${orderId}. Ref: ${proofReference || 'BANK-PROOF'}`,
+        notes: `Manual Bank Transfer Verification for Order #${orderId}. Ref: ${proofReference || 'BANK-PROOF'}`,
       },
     });
 
@@ -2110,8 +2110,6 @@ adminRouter.post('/recharge/orders/verify-manual', async (req, res, next) => {
       message: `🎉 Manual Bank Deposit Verified! +${totalDiamonds} Diamonds credited!`,
     });
 
-    res.status(200).json({
-      success: true,
     res.status(200).json({
       success: true,
       message: `Manual Bank Transfer Verified for Order #${orderId}! Credited +${totalDiamonds} Diamonds.`,
@@ -2182,7 +2180,7 @@ adminRouter.post('/resellers/allocate', async (req, res, next) => {
         type: 'CREDIT',
         amount: quantity,
         currency: 'DIAMOND',
-        description: `Wholesale Company Diamond Allocation (+${quantity} Diamonds)`,
+        notes: `Wholesale Company Diamond Allocation (+${quantity} Diamonds)`,
       },
     });
 
@@ -2259,7 +2257,7 @@ adminRouter.post('/resellers/sell-diamonds', async (req, res, next) => {
         type: 'DEBIT',
         amount: quantity,
         currency: 'DIAMOND',
-        description: `Sold ${quantity} Diamonds to Customer @${targetUser.username} (UID: ${targetUser.numericId})`,
+        notes: `Sold ${quantity} Diamonds to Customer @${targetUser.username} (UID: ${targetUser.numericId})`,
       },
     });
 
@@ -2267,10 +2265,12 @@ adminRouter.post('/resellers/sell-diamonds', async (req, res, next) => {
     await prisma.walletTransaction.create({
       data: {
         userId: targetUser.id,
-        type: 'CREDIT',
-        amount: quantity,
+        type: 'PURCHASE_DIAMOND',
         currency: 'DIAMOND',
-        description: `Purchased ${quantity} Diamonds from Reseller @${resellerUser.username}`,
+        amount: quantity,
+        balanceAfter: updatedTarget.diamonds,
+        referenceId: `BUY-RESELLER-${Date.now()}`,
+        notes: `Purchased ${quantity} Diamonds from Reseller @${resellerUser.username}`,
       },
     });
 
@@ -2320,7 +2320,7 @@ adminRouter.post('/resellers/apply', async (req, res, next) => {
     const numericUserId = parseInt(userId, 10);
 
     const user = await prisma.user.update({
-      where: { id: numericUserId },
+      where: { numericId: numericUserId },
       data: { role: 'DIAMOND_RESELLER' },
     });
 
@@ -2436,7 +2436,7 @@ adminRouter.post('/gifts/send', async (req, res, next) => {
     const totalDiamondCost = gift.cost * qty;
     const totalHostCoins = gift.coins * qty;
 
-    const senderUser = await prisma.user.findUnique({ where: { id: numericSenderId } });
+    const senderUser = await prisma.user.findUnique({ where: { numericId: numericSenderId } });
     if (!senderUser) {
       res.status(404).json({ success: false, error: 'Sender user account not found' });
       return;
@@ -2475,17 +2475,19 @@ adminRouter.post('/gifts/send', async (req, res, next) => {
         type: 'DEBIT',
         amount: totalDiamondCost,
         currency: 'DIAMOND',
-        description: `Sent ${qty}x ${gift.name} to Host @${receiverUser.username} (UID: ${receiverUser.numericId})`,
+        notes: `Sent ${qty}x ${gift.name} to Host @${receiverUser.username} (UID: ${receiverUser.numericId})`,
       },
     });
 
     await prisma.walletTransaction.create({
       data: {
         userId: receiverUser.id,
-        type: 'CREDIT',
-        amount: totalHostCoins,
+        type: 'RECEIVE_GIFT',
         currency: 'COIN',
-        description: `Earned ${totalHostCoins} Coins from ${qty}x ${gift.name} sent by @${senderUser.username}`,
+        amount: totalHostCoins,
+        balanceAfter: updatedReceiver.coins,
+        referenceId: `GIFT-RCV-${Date.now()}`,
+        notes: `Earned ${totalHostCoins} Coins from ${qty}x ${gift.name} sent by @${senderUser.username}`,
       },
     });
 
@@ -2571,7 +2573,7 @@ adminRouter.post('/gifts/lucky/play', async (req, res, next) => {
         type: 'CREDIT',
         amount: netProfit,
         currency: 'DIAMOND',
-        description: `Lucky Gift Draw Win! Cost: ${cost} Diamonds -> Multiplier: ${rewardMultiplier}x (Won +${rewardDiamonds} Diamonds)`,
+        notes: `Lucky Gift Draw Win! Cost: ${cost} Diamonds -> Multiplier: ${rewardMultiplier}x (Won +${rewardDiamonds} Diamonds)`,
       },
     });
 
@@ -2878,7 +2880,7 @@ adminRouter.post('/games/play', async (req, res, next) => {
         type: 'CREDIT',
         amount: netProfit,
         currency: 'DIAMOND',
-        description: `Game Victory! ${gameSlug || 'Mini-Game'} Score: ${score} -> Won +${rewardDiamonds} Diamonds (${winMultiplier}x Multiplier)`,
+        notes: `Game Victory! ${gameSlug || 'Mini-Game'} Score: ${score} -> Won +${rewardDiamonds} Diamonds (${winMultiplier}x Multiplier)`,
       },
     });
 
@@ -3263,15 +3265,6 @@ adminRouter.post('/banners/toggle', async (req, res, next) => {
   }
 });
 
-    res.status(200).json({
-      success: true,
-      message: `Tracked click for Banner #${bannerId}!`,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
 // 74. Avatar Frames & Entrance Effects Catalog Overview
 adminRouter.get('/cosmetics', async (req, res, next) => {
   try {
@@ -3425,7 +3418,7 @@ adminRouter.post('/cosmetics/purchase', async (req, res, next) => {
         type: 'COSMETIC_PURCHASE',
         amount: cost,
         currency: 'DIAMONDS',
-        description: `Purchased Cosmetic Asset #${assetId} for ${cost} 💎`,
+        notes: `Purchased Cosmetic Asset #${assetId} for ${cost} 💎`,
       },
     });
 
@@ -3653,7 +3646,7 @@ adminRouter.post('/wallpapers/purchase', async (req, res, next) => {
         type: 'WALLPAPER_PURCHASE',
         amount: cost,
         currency: 'DIAMONDS',
-        description: `Purchased Room Wallpaper #${wallpaperId} for ${cost} 💎`,
+        notes: `Purchased Room Wallpaper #${wallpaperId} for ${cost} 💎`,
       },
     });
 
@@ -5065,15 +5058,16 @@ adminRouter.get('/users', async (req, res, next) => {
     const dbUsers = await prisma.user.findMany({
       select: {
         id: true,
+        numericId: true,
         username: true,
-        displayName: true,
+        avatar: true,
         email: true,
         role: true,
-        userLevel: true,
+        level: true,
+        vipTier: true,
         coins: true,
         diamonds: true,
-        isBanned: true,
-        isMuted: true,
+        status: true,
         createdAt: true,
         updatedAt: true,
       },

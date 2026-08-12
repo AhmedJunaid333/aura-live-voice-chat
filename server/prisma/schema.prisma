@@ -73,6 +73,10 @@ model User {
   familyMessages        FamilyMessage[]         @relation("FamilyMessages")
   familyAnnouncements   FamilyAnnouncement[]    @relation("FamilyAnnouncements")
   familyContributions   FamilyContribution[]    @relation("UserFamilyContributions")
+  mutedUsers            MutedUser[]             @relation("UserMuter")
+  mutedBy               MutedUser[]             @relation("UserMuted")
+  userReportsFiled      UserReport[]            @relation("UserReportedBy")
+  userReportsReceived   UserReport[]            @relation("UserReportedTarget")
 }
 
 model AuthAccount {
@@ -103,7 +107,7 @@ model WalletTransaction {
   type          String
   currency      String
   amount        Int
-  balanceAfter  Int
+  balanceAfter  Int           @default(0)
   referenceId   String?
   notes         String?
   createdAt     DateTime      @default(now())
@@ -629,3 +633,39 @@ model MessageReport {
   @@index([reportedUserId])
   @@index([status])
 }
+
+model MutedUser {
+  id            String    @id @default(uuid())
+  muterId       Int
+  mutedId       Int
+  reason        String?
+  createdAt     DateTime  @default(now())
+
+  muter         User      @relation("UserMuter", fields: [muterId], references: [id], onDelete: Cascade)
+  muted         User      @relation("UserMuted", fields: [mutedId], references: [id], onDelete: Cascade)
+
+  @@unique([muterId, mutedId])
+  @@index([muterId])
+  @@index([mutedId])
+}
+
+model UserReport {
+  id              String   @id @default(uuid())
+  reporterId      Int
+  reportedUserId  Int
+  category        String   @default("GENERAL")
+  reason          String
+  details         String?
+  status          String   @default("PENDING")
+  resolutionNote  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  reporter        User     @relation("UserReportedBy", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser    User     @relation("UserReportedTarget", fields: [reportedUserId], references: [id], onDelete: Cascade)
+
+  @@index([reporterId])
+  @@index([reportedUserId])
+  @@index([status])
+}
+

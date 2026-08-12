@@ -9,6 +9,17 @@ An enterprise-grade live broadcasting, multi-seat voice lounge (10, 15, 20 seats
 - **Realtime Gateway**: Socket.IO WebSockets on Port 3001
 - **Detailed Audit Plan**: See [`plan.md`](file:///d:/Auralive/plan.md)
 
+## 👤 Global Database-Authoritative User Profile System
+- **Realtime Database Profiles**: Backed by SQLite/Prisma with level, VIP tier, coins/diamonds balance, follower/following/visitor counts, medals, and family affiliation.
+- **Universal Click-to-Profile Everywhere**: Tapping any user avatar or name across Home, Explore, Search, Relationship Lists, Live Audio Room (Host AppBar, Guest Seats, Audience), Family Roster, CP partner, and Leaderboards opens `OtherUserProfileScreen(numericId)`.
+- **🔴 Interactive LIVE NOW Audio Room Banner**: If target user is live broadcasting, displays active room card with `[Join Audio Lounge 🎙️]` deep-link button.
+- **Safety, Moderation & Privacy**:
+  - Follow / Unfollow with realtime count sync.
+  - Multi-category Report User modal (`HARASSMENT`, `SPAM`, `FRAUD`, `INAPPROPRIATE_CONTENT`) with admin audit logs.
+  - User Block & Unblock with mutual follow clearance.
+  - User Mute & Unmute for alerts suppression.
+- **Automated E2E Verification**: 100% tests verified via `server/src/scripts/test_global_profile_flow.ts`.
+
 ## 🤝 Production Invitation & Partner Application Ecosystem
 - **Mobile Invitation Center (`InvitationApplicationCenterModal.tsx`)**:
 ## 🏛️ Invitation Management vs. Application Management Separation
