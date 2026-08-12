@@ -1,6 +1,17 @@
 # Aura Live Voice Chat – Production Implementation Plan
 
 ## 🏆 Completed & Active Milestones
+- **🛡️ Comprehensive Null-Safe Color & Data Casting Bug Fix (COMPLETED)**:
+  - Fixed red screen exception `type 'Null' is not a subtype of type 'Color' in type cast`.
+  - **Root Cause**: Hard `as Color`, `as String`, and `as IconData` casts on dynamically loaded room data, chat badges, CP spaces, VIP centers, store items, and theme maps threw uncaught runtime exceptions whenever a field was null.
+  - **Resolution**:
+    - `home_screen.dart`: Made room list card attributes null-safe (`tagBg`, `tagColor`, `badgeColor`, `rightBadgeBg`, `speakers`, `hostAvatar`, `title`, `flag`, `badgeIcon`) with safe fallback defaults.
+    - `chat_screen.dart`: Made `badgeColor` and `badge` null-safe.
+    - `live_room_screen.dart`: Made theme extraction (`themeAccent`, `themeGlow1`, `themeGlow2`, `themeGradient`) fully null-safe.
+    - `vip_screen.dart`: Made `tierColor`, `color`, `perkColor`, and privileges list extraction fully null-safe.
+    - `store_screen.dart`, `bag_screen.dart`, `cp_screen.dart`, `agency_panel_screen.dart`, `family_level_screen.dart`, `leaderboard_screen.dart`, `level_center_screen.dart`, `go_live_sheet.dart`: Audited and converted all hard type casts to safe nullable casts with default fallbacks.
+  - **Flutter Android APK Rebuilt**: Compiled latest debug APK with `flutter build apk --debug`, copied to [`d:\Auralive\AuraLive-latest.apk`](file:///d:/Auralive/AuraLive-latest.apk) (509.9 MB), and verified with 0 build errors.
+
 - **🎨 Distinctive Private VIP Suite, Family Guild Suite & PK Arena Differentiation (COMPLETED)**:
   - Completely separated and differentiated UI/UX, themes, and badges between **Private VIP Rooms**, **Family Guild Rooms**, **PK Battle Arenas**, and **Public Audio Suites**.
   - **Go Live Sheet Upgrades**:
