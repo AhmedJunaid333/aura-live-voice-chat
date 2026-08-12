@@ -286,18 +286,32 @@ export default function AudioRoomsModule() {
             {roomsData.activeRooms?.map((r: any) => (
               <div key={r.id} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-3">
                 <div className="flex justify-between items-start">
-                  <h4 className="font-black text-white text-base truncate max-w-[200px]">{r.title}</h4>
-                  <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-bold border border-rose-500/30 animate-pulse">
-                    ● LIVE
-                  </span>
+                  <h4 className="font-black text-white text-base truncate max-w-[180px]">{r.title}</h4>
+                  <div className="flex items-center gap-1.5">
+                    <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-bold border border-rose-500/30 animate-pulse">
+                      ● LIVE
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                      r.isLocked
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/20'
+                        : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                    }`}>
+                      {r.isLocked ? '🔒 LOCKED' : '🔓 OPEN'}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5 text-xs text-slate-300">
-                  <p><span className="text-slate-500">Room ID:</span> <strong className="text-amber-400">#{r.roomNumericId}</strong></p>
-                  <p><span className="text-slate-500">Host:</span> <strong className="text-purple-300">@{r.hostUsername}</strong></p>
-                  <p><span className="text-slate-500">Mic Seats:</span> <strong className="text-cyan-400">{r.occupiedSeats} / {r.maxSeats} Occupied</strong></p>
-                  <p><span className="text-slate-500">Listeners:</span> <strong className="text-emerald-400">{r.participantCount} Online</strong></p>
-                  <p className="text-[10px] text-teal-300 font-bold truncate">Theme: {r.wallpaperName}</p>
+                  <p><span className="text-slate-500">Room ID:</span> <strong className="text-amber-400">#{r.roomNumericId || r.roomId}</strong></p>
+                  <p><span className="text-slate-500">Host:</span> <strong className="text-purple-300">@{r.hostUsername || r.host?.username || 'Host'}</strong></p>
+                  <p><span className="text-slate-500">Mic Seats:</span> <strong className="text-cyan-400">{r.occupiedSeats || 1} / {r.maxSeats || r.seatCount || 10} Occupied</strong></p>
+                  <p><span className="text-slate-500">Listeners:</span> <strong className="text-emerald-400">{r.participantCount || r.listenersCount || 1} Online</strong></p>
+                  {r.isLocked && (
+                    <p className="text-[10px] text-amber-300 font-bold">
+                      🔒 Locked by Host • Join Requests: {r.pendingJoinRequests || 0}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-teal-300 font-bold truncate">Theme: {r.wallpaperName || r.theme || 'Galaxy'}</p>
                 </div>
 
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
@@ -309,7 +323,7 @@ export default function AudioRoomsModule() {
                   </button>
                   <button
                     onClick={() => {
-                      setModRoomId(String(r.roomNumericId));
+                      setModRoomId(String(r.roomNumericId || r.roomId));
                       setShowModerateModal(true);
                     }}
                     className="py-2 px-3 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white font-bold text-xs transition cursor-pointer border border-rose-500/30"

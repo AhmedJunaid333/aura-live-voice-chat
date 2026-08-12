@@ -64,6 +64,7 @@ model User {
   sentNotifications     Notification[]          @relation("NotificationSender")
   reportsFiled          MessageReport[]         @relation("ReportedBy")
   reportsReceived       MessageReport[]         @relation("ReportedTarget")
+  roomJoinRequests      RoomJoinRequest[]       @relation("UserJoinRequests")
 }
 
 model AuthAccount {
@@ -221,20 +222,47 @@ model Message {
 }
 
 model LiveRoom {
+  id                String            @id @default(uuid())
+  roomId            String            @unique
+  title             String
+  category          String            @default("Music")
+  hostId            Int
+  seatCount         Int               @default(10)
+  status            String            @default("LIVE") // LIVE, LOCKED, ENDED
+  isLocked          Boolean           @default(false)
+  lockedAt          DateTime?
+  lockedBy          Int?
+  lockMode          String?           @default("MANUAL_LOCK") // MANUAL_LOCK, PASSWORD_LOCK
+  lockPassword      String?
+  allowsJoinRequest Boolean           @default(true)
+  listenersCount    Int               @default(0)
+  isPK              Boolean           @default(false)
+  theme             String            @default("galaxy")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  host              User              @relation("HostUser", fields: [hostId], references: [id], onDelete: Cascade)
+  giftTxns          GiftTransaction[]
+  joinRequests      RoomJoinRequest[]
+}
+
+model RoomJoinRequest {
   id              String          @id @default(uuid())
-  roomId          String          @unique
-  title           String
-  category        String          @default("Music")
-  hostId          Int
-  seatCount       Int             @default(10)
-  status          String          @default("LIVE")
-  listenersCount  Int             @default(0)
-  isPK            Boolean         @default(false)
+  roomId          String
+  userId          Int
+  userName        String
+  userAvatar      String?
+  status          String          @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  reviewedBy      Int?
+  reviewedAt      DateTime?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  host            User            @relation("HostUser", fields: [hostId], references: [id], onDelete: Cascade)
-  giftTxns        GiftTransaction[]
+  room            LiveRoom        @relation(fields: [roomId], references: [roomId], onDelete: Cascade)
+  user            User            @relation("UserJoinRequests", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, status])
+  @@index([userId])
 }
 
 model Gift {
