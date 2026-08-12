@@ -65,6 +65,14 @@ model User {
   reportsFiled          MessageReport[]         @relation("ReportedBy")
   reportsReceived       MessageReport[]         @relation("ReportedTarget")
   roomJoinRequests      RoomJoinRequest[]       @relation("UserJoinRequests")
+  ledFamilies           Family[]                @relation("FamilyLeader")
+  sentFamilyInvitations FamilyInvitation[]      @relation("SentFamilyInvitations")
+  receivedFamilyInvitations FamilyInvitation[]  @relation("ReceivedFamilyInvitations")
+  familyBans            FamilyBan[]             @relation("FamilyBannedUser")
+  executedFamilyBans    FamilyBan[]             @relation("FamilyBanActor")
+  familyMessages        FamilyMessage[]         @relation("FamilyMessages")
+  familyAnnouncements   FamilyAnnouncement[]    @relation("FamilyAnnouncements")
+  familyContributions   FamilyContribution[]    @relation("UserFamilyContributions")
 }
 
 model AuthAccount {
@@ -238,10 +246,13 @@ model LiveRoom {
   listenersCount    Int               @default(0)
   isPK              Boolean           @default(false)
   theme             String            @default("galaxy")
+  familyId          String?
+  isFamilyOnly      Boolean           @default(false)
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
   host              User              @relation("HostUser", fields: [hostId], references: [id], onDelete: Cascade)
+  family            Family?           @relation(fields: [familyId], references: [id], onDelete: SetNull)
   giftTxns          GiftTransaction[]
   joinRequests      RoomJoinRequest[]
 }
@@ -297,28 +308,130 @@ model GiftTransaction {
 }
 
 model Family {
-  id            String          @id @default(uuid())
-  name          String          @unique
-  icon          String          @default("🦁")
-  leaderId      Int
-  level         Int             @default(1)
-  xp            Int             @default(0)
-  treasuryCoins Int             @default(0)
-  country       String          @default("Pakistan")
-  createdAt     DateTime        @default(now())
+  id              String                @id @default(uuid())
+  familyId        String                @unique
+  name            String                @unique
+  icon            String?               @default("🦁")
+  logo            String?
+  description     String?               @default("Official Aura Live Family")
+  rules           String?               @default("1. Respect all members\n2. Support family audio rooms\n3. Follow Aura Live guidelines")
+  leaderId        Int
+  level           Int                   @default(1)
+  xp              Int                   @default(0)
+  totalDiamonds   Int                   @default(0)
+  weeklyDiamonds  Int                   @default(0)
+  monthlyDiamonds Int                   @default(0)
+  treasuryCoins   Int                   @default(0)
+  status          String                @default("ACTIVE") // ACTIVE, SUSPENDED
+  badge           String?               @default("👑 VIP FAMILY")
+  country         String                @default("Pakistan")
+  notice          String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
-  members       FamilyMember[]
+  leader          User                  @relation("FamilyLeader", fields: [leaderId], references: [id], onDelete: Cascade)
+  members         FamilyMember[]
+  invitations     FamilyInvitation[]
+  rooms           LiveRoom[]
+  messages        FamilyMessage[]
+  announcements   FamilyAnnouncement[]
+  contributions   FamilyContribution[]
+  bans            FamilyBan[]
 }
 
 model FamilyMember {
-  id            String    @id @default(uuid())
-  familyId      String
-  userId        Int       @unique
-  role          String    @default("MEMBER")
-  joinedAt      DateTime  @default(now())
+  id                    String      @id @default(uuid())
+  familyId              String
+  userId                Int         @unique
+  role                  String      @default("MEMBER") // OWNER, ADMIN, CO_ADMIN, HOST, MEMBER
+  contributionDiamonds  Int         @default(0)
+  contributionCoins     Int         @default(0)
+  permissions           String?
+  joinedAt              DateTime    @default(now())
 
-  family        Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family                Family      @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([familyId, role])
+}
+
+model FamilyInvitation {
+  id            String      @id @default(uuid())
+  familyId      String
+  inviterId     Int
+  targetUserId  Int
+  status        String      @default("PENDING") // PENDING, ACCEPTED, REJECTED, CANCELLED
+  createdAt     DateTime    @default(now())
+  reviewedAt    DateTime?
+
+  family        Family      @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  inviter       User        @relation("SentFamilyInvitations", fields: [inviterId], references: [id], onDelete: Cascade)
+  targetUser    User        @relation("ReceivedFamilyInvitations", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@index([targetUserId, status])
+  @@index([familyId, status])
+}
+
+model FamilyBan {
+  id          String      @id @default(uuid())
+  familyId    String
+  userId      Int
+  bannedBy    Int
+  reason      String?
+  createdAt   DateTime    @default(now())
+
+  family      Family      @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  user        User        @relation("FamilyBannedUser", fields: [userId], references: [id], onDelete: Cascade)
+  actor       User        @relation("FamilyBanActor", fields: [bannedBy], references: [id], onDelete: Cascade)
+
+  @@unique([familyId, userId])
+}
+
+model FamilyMessage {
+  id          String      @id @default(uuid())
+  familyId    String
+  senderId    Int
+  type        String      @default("TEXT") // TEXT, IMAGE, GIFT_ALERT, SYS_JOIN, SYS_ROLE
+  content     String
+  mediaUrl    String?
+  replyToId   String?
+  createdAt   DateTime    @default(now())
+
+  family      Family      @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  sender      User        @relation("FamilyMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([familyId, createdAt])
+}
+
+model FamilyAnnouncement {
+  id          String      @id @default(uuid())
+  familyId    String
+  authorId    Int
+  title       String
+  content     String
+  isPinned    Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+
+  family      Family      @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  author      User        @relation("FamilyAnnouncements", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([familyId, isPinned])
+}
+
+model FamilyContribution {
+  id                String      @id @default(uuid())
+  familyId          String
+  userId            Int
+  diamonds          Int         @default(0)
+  coins             Int         @default(0)
+  giftTransactionId String?
+  createdAt         DateTime    @default(now())
+
+  family            Family      @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  user              User        @relation("UserFamilyContributions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([familyId, createdAt])
+  @@index([userId])
 }
 
 model Medal {

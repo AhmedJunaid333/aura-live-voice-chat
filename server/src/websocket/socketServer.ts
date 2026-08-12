@@ -177,6 +177,30 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       });
     });
 
+    // 👨‍👩‍👧‍👦 Realtime Family Room & Chat Socket Handlers
+    socket.on('family.join', (data: { familyId: string }) => {
+      socket.join(`room_family_${data.familyId}`);
+      io.to(`room_family_${data.familyId}`).emit('family.member.online', {
+        familyId: data.familyId,
+        numericId,
+        username: user.username,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    socket.on('family.leave', (data: { familyId: string }) => {
+      socket.leave(`room_family_${data.familyId}`);
+      io.to(`room_family_${data.familyId}`).emit('family.member.offline', {
+        familyId: data.familyId,
+        numericId,
+        username: user.username,
+      });
+    });
+
+    socket.on('family.chat.send', (data: { familyId: string; message: any }) => {
+      io.to(`room_family_${data.familyId}`).emit('family.chat.message', data.message);
+    });
+
     // Disconnect Handler
     socket.on('disconnect', () => {
       const userSockets = onlineUsers.get(numericId);

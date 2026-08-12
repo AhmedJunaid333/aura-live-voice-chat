@@ -1292,39 +1292,59 @@ adminRouter.post('/cp/unpair', async (req, res, next) => {
 // 32. Real Family & Guild Ecosystem Overview & Roster
 adminRouter.get('/family', async (req, res, next) => {
   try {
-    const users = await prisma.user.findMany({
-      take: 10,
-      select: { id: true, numericId: true, username: true, level: true, avatar: true, role: true },
+    const families = await prisma.family.findMany({
+      include: {
+        leader: {
+          select: { id: true, numericId: true, username: true, avatar: true, level: true, vipTier: true },
+        },
+        members: {
+          include: {
+            user: { select: { id: true, numericId: true, username: true, avatar: true, level: true, status: true } },
+          },
+          orderBy: { contributionDiamonds: 'desc' },
+        },
+        rooms: {
+          where: { status: { in: ['LIVE', 'LOCKED'] } },
+        },
+        _count: {
+          select: { members: true, rooms: true, messages: true },
+        },
+      },
+      orderBy: [{ totalDiamonds: 'desc' }, { level: 'desc' }],
     });
 
-    const activeFamilies = [
-      {
-        id: 'FAM-101',
-        name: '👑 Royal Empire Guild',
-        code: 'ROYAL88',
-        owner: users[0] || { numericId: 100001, username: 'Ahmed Khokhar' },
-        level: 12,
-        xp: 62500,
-        membersCount: 4,
-        maxMembers: 50,
-        status: 'ACTIVE',
-        members: users.map((u, i) => ({
-          userId: u.id,
-          numericId: u.numericId,
-          username: u.username,
-          familyRole: i === 0 ? 'OWNER' : i === 1 ? 'CO_OWNER' : 'MEMBER',
-          contribution: (i + 1) * 15000,
-        })),
-      },
-    ];
+    const totalMembers = families.reduce((sum, f) => sum + f._count.members, 0);
+    const avgLevel = families.length > 0 ? Math.round(families.reduce((sum, f) => sum + f.level, 0) / families.length) : 1;
 
     res.status(200).json({
       success: true,
       data: {
-        activeFamilies,
-        totalFamilies: activeFamilies.length,
-        totalMembers: activeFamilies.reduce((sum, f) => sum + f.membersCount, 0),
-        averageLevel: 12,
+        activeFamilies: families.map((f) => ({
+          id: f.familyId,
+          dbId: f.id,
+          name: f.name,
+          logo: f.logo,
+          icon: f.icon,
+          owner: f.leader,
+          level: f.level,
+          xp: f.xp,
+          totalDiamonds: f.totalDiamonds,
+          status: f.status,
+          membersCount: f._count.members,
+          roomsCount: f._count.rooms,
+          members: f.members.map((m) => ({
+            userId: m.user.id,
+            numericId: m.user.numericId,
+            username: m.user.username,
+            avatar: m.user.avatar,
+            familyRole: m.role,
+            contribution: m.contributionDiamonds,
+            joinedAt: m.joinedAt,
+          })),
+        })),
+        totalFamilies: families.length,
+        totalMembers,
+        averageLevel: avgLevel,
       },
     });
   } catch (error) {
@@ -1332,32 +1352,60 @@ adminRouter.get('/family', async (req, res, next) => {
   }
 });
 
-// 33. Create New Family / Guild
+// 33. Create New Family / Guild (Admin)
 adminRouter.post('/family/create', async (req, res, next) => {
   try {
-    const { name, ownerId, description } = req.body;
+    const { name, ownerId, description, logo, icon } = req.body;
     const ownerNumericId = parseInt(ownerId, 10);
 
-    const owner = await prisma.user.findUnique({ where: { id: ownerNumericId } });
+    const owner = await prisma.user.findFirst({
+      where: { OR: [{ id: isNaN(ownerNumericId) ? undefined : ownerNumericId }, { numericId: isNaN(ownerNumericId) ? undefined : ownerNumericId }] },
+    });
     if (!owner) {
       res.status(404).json({ success: false, error: 'Family owner account not found' });
       return;
     }
 
-    const uniqueCode = 'FAM' + Math.floor(100 + Math.random() * 900);
+    const uniqueFamilyId = `FAM-${owner.numericId}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const auditLog = await prisma.auditLog.create({
-      data: {
-        actorId: 1,
-        actorRole: 'SUPER_ADMIN_CEO',
-        action: 'FAMILY_CREATED',
-        resource: `Family:${name}`,
-        details: `Created Family '${name}' (Code: ${uniqueCode}) owned by @${owner.username} (UID: ${owner.numericId}). Description: ${description || 'Official Guild'}`,
-      },
+    const result = await prisma.$transaction(async (tx) => {
+      const family = await tx.family.create({
+        data: {
+          familyId: uniqueFamilyId,
+          name: name.trim(),
+          description: description || 'Official Guild created by Admin',
+          logo: logo || null,
+          icon: icon || '🦁',
+          leaderId: owner.id,
+          level: 1,
+          xp: 100,
+          status: 'ACTIVE',
+        },
+      });
+
+      await tx.familyMember.create({
+        data: {
+          familyId: family.id,
+          userId: owner.id,
+          role: 'OWNER',
+        },
+      });
+
+      const auditLog = await tx.auditLog.create({
+        data: {
+          actorId: 1,
+          actorRole: 'SUPER_ADMIN_CEO',
+          action: 'FAMILY_CREATED',
+          resource: `Family:${family.id}`,
+          details: `Created Family '${name}' (${uniqueFamilyId}) owned by @${owner.username} (UID: ${owner.numericId}).`,
+        },
+      });
+
+      return { family, auditLog };
     });
 
     emitToUser(owner.numericId, 'family.created', {
-      familyCode: uniqueCode,
+      familyId: result.family.familyId,
       familyName: name,
       message: `Family '${name}' has been created! You are the OWNER.`,
     });
@@ -1365,112 +1413,199 @@ adminRouter.post('/family/create', async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: `Family '${name}' successfully created in database!`,
-      data: { familyId: 'FAM-' + Date.now(), code: uniqueCode, name, ownerId: owner.id, auditLogId: auditLog.id },
+      data: result.family,
     });
   } catch (error) {
     next(error);
   }
 });
 
-// 34. Add / Join Member to Family
+// 34. Add / Join Member to Family (Admin)
 adminRouter.post('/family/join', async (req, res, next) => {
   try {
     const { familyId, userId, familyRole } = req.body;
     const numericUserId = parseInt(userId, 10);
 
-    const user = await prisma.user.findUnique({ where: { id: numericUserId } });
+    const family = await prisma.family.findFirst({
+      where: { OR: [{ id: familyId }, { familyId }] },
+    });
+    if (!family) {
+      res.status(404).json({ success: false, error: 'Family not found' });
+      return;
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ id: isNaN(numericUserId) ? undefined : numericUserId }, { numericId: isNaN(numericUserId) ? undefined : numericUserId }] },
+    });
     if (!user) {
       res.status(404).json({ success: false, error: 'User account not found' });
       return;
     }
+
+    const member = await prisma.familyMember.upsert({
+      where: { userId: user.id },
+      create: {
+        familyId: family.id,
+        userId: user.id,
+        role: familyRole || 'MEMBER',
+      },
+      update: {
+        familyId: family.id,
+        role: familyRole || 'MEMBER',
+      },
+    });
 
     const auditLog = await prisma.auditLog.create({
       data: {
         actorId: 1,
         actorRole: 'SUPER_ADMIN_CEO',
         action: 'FAMILY_MEMBER_JOINED',
-        resource: `Family:${familyId}:User:${user.numericId}`,
-        details: `Added @${user.username} (UID: ${user.numericId}) to Family ${familyId} as '${familyRole || 'MEMBER'}'.`,
+        resource: `Family:${family.id}:User:${user.numericId}`,
+        details: `Added @${user.username} (UID: ${user.numericId}) to Family ${family.name} as '${familyRole || 'MEMBER'}'.`,
       },
     });
 
     emitToUser(user.numericId, 'family.member.joined', {
-      familyId,
+      familyId: family.familyId,
       familyRole: familyRole || 'MEMBER',
-      message: `You have joined Family ${familyId}!`,
+      message: `You have joined Family ${family.name}!`,
     });
 
     res.status(200).json({
       success: true,
-      message: `Added @${user.username} to Family ${familyId} as '${familyRole || 'MEMBER'}'!`,
-      data: { familyId, userId: user.id, numericId: user.numericId, familyRole: familyRole || 'MEMBER', auditLogId: auditLog.id },
+      message: `Added @${user.username} to Family ${family.name} as '${familyRole || 'MEMBER'}'!`,
+      data: { familyId: family.familyId, userId: user.id, numericId: user.numericId, familyRole: familyRole || 'MEMBER', auditLogId: auditLog.id },
     });
   } catch (error) {
     next(error);
   }
 });
 
-// 35. Add Family XP & Level Transition Engine
+// 35. Add Family XP & Level Transition Engine (Admin)
 adminRouter.post('/family/xp/add', async (req, res, next) => {
   try {
     const { familyId, xpAmount, reason } = req.body;
     const points = parseInt(xpAmount, 10);
+
+    const family = await prisma.family.findFirst({
+      where: { OR: [{ id: familyId }, { familyId }] },
+    });
+    if (!family) {
+      res.status(404).json({ success: false, error: 'Family not found' });
+      return;
+    }
+
+    const newXp = family.xp + points;
+    const newLevel = Math.max(family.level, Math.floor(Math.sqrt(newXp / 500)) + 1);
+
+    const updated = await prisma.family.update({
+      where: { id: family.id },
+      data: {
+        xp: newXp,
+        level: newLevel,
+      },
+    });
 
     const auditLog = await prisma.auditLog.create({
       data: {
         actorId: 1,
         actorRole: 'SUPER_ADMIN_CEO',
         action: 'FAMILY_XP_ADDED',
-        resource: `Family:${familyId}`,
-        details: `Added +${points} Family XP to ${familyId}. Reason: ${reason || 'Mission completion bonus.'}`,
+        resource: `Family:${family.id}`,
+        details: `Added +${points} Family XP to ${family.name}. Reason: ${reason || 'Admin grant.'}`,
       },
-    });
-
-    emitToUser(100001, 'family.level.updated', {
-      familyId,
-      xpAdded: points,
-      totalXP: 62500 + points,
-      level: Math.floor((62500 + points) / 5000) + 1,
     });
 
     res.status(200).json({
       success: true,
-      message: `Added +${points} Family XP to ${familyId}!`,
-      data: { familyId, xpAdded: points, auditLogId: auditLog.id },
+      message: `Added +${points} Family XP to ${family.name}! New Level: Lv.${newLevel}`,
+      data: { familyId: family.familyId, xpAdded: points, totalXp: newXp, level: newLevel, auditLogId: auditLog.id },
     });
   } catch (error) {
     next(error);
   }
 });
 
-// 36. Expel / Remove Member from Family
+// 36. Expel / Remove Member from Family (Admin)
 adminRouter.post('/family/members/remove', async (req, res, next) => {
   try {
     const { familyId, userId, reason } = req.body;
     const numericUserId = parseInt(userId, 10);
 
-    const user = await prisma.user.findUnique({ where: { id: numericUserId } });
+    const family = await prisma.family.findFirst({
+      where: { OR: [{ id: familyId }, { familyId }] },
+    });
+    if (!family) {
+      res.status(404).json({ success: false, error: 'Family not found' });
+      return;
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ id: isNaN(numericUserId) ? undefined : numericUserId }, { numericId: isNaN(numericUserId) ? undefined : numericUserId }] },
+    });
+
+    if (user) {
+      await prisma.familyMember.deleteMany({
+        where: { familyId: family.id, userId: user.id },
+      });
+    }
 
     const auditLog = await prisma.auditLog.create({
       data: {
         actorId: 1,
         actorRole: 'SUPER_ADMIN_CEO',
-        action: 'FAMILY_MEMBER_REMOVED',
-        resource: `Family:${familyId}:User:${numericUserId}`,
-        details: `Removed member @${user?.username || numericUserId} from Family ${familyId}. Reason: ${reason || 'Admin moderation action.'}`,
+        action: 'MEMBER_REMOVED',
+        resource: `Family:${family.id}:User:${numericUserId}`,
+        details: `Removed member @${user?.username || numericUserId} from Family ${family.name}. Reason: ${reason || 'Admin moderation action.'}`,
       },
     });
 
-    emitToUser(numericUserId, 'family.member.removed', {
-      familyId,
-      reason: reason || 'Removed by family administrator.',
-    });
+    if (user) {
+      emitToUser(user.numericId, 'family.member.removed', {
+        familyId: family.familyId,
+        reason: reason || 'Removed by family administrator.',
+      });
+    }
 
     res.status(200).json({
       success: true,
-      message: `Removed member @${user?.username || numericUserId} from Family ${familyId}!`,
-      data: { familyId, userId: numericUserId, auditLogId: auditLog.id },
+      message: `Removed member @${user?.username || numericUserId} from Family ${family.name}!`,
+      data: { familyId: family.familyId, userId: numericUserId, auditLogId: auditLog.id },
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 37. Suspend / Reactivate Family (Admin)
+adminRouter.post('/family/:familyId/status', async (req, res, next) => {
+  try {
+    const { status } = req.body; // 'ACTIVE' | 'SUSPENDED'
+    const family = await prisma.family.findFirst({
+      where: { OR: [{ id: req.params.familyId }, { familyId: req.params.familyId }] },
+    });
+
+    if (!family) {
+      res.status(404).json({ success: false, error: 'Family not found' });
+      return;
+    }
+
+    const updated = await prisma.family.update({
+      where: { id: family.id },
+      data: { status },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: 1,
+        actorRole: 'SUPER_ADMIN_CEO',
+        action: status === 'SUSPENDED' ? 'FAMILY_SUSPENDED' : 'FAMILY_REACTIVATED',
+        resource: `Family:${family.id}`,
+        details: `Updated status of family ${family.name} to ${status}.`,
+      },
+    });
+
+    res.status(200).json({ success: true, message: `Family ${status.toLowerCase()} successfully!`, data: updated });
   } catch (error) {
     next(error);
   }

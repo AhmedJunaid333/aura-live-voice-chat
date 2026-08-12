@@ -1,6 +1,7 @@
 import { prisma } from '../config/database.js';
 import { generateAgoraRtcToken, RtcRole } from '../utils/agoraToken.js';
 import { emitToRoom, broadcastGlobal } from '../websocket/socketServer.js';
+import { FamilyService } from './family.service.js';
 
 export class LiveService {
   /**
@@ -488,6 +489,10 @@ export class LiveService {
       throw new Error('Insufficient coin balance to send this gift.');
     }
 
+    const room = await prisma.liveRoom.findFirst({
+      where: { OR: [{ id: data.roomId }, { roomId: data.roomId }] },
+    });
+
     // Atomic Transaction: Debit Sender, Credit Receiver, Record Gift Transaction
     const result = await prisma.$transaction(async (tx) => {
       // 1. Debit sender coins
@@ -505,7 +510,7 @@ export class LiveService {
       // 3. Record Gift Transaction
       const giftTx = await tx.giftTransaction.create({
         data: {
-          roomId: data.roomId,
+          roomId: room?.id || null,
           senderId: data.senderUserId,
           receiverId: data.receiverUserId,
           giftId: data.giftId,
@@ -517,6 +522,18 @@ export class LiveService {
 
       return { updatedSender, updatedReceiver, giftTx };
     });
+
+    // Check if sender belongs to a family to record family diamonds & XP atomically
+    try {
+      await FamilyService.recordFamilyContribution({
+        userId: data.senderUserId,
+        diamonds: totalDiamonds,
+        coins: totalCoins,
+        giftTransactionId: result.giftTx.id,
+      });
+    } catch (fErr) {
+      console.warn('Family contribution non-blocking hook notice:', fErr);
+    }
 
     // Broadcast Realtime Gift Animation in Room
     emitToRoom(data.roomId, 'gift.sent', {

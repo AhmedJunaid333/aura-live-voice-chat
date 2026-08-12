@@ -20,6 +20,7 @@ import { followRouter } from './routes/follow.routes.js';
 import { visitorRouter } from './routes/visitor.routes.js';
 import { notificationRouter } from './routes/notification.routes.js';
 import { storeRouter } from './routes/store.routes.js';
+import { familyRouter } from './routes/family.routes.js';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -66,6 +67,8 @@ app.use('/api/v1/users', followRouter);
 app.use('/api/v1/users', visitorRouter);
 app.use('/api/v1/notifications', notificationRouter);
 app.use('/api/v1/store', storeRouter);
+app.use('/api/families', familyRouter);
+app.use('/api/v1/families', familyRouter);
 
 
 // Global Error Handler
