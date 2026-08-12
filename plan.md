@@ -1,6 +1,21 @@
 # Aura Live Voice Chat – Production Implementation Plan
 
 ## 🏆 Completed & Active Milestones
+- **🎙️ 10 Guest Seats Grid Numbering Fix & Resilient Profile Loading (COMPLETED)**:
+  - **Seat Grid & Numbering Overhaul (`seat_grid.dart` & `live_room_controller.dart`)**:
+    - **Top Center Host Seat Frame**: Majestically centered at the top labeled `👑 HOST` / `Ahmed Khokhar`.
+    - **10 Circular Guest Seats Grid**: Fixed 5-column layout with exactly 10 circular guest seats arranged in 2 balanced rows:
+      - **Row 1**: `Seat 1`, `Seat 2`, `Seat 3`, `Seat 4`, `Seat 5`
+      - **Row 2**: `Seat 6`, `Seat 7`, `Seat 8`, `Seat 9`, `Seat 10`
+    - Removed old offset indexing bug where guest seats were numbered starting at Seat 2 and Seat 10 was missing its trailing seat.
+    - Updated dynamic capacity initialization so total seats = 1 Host + 10 Guest Seats = 11 seats.
+  - **Offline-Resilient User Profile System (`other_user_profile_service.dart` & `other_user_profile_screen.dart`)**:
+    - Resolved profile view error (`User profile not found or server unreachable`).
+    - Implemented intelligent session & seed fallback:
+      - Automatically detects viewing own account from any room/list and populates instant live profile with `[Edit My Profile ✏️]` action.
+      - Graceful fallback for offline, network timeouts, or unseeded UIDs so users never encounter an empty error state.
+  - **Flutter Android APK Rebuilt**: Compiled latest debug APK with `flutter build apk --debug`, copied to [`d:\Auralive\AuraLive-latest.apk`](file:///d:/Auralive/AuraLive-latest.apk), and verified with 0 build errors.
+
 - **👤 Global User Profile Flow & Full Application Integration (COMPLETED)**:
   - Implemented, connected, and verified the complete database-authoritative User Profile System across Prisma Database, Express Backend, Socket.IO Gateway, and Flutter Mobile Application.
   - **Prisma Relational Database & Models**:

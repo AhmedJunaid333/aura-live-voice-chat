@@ -9,8 +9,15 @@ An enterprise-grade live broadcasting, multi-seat voice lounge (10, 15, 20 seats
 - **Realtime Gateway**: Socket.IO WebSockets on Port 3001
 - **Detailed Audit Plan**: See [`plan.md`](file:///d:/Auralive/plan.md)
 
+## 🎙️ 10 Guest Seats Grid & Numbering Standards
+- **Top Center Host Frame**: Dedicated Host stage with animated speaking aura, crown badge (`👑 HOST`), equalizer, and host name (`Ahmed Khokhar`).
+- **10 Circular Guest Seats (2 Rows of 5)**:
+  - **Row 1**: `Seat 1`, `Seat 2`, `Seat 3`, `Seat 4`, `Seat 5`
+  - **Row 2**: `Seat 6`, `Seat 7`, `Seat 8`, `Seat 9`, `Seat 10`
+  - Clean symmetric 5-column layout with 0 missing seats and intuitive 1-10 sequence.
+
 ## 👤 Global Database-Authoritative User Profile System
-- **Realtime Database Profiles**: Backed by SQLite/Prisma with level, VIP tier, coins/diamonds balance, follower/following/visitor counts, medals, and family affiliation.
+- **Realtime Database Profiles & Offline Resilience**: Backed by SQLite/Prisma with level, VIP tier, coins/diamonds balance, follower/following/visitor counts, medals, and family affiliation. Integrated session/cache fallback guarantees profile views always render seamlessly without error screens.
 - **Universal Click-to-Profile Everywhere**: Tapping any user avatar or name across Home, Explore, Search, Relationship Lists, Live Audio Room (Host AppBar, Guest Seats, Audience), Family Roster, CP partner, and Leaderboards opens `OtherUserProfileScreen(numericId)`.
 - **🔴 Interactive LIVE NOW Audio Room Banner**: If target user is live broadcasting, displays active room card with `[Join Audio Lounge 🎙️]` deep-link button.
 - **Safety, Moderation & Privacy**:
