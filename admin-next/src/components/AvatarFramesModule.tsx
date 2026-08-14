@@ -2,6 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 
+// Sample Avatars matching high-end live stream apps
+const SAMPLE_AVATARS = [
+  { id: 'av-1', name: 'Masked Anime', url: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&auto=format&fit=crop' },
+  { id: 'av-2', name: 'Glamour Girl', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop' },
+  { id: 'av-3', name: 'Cyber Neon', url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop' },
+  { id: 'av-4', name: 'Street Cap', url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop' },
+];
+
 // Pre-configured Luxury Frames with rich SVG vector renderers & fallbacks
 const INITIAL_FRAMES = [
   {
@@ -136,7 +144,7 @@ function base64ToBlobUrl(base64Str: string): string | null {
 function UniversalFramePlayer({
   item,
   isAnimated = true,
-  scale = 1.0,
+  scale = 1.25,
   offsetX = 0,
   offsetY = 0,
   size = 120,
@@ -170,8 +178,8 @@ function UniversalFramePlayer({
       rawUrl.includes('.svg') ||
       rawUrl.includes('.gif'));
 
-  // Frame dimension perfectly proportional to avatar size (1.38x)
-  const frameDimension = Math.round(size * 1.38);
+  // The outer frame dimension is 1.35x of the circular avatar
+  const frameDimension = Math.round(size * 1.35);
 
   // Load and play SVGA file on Canvas using official SVGA Web Player
   useEffect(() => {
@@ -199,6 +207,9 @@ function UniversalFramePlayer({
           playerRef.current = player;
           player.loops = 0; // Infinite loop
           player.clearsAfterStop = false;
+          if (player.setContentMode) {
+            player.setContentMode('AspectFit');
+          }
 
           let targetUrl = rawUrl;
           if (rawUrl.startsWith('data:')) {
@@ -214,7 +225,6 @@ function UniversalFramePlayer({
               targetUrl,
               (videoItem: any) => {
                 if (!active || !canvasRef.current) return;
-                // Set explicit internal canvas resolution to match SVGA video size
                 const vw = videoItem?.videoSize?.width || 300;
                 const vh = videoItem?.videoSize?.height || 300;
                 canvasRef.current.width = vw;
@@ -267,7 +277,7 @@ function UniversalFramePlayer({
     }
   }, [isAnimated, svgaLoaded]);
 
-  // 1. If it's a real SVGA file and canvas is active (Centered directly on top of Avatar ring)
+  // 1. If it's a real SVGA file and canvas is active
   if (isSvga) {
     return (
       <div
@@ -283,7 +293,7 @@ function UniversalFramePlayer({
       >
         <canvas
           ref={canvasRef}
-          className="w-full h-full object-contain pointer-events-none"
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
         />
         {!svgaLoaded && (
           <div className="absolute inset-0 rounded-full border-4 border-amber-400 shadow-[0_0_20px_#f59e0b] animate-spin" />
@@ -352,11 +362,9 @@ export default function AvatarFramesModule() {
   const [selectedPreviewItem, setSelectedPreviewItem] = useState<any>(null);
 
   // Live interactive preview settings & Offset Fine-Tuning
-  const [previewAvatarUrl, setPreviewAvatarUrl] = useState<string>(
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop'
-  );
+  const [previewAvatarUrl, setPreviewAvatarUrl] = useState<string>(SAMPLE_AVATARS[0].url);
   const [previewSize, setPreviewSize] = useState<number>(120);
-  const [frameScale, setFrameScale] = useState<number>(1.0);
+  const [frameScale, setFrameScale] = useState<number>(1.25);
   const [offsetX, setOffsetX] = useState<number>(0);
   const [offsetY, setOffsetY] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
@@ -492,7 +500,7 @@ export default function AvatarFramesModule() {
     setSelectedPreviewItem(item);
     setOffsetX(0);
     setOffsetY(0);
-    setFrameScale(1.0);
+    setFrameScale(1.25);
     setShowPreviewModal(true);
   };
 
@@ -785,16 +793,16 @@ export default function AvatarFramesModule() {
                   {/* Live Avatar Preview Ring with Universal Frame Player */}
                   <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
                     <img
-                      src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop"
+                      src={previewAvatarUrl}
                       alt="User Avatar"
-                      className="w-11 h-11 rounded-full object-cover shadow-md border-2 border-slate-700"
+                      className="w-12 h-12 rounded-full object-cover shadow-md border-2 border-slate-700 relative z-0"
                     />
-                    {/* Render exact uploaded asset/SVGA or fallback theme */}
+                    {/* Render exact uploaded asset/SVGA centered */}
                     <UniversalFramePlayer
                       item={f}
                       isAnimated={true}
-                      size={44}
-                      scale={1.0}
+                      size={48}
+                      scale={1.25}
                     />
                   </div>
 
@@ -963,6 +971,23 @@ export default function AvatarFramesModule() {
                   {selectedPreviewItem.name} ({selectedPreviewItem.animationType || 'SVGA'})
                 </span>
               </div>
+
+              {/* 4 Sample Avatars Bar */}
+              <div className="mt-5 flex items-center gap-3 z-10 bg-slate-900/80 px-3 py-2 rounded-2xl border border-slate-800">
+                <span className="text-[10px] text-slate-400 font-bold">Switch Avatar:</span>
+                {SAMPLE_AVATARS.map((av, idx) => (
+                  <button
+                    key={av.id}
+                    onClick={() => setPreviewAvatarUrl(av.url)}
+                    className={`relative w-8 h-8 rounded-full overflow-hidden border-2 transition cursor-pointer ${
+                      previewAvatarUrl === av.url ? 'border-cyan-400 scale-110 shadow-md shadow-cyan-400/30' : 'border-slate-700 hover:border-slate-500'
+                    }`}
+                    title={av.name}
+                  >
+                    <img src={av.url} alt={av.name} className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Precision Interactive Controls Bar */}
@@ -1012,17 +1037,28 @@ export default function AvatarFramesModule() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-2 pt-1">
-                <button
-                  onClick={() => {
-                    setOffsetX(0);
-                    setOffsetY(0);
-                    setFrameScale(1.0);
-                  }}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] cursor-pointer"
-                >
-                  🎯 Reset Alignment (Center)
-                </button>
+              <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setOffsetX(0);
+                      setOffsetY(0);
+                      setFrameScale(1.25);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-[11px] cursor-pointer border border-cyan-500/30"
+                  >
+                    👑 Auto-Fit Ring (Perfect Fit)
+                  </button>
+                  <button
+                    onClick={() => {
+                      setOffsetX(0);
+                      setOffsetY(0);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] cursor-pointer"
+                  >
+                    🎯 Center
+                  </button>
+                </div>
 
                 <button
                   onClick={() => setIsPlaying(!isPlaying)}
