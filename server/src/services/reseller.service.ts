@@ -313,11 +313,174 @@ export class ResellerService {
       timestamp: new Date().toISOString(),
     });
 
+    // Also emit wallet.updated
+    emitToUser(targetUser.numericId, 'wallet.updated', {
+      diamonds: result.updatedTargetUser.diamonds,
+      timestamp: new Date().toISOString(),
+    });
+
     return {
       success: true,
       resellerRemainingBalance: result.updatedReseller.diamondBalance,
       targetUserNumericId: targetUser.numericId,
       transferredAmount: data.amount,
     };
+  }
+
+  /**
+   * Public/Wallet: Get all ACTIVE + Verified Coinsellors with Packages & Rates
+   */
+  static async getActiveCoinsellors() {
+    let coinsellors = await prisma.resellerAccount.findMany({
+      where: { status: 'ACTIVE' },
+      include: { user: true },
+      orderBy: { displayOrder: 'asc' },
+    });
+
+    // Seed default official verified coinsellors if database is empty
+    if (coinsellors.length === 0) {
+      await ResellerService.seedDefaultCoinsellors();
+      coinsellors = await prisma.resellerAccount.findMany({
+        where: { status: 'ACTIVE' },
+        include: { user: true },
+        orderBy: { displayOrder: 'asc' },
+      });
+    }
+
+    return coinsellors.map((c) => {
+      let parsedPackages = [];
+      try {
+        parsedPackages = c.packages ? JSON.parse(c.packages) : [];
+      } catch {
+        parsedPackages = [
+          { diamonds: 10000, price: 'Rs. 1,500', priceUsd: 5.0 },
+          { diamonds: 50000, price: 'Rs. 7,250', priceUsd: 25.0 },
+          { diamonds: 100000, price: 'Rs. 14,000', priceUsd: 50.0 },
+          { diamonds: 500000, price: 'Rs. 68,000', priceUsd: 240.0 },
+        ];
+      }
+
+      return {
+        id: c.id,
+        sellerUserId: c.userId,
+        sellerNumericId: c.user.numericId,
+        coinsellorId: c.resellerCode || `RSL-${c.user.numericId}`,
+        sellerName: c.displayName || c.user.displayName || c.user.username,
+        username: c.user.username,
+        avatar: c.user.avatar,
+        status: c.status,
+        availableDiamonds: c.diamondBalance,
+        startingRate: c.startingRate || '10,000 Diamonds = Rs. 1,500',
+        minPurchase: c.minPurchase || 10000,
+        paymentMethods: c.paymentMethods ? c.paymentMethods.split(',').map((s) => s.trim()) : ['Easypaisa', 'JazzCash', 'Bank Transfer'],
+        whatsappNumber: c.whatsappNumber || c.phone || '+923001234567',
+        phone: c.phone || '+923001234567',
+        packages: parsedPackages,
+        operatingInfo: c.operatingInfo || 'Instant delivery within 2-5 minutes via authorized Reseller Portal. Official KYC verified.',
+        isVerified: c.isVerified,
+        totalProcessed: c.diamondsSent,
+      };
+    });
+  }
+
+  /**
+   * Seed Default Verified Coinsellors in Database
+   */
+  static async seedDefaultCoinsellors() {
+    const defaultSellers = [
+      {
+        numericId: 10025,
+        username: 'ahmed_coinsellor',
+        displayName: 'Ahmed Coinsellor 💎',
+        email: 'ahmed.reseller@auralive.com',
+        phone: '+923001234567',
+        whatsapp: '+923001234567',
+        resellerCode: 'RSL-10025',
+        stock: 750000,
+        rate: '10,000 Diamonds = Rs. 1,500',
+        minPurchase: 10000,
+        paymentMethods: 'Easypaisa, JazzCash, Bank Transfer',
+        displayOrder: 1,
+      },
+      {
+        numericId: 10088,
+        username: 'royal_diamond_hub',
+        displayName: 'Royal Diamond Hub 👑',
+        email: 'royal.hub@auralive.com',
+        phone: '+923019876543',
+        whatsapp: '+923019876543',
+        resellerCode: 'RSL-10088',
+        stock: 1200000,
+        rate: '10,000 Diamonds = Rs. 1,480',
+        minPurchase: 10000,
+        paymentMethods: 'JazzCash, Easypaisa, SadaPay, Bank Transfer',
+        displayOrder: 2,
+      },
+      {
+        numericId: 10099,
+        username: 'global_aura_merchant',
+        displayName: 'Aura VIP Express Seller ⚡',
+        email: 'express.seller@auralive.com',
+        phone: '+971501234567',
+        whatsapp: '+971501234567',
+        resellerCode: 'RSL-10099',
+        stock: 2500000,
+        rate: '10,000 Diamonds = USD 5.00',
+        minPurchase: 20000,
+        paymentMethods: 'Bank Transfer, USDT, Easypaisa, JazzCash',
+        displayOrder: 3,
+      },
+    ];
+
+    for (const s of defaultSellers) {
+      const user = await prisma.user.upsert({
+        where: { numericId: s.numericId },
+        create: {
+          numericId: s.numericId,
+          username: s.username,
+          displayName: s.displayName,
+          email: s.email,
+          phone: s.phone,
+          passwordHash: '$2b$10$hashedDefaultPasswordForAuraReseller123',
+          role: 'DIAMOND_RESELLER',
+          diamonds: s.stock,
+          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+          bio: 'Official Verified Aura Live Diamond Reseller 💎 24/7 Instant Service',
+        },
+        update: {
+          role: 'DIAMOND_RESELLER',
+          displayName: s.displayName,
+        },
+      });
+
+      await prisma.resellerAccount.upsert({
+        where: { userId: user.id },
+        create: {
+          userId: user.id,
+          resellerCode: s.resellerCode,
+          displayName: s.displayName,
+          role: 'DIAMOND_RESELLER',
+          status: 'ACTIVE',
+          diamondBalance: s.stock,
+          diamondsReceived: s.stock,
+          whatsappNumber: s.whatsapp,
+          phone: s.phone,
+          minPurchase: s.minPurchase,
+          startingRate: s.rate,
+          paymentMethods: s.paymentMethods,
+          displayOrder: s.displayOrder,
+          isVerified: true,
+        },
+        update: {
+          resellerCode: s.resellerCode,
+          displayName: s.displayName,
+          status: 'ACTIVE',
+          whatsappNumber: s.whatsapp,
+          startingRate: s.rate,
+          paymentMethods: s.paymentMethods,
+          displayOrder: s.displayOrder,
+        },
+      });
+    }
   }
 }

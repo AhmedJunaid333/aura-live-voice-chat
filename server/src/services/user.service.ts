@@ -332,9 +332,31 @@ export class UserService {
       },
     });
 
+    // Create immutable audit log for user block
+    const blockerUser = await prisma.user.findUnique({
+      where: { id: currentUserId },
+      select: { numericId: true, username: true, role: true },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actorId: currentUserId,
+        actorRole: blockerUser?.role || 'USER',
+        action: 'USER_BLOCKED_USER',
+        resource: `User:${targetUser.numericId}`,
+        details: `User #${blockerUser?.numericId || currentUserId} (@${blockerUser?.username}) blocked User #${targetUser.numericId} (@${targetUser.username}). Reason: ${reason || 'User block action'}`,
+      },
+    });
+
     // Realtime notification
     emitToUser(targetUser.numericId, 'user.blocked', {
       byUserId: currentUserId,
+      byNumericId: blockerUser?.numericId || currentUserId,
+      targetNumericId: targetUser.numericId,
+    });
+    emitToUser(blockerUser?.numericId || currentUserId, 'user.block_updated', {
+      targetNumericId: targetUser.numericId,
+      isBlocked: true,
     });
 
     return { success: true, isBlocked: true, message: `Successfully blocked @${targetUser.username}.` };
@@ -360,8 +382,30 @@ export class UserService {
       },
     });
 
+    const blockerUser = await prisma.user.findUnique({
+      where: { id: currentUserId },
+      select: { numericId: true, username: true, role: true },
+    });
+
+    // Create immutable audit log for user unblock
+    await prisma.auditLog.create({
+      data: {
+        actorId: currentUserId,
+        actorRole: blockerUser?.role || 'USER',
+        action: 'USER_UNBLOCKED_USER',
+        resource: `User:${targetUser.numericId}`,
+        details: `User #${blockerUser?.numericId || currentUserId} (@${blockerUser?.username}) unblocked User #${targetUser.numericId} (@${targetUser.username}).`,
+      },
+    });
+
     emitToUser(targetUser.numericId, 'user.unblocked', {
       byUserId: currentUserId,
+      byNumericId: blockerUser?.numericId || currentUserId,
+      targetNumericId: targetUser.numericId,
+    });
+    emitToUser(blockerUser?.numericId || currentUserId, 'user.block_updated', {
+      targetNumericId: targetUser.numericId,
+      isBlocked: false,
     });
 
     return { success: true, isBlocked: false, message: `Successfully unblocked @${targetUser.username}.` };

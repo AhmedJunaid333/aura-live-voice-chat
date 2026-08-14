@@ -3,39 +3,112 @@ import { LiveService } from '../services/live.service.js';
 import { createLiveRoomSchema } from '../utils/validators.js';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
 import { prisma } from '../config/database.js';
+import { generateAgoraRtcToken, RtcRole } from '../utils/agoraToken.js';
 
 export const liveRouter = Router();
 
-// Get Active Live Rooms Feed
+// 🌍 Get Active Live Rooms Feed (Global & Country Discovery with Realtime Ranking)
 liveRouter.get('/rooms', async (req, res, next) => {
   try {
-    const rooms = await prisma.liveRoom.findMany({
-      where: { status: { in: ['LIVE', 'LOCKED'] } },
-      include: {
-        host: {
-          select: { id: true, numericId: true, username: true, avatar: true, level: true, vipTier: true },
-        },
-      },
-      orderBy: { listenersCount: 'desc' },
-      take: 50,
+    const rooms = await LiveService.getLiveRooms({
+      countryCode: req.query.countryCode as string,
+      category: req.query.category as string,
+      search: req.query.search as string,
+      status: req.query.status as string,
+      sort: req.query.sort as string,
     });
-    res.status(200).json({ success: true, data: rooms });
+    res.status(200).json({ success: true, data: rooms, total: rooms.length });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 🌍 Get Global Live Countries Stats (Live counts per country)
+liveRouter.get('/rooms/countries', async (req, res, next) => {
+  try {
+    const stats = await LiveService.getLiveCountriesStats();
+    res.status(200).json({ success: true, data: stats });
   } catch (error) {
     next(error);
   }
 });
 
 // Create Live Room & Generate Agora Host Token
-liveRouter.post('/rooms', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.post('/rooms', async (req, res, next) => {
   try {
+    let resolvedUserId: number = 1;
+
+    // 1. Try JWT Bearer Token if present
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    if (token) {
+      const payload = (await import('../utils/jwt.js')).verifyAccessToken(token);
+      if (payload?.userId) {
+        resolvedUserId = payload.userId;
+      }
+    }
+
+    // 2. Fallback to hostUserId / hostNumericId from request body or header
+    if (!token && (req.body.hostUserId || req.body.hostNumericId)) {
+      resolvedUserId = Number(req.body.hostUserId || req.body.hostNumericId);
+    } else if (!token && req.headers['x-user-id']) {
+      resolvedUserId = Number(req.headers['x-user-id']);
+    }
+
     const validated = createLiveRoomSchema.parse(req.body);
     const result = await LiveService.createRoom({
-      hostUserId: req.user!.userId,
+      hostUserId: resolvedUserId,
       title: validated.title,
       category: validated.category,
       seatCount: validated.seatCount,
+      countryCode: (req.body.countryCode as string) || undefined,
     });
     res.status(201).json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 🛑 Host Ends Broadcast (Server-Enforced Lifecycle)
+liveRouter.post('/rooms/:roomId/end', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const result = await LiveService.endRoom(req.params.roomId as string, req.user!.userId);
+    res.status(200).json({
+      success: true,
+      message: 'Broadcast ended successfully.',
+      data: result,
+    });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// 👁️ Record Viewer Presence Join
+liveRouter.post('/rooms/:roomId/viewer-join', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const result = await LiveService.recordViewerJoin(
+      req.params.roomId as string,
+      req.user!.userId,
+      req.body.socketId as string,
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 👁️ Record Viewer Presence Leave
+liveRouter.post('/rooms/:roomId/viewer-leave', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const result = await LiveService.recordViewerLeave(
+      req.params.roomId as string,
+      req.user!.userId,
+    );
+    res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
@@ -208,16 +281,16 @@ liveRouter.post('/token', authenticateToken, async (req: AuthenticatedRequest, r
       return;
     }
 
-    const agoraRole = role === 'publisher' ? 'publisher' : 'subscriber';
-    const token = LiveService.generateTokenForChannel(channelName, req.user!.numericId, agoraRole);
+    const agoraRole = role === 'publisher' ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
+    const agoraConfig = generateAgoraRtcToken(channelName, req.user!.numericId, agoraRole);
 
     res.status(200).json({
       success: true,
       data: {
-        token,
+        token: agoraConfig.token,
         channelName,
         uid: req.user!.numericId,
-        role: agoraRole,
+        role: role === 'publisher' ? 'publisher' : 'subscriber',
         expiresInSeconds: 86400,
       },
     });
@@ -225,3 +298,204 @@ liveRouter.post('/token', authenticateToken, async (req: AuthenticatedRequest, r
     next(error);
   }
 });
+
+// Update Room Settings
+liveRouter.patch('/rooms/:roomId/settings', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const result = await LiveService.updateRoomSettings(
+      req.user!.userId,
+      req.params.roomId as string,
+      req.body
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// Get Room Admins
+liveRouter.get('/rooms/:roomId/admins', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const admins = await LiveService.getRoomAdmins(req.params.roomId as string);
+    res.status(200).json({ success: true, data: admins });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Add Room Admin
+liveRouter.post('/rooms/:roomId/admins', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const result = await LiveService.addRoomAdmin(
+      req.user!.userId,
+      req.params.roomId as string,
+      req.body
+    );
+    res.status(201).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// Remove Room Admin
+liveRouter.delete('/rooms/:roomId/admins/:targetUserId', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const result = await LiveService.removeRoomAdmin(
+      req.user!.userId,
+      req.params.roomId as string,
+      Number(req.params.targetUserId)
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// ==========================================
+// 🎙️ SEAT GRID SYSTEM REST ENDPOINTS
+// ==========================================
+
+// Get All Real Seats for Room
+liveRouter.get('/rooms/:roomId/seats', async (req, res, next) => {
+  try {
+    const result = await LiveService.getRoomSeats(req.params.roomId as string);
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// Take a Seat (Atomic DB Claim)
+liveRouter.post('/rooms/:roomId/seats/:seatNumber/take', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const seatNumber = parseInt(req.params.seatNumber as string, 10);
+    const result = await LiveService.takeSeat(
+      req.params.roomId as string,
+      seatNumber,
+      req.user!.userId
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// Leave a Seat
+liveRouter.post('/rooms/:roomId/seats/:seatNumber/leave', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const seatNumber = parseInt(req.params.seatNumber as string, 10);
+    const result = await LiveService.leaveSeat(
+      req.params.roomId as string,
+      seatNumber,
+      req.user!.userId
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// Mute / Unmute Seat Mic
+liveRouter.patch('/rooms/:roomId/seats/:seatNumber/mute', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const seatNumber = parseInt(req.params.seatNumber as string, 10);
+    const { isMuted } = req.body;
+    const result = await LiveService.muteSeat(
+      req.params.roomId as string,
+      seatNumber,
+      req.user!.userId,
+      Boolean(isMuted)
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// Lock / Unlock Seat
+liveRouter.patch('/rooms/:roomId/seats/:seatNumber/lock', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const seatNumber = parseInt(req.params.seatNumber as string, 10);
+    const { isLocked } = req.body;
+    const result = await LiveService.lockSeat(
+      req.params.roomId as string,
+      seatNumber,
+      req.user!.userId,
+      Boolean(isLocked)
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// Kick Speaker off Seat
+liveRouter.post('/rooms/:roomId/seats/:seatNumber/kick', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const seatNumber = parseInt(req.params.seatNumber as string, 10);
+    const result = await LiveService.kickSeat(
+      req.params.roomId as string,
+      seatNumber,
+      req.user!.userId
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// Change Seat Capacity (Strictly 10, 15, or 20)
+liveRouter.patch('/rooms/:roomId/seat-capacity', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { seatCount } = req.body;
+    const result = await LiveService.changeSeatCapacity(
+      req.params.roomId as string,
+      parseInt(seatCount, 10),
+      req.user!.userId
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+

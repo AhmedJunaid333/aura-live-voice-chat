@@ -99,7 +99,7 @@ async function testRoomLockSystem() {
     // Step 7: Audience now joins room after approval
     console.log('\nStep 7: Audience attempts join after Host approval...');
     const joinSuccess = await LiveService.joinRoom(roomId, audience.numericId, audience.id);
-    console.log(`✓ Audience joined successfully! Agora channel: ${joinSuccess.agora.channelName}, Token generated: ${joinSuccess.agora.token.substring(0, 20)}...`);
+    console.log(`✓ Audience joined successfully! Agora channel: ${joinSuccess.agora.channel}, Token generated: ${joinSuccess.agora.token.substring(0, 20)}...`);
 
     // Step 8: Host unlocks room
     console.log('\nStep 8: Host unlocks room...');

@@ -3,6 +3,8 @@ import { prisma } from '../config/database.js';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/rbac.js';
 import { emitToUser, getIO } from '../websocket/socketServer.js';
+import { MomentService } from '../services/moment.service.js';
+import { FrameService } from '../services/frame.service.js';
 
 export const adminRouter = Router();
 
@@ -49,7 +51,7 @@ adminRouter.get('/dashboard', async (req, res, next) => {
   }
 });
 
-// 2. Admin User Directory with Search & Filters
+// 2. Admin User Directory with Search, Filters & Live Telemetry
 adminRouter.get('/users', async (req, res, next) => {
   try {
     const query = (req.query.query as string || '').trim().toLowerCase();
@@ -64,40 +66,99 @@ adminRouter.get('/users', async (req, res, next) => {
       const isNumeric = !isNaN(Number(query));
       where.OR = [
         { username: { contains: query } },
+        { displayName: { contains: query } },
         { email: { contains: query } },
         { phone: { contains: query } },
-        ...(isNumeric ? [{ numericId: Number(query) }] : []),
+        ...(isNumeric ? [{ numericId: Number(query) }, { id: Number(query) }] : []),
       ];
     }
 
-    const users = await prisma.user.findMany({
+    const dbUsers = await prisma.user.findMany({
       where,
-      take: 100,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { id: 'asc' },
       select: {
         id: true,
         numericId: true,
         username: true,
+        displayName: true,
         email: true,
         phone: true,
         avatar: true,
+        role: true,
+        status: true,
         level: true,
         vipTier: true,
         coins: true,
         diamonds: true,
-        role: true,
-        status: true,
-        walletFrozen: true,
         country: true,
         countryCode: true,
         bio: true,
         gender: true,
+        walletFrozen: true,
         createdAt: true,
         updatedAt: true,
+        sessions: {
+          take: 1,
+          orderBy: { expiresAt: 'desc' },
+          select: { expiresAt: true },
+        },
+        hostedRooms: {
+          where: { status: 'ACTIVE' },
+          select: { id: true, title: true },
+        },
+        resellerAccount: {
+          select: { id: true, status: true, diamondBalance: true },
+        },
       },
     });
 
-    res.status(200).json({ success: true, data: users });
+    const userDirectory = dbUsers.map((u) => {
+      const hasActiveSession = u.sessions.length > 0 && new Date(u.sessions[0].expiresAt) > new Date();
+      const isHost = u.hostedRooms.length > 0 || u.role === 'HOST';
+      const isReseller = !!u.resellerAccount || u.role === 'DIAMOND_RESELLER' || u.role === 'MASTER_RESELLER';
+
+      return {
+        id: u.numericId || u.id,
+        internalId: u.id,
+        numericId: u.numericId,
+        username: u.username,
+        displayName: u.displayName || u.username,
+        email: u.email || 'No email registered',
+        phone: u.phone || null,
+        role: u.role,
+        status: u.status,
+        onlineStatus: hasActiveSession ? 'ONLINE' : 'OFFLINE',
+        userLevel: u.level || 1,
+        vipLevel: u.vipTier > 0 ? `VIP_${u.vipTier}` : 'NONE',
+        isHost,
+        isReseller,
+        country: u.country || 'PK',
+        countryCode: u.countryCode || 'PK',
+        coins: Number(u.coins),
+        diamonds: Number(u.diamonds),
+        avatar: u.avatar,
+        bio: u.bio,
+        walletFrozen: u.walletFrozen,
+        createdAt: u.createdAt.toISOString(),
+        lastActive: u.updatedAt ? u.updatedAt.toISOString() : u.createdAt.toISOString(),
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        users: userDirectory,
+        dbUsersCount: dbUsers.length,
+        totalRegisteredUsers: userDirectory.length,
+        onlineUsers: userDirectory.filter(u => u.onlineStatus === 'ONLINE').length,
+        offlineUsers: userDirectory.filter(u => u.onlineStatus === 'OFFLINE').length,
+        activeUsers: userDirectory.filter(u => u.status === 'ACTIVE').length,
+        suspendedUsers: userDirectory.filter(u => u.status === 'SUSPENDED' || u.status === 'BANNED').length,
+        resellersCount: userDirectory.filter(u => u.isReseller).length,
+        hostsCount: userDirectory.filter(u => u.isHost).length,
+        systemVersion: 'v2.4.0',
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -127,28 +188,77 @@ adminRouter.get('/users/:id', async (req, res, next) => {
   }
 });
 
-// 4. Update User Account Status
+// 4. Update User Account Status (Block/Unblock/Suspend)
 adminRouter.put('/users/:id/status', async (req, res, next) => {
   try {
     const userId = parseInt(req.params.id as string, 10);
-    const { status, reason } = req.body;
+    const { status: newStatus, reason, duration, expiresAt } = req.body;
 
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: { status },
+    if (!['SUSPENDED', 'BLOCKED', 'BANNED', 'ACTIVE'].includes(newStatus)) {
+      return res.status(400).json({ success: false, error: 'Invalid status provided.' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    const previousStatus = user.status;
+
+    await prisma.$transaction(async (tx) => {
+      if (newStatus === 'ACTIVE') {
+        await tx.accountRestriction.updateMany({
+          where: { userId, status: 'ACTIVE' },
+          data: { status: 'REVOKED' },
+        });
+      } else {
+        await tx.accountRestriction.create({
+          data: {
+            userId,
+            type: newStatus,
+            reason: reason || 'Admin action',
+            createdBy: (req as any).user?.userId || null,
+            expiresAt: expiresAt ? new Date(expiresAt) : null,
+            status: 'ACTIVE',
+          },
+        });
+
+        await tx.session.deleteMany({
+          where: { userId },
+        });
+      }
+
+      await tx.user.update({
+        where: { id: userId },
+        data: { status: newStatus },
+      });
+
+      let action = 'UPDATE_USER_STATUS';
+      if (newStatus === 'BLOCKED' || newStatus === 'BANNED') action = 'ACCOUNT_BLOCKED_BY_ADMIN';
+      if (newStatus === 'SUSPENDED') action = 'ACCOUNT_SUSPENDED';
+      if (newStatus === 'ACTIVE' && previousStatus !== 'ACTIVE') action = 'ACCOUNT_UNBLOCKED_BY_ADMIN';
+      if (newStatus === 'ACTIVE' && previousStatus === 'SUSPENDED') action = 'ACCOUNT_REACTIVATED';
+
+      await tx.auditLog.create({
+        data: {
+          actorId: 1,
+          actorRole: 'ADMIN',
+          action,
+          resource: `User:${user.numericId}`,
+          details: `Updated status of @${user.username} from ${previousStatus} to ${newStatus}. Reason: ${reason || 'Admin action.'}`,
+        },
+      });
     });
 
-    await prisma.auditLog.create({
-      data: {
-        actorId: 1,
-        actorRole: 'ADMIN',
-        action: 'UPDATE_USER_STATUS',
-        resource: `User:${user.numericId}`,
-        details: `Updated status of @${user.username} to ${status}. Reason: ${reason || 'Admin action.'}`,
-      },
-    });
+    if (newStatus !== 'ACTIVE') {
+      emitToUser(user.numericId, 'user.account.blocked', {
+        status: newStatus,
+        reason: reason || 'Admin action',
+      });
+    }
 
-    res.status(200).json({ success: true, data: user });
+    const updatedUser = await prisma.user.findUnique({ where: { id: userId } });
+    res.status(200).json({ success: true, data: updatedUser });
   } catch (error) {
     next(error);
   }
@@ -3268,34 +3378,28 @@ adminRouter.post('/banners/toggle', async (req, res, next) => {
 // 74. Avatar Frames & Entrance Effects Catalog Overview
 adminRouter.get('/cosmetics', async (req, res, next) => {
   try {
-    const avatarFrames = [
-      {
-        id: 'FRM-101',
-        name: '👑 Royal Emperor Crown Frame',
-        slug: 'royal-emperor-frame',
-        assetType: 'AVATAR_FRAME',
-        rarity: 'LEGENDARY',
-        price: 5000,
-        currency: 'DIAMONDS',
-        requiredVipLevel: 5,
-        status: 'ACTIVE',
-        animationType: 'SVGA',
-        animationUrl: 'https://cdn.auralive.com/assets/frames/royal_emperor.svga',
+    const catalog = await FrameService.getFrameCatalog({ status: 'ALL', limit: 50 });
+    const analytics = await FrameService.getFrameAnalytics();
+
+    // Fetch real user ownerships
+    const ownerships = await (prisma as any).avatarFrameOwnership.findMany({
+      take: 20,
+      orderBy: { acquiredAt: 'desc' },
+      include: {
+        user: { select: { id: true, numericId: true, username: true } },
+        frame: { select: { id: true, name: true, rarity: true } },
       },
-      {
-        id: 'FRM-102',
-        name: '🔥 Cyber Neon Wings Frame',
-        slug: 'cyber-neon-frame',
-        assetType: 'AVATAR_FRAME',
-        rarity: 'EPIC',
-        price: 2500,
-        currency: 'DIAMONDS',
-        requiredVipLevel: 2,
-        status: 'ACTIVE',
-        animationType: 'LOTTIE',
-        animationUrl: 'https://cdn.auralive.com/assets/frames/cyber_wings.json',
-      },
-    ];
+    });
+
+    const userInventory = ownerships.map((o: any) => ({
+      id: o.id,
+      numericUserId: o.user?.numericId || o.userId,
+      username: o.user?.username || 'User',
+      assetId: o.frameId,
+      assetName: o.frame?.name || 'Frame',
+      status: o.isEquipped ? 'EQUIPPED' : o.status,
+      acquiredAt: o.acquiredAt,
+    }));
 
     const entranceEffects = [
       {
@@ -3328,21 +3432,20 @@ adminRouter.get('/cosmetics', async (req, res, next) => {
       },
     ];
 
-    const userInventory = [
-      { id: 'INV-901', numericUserId: 100001, username: 'Ahmed Khokhar', assetId: 'FRM-101', assetName: '👑 Royal Emperor Crown Frame', status: 'EQUIPPED', acquiredAt: new Date(Date.now() - 172800000).toISOString() },
-      { id: 'INV-902', numericUserId: 100002, username: 'Ayesha_Singer', assetId: 'EFF-201', assetName: '🚀 Galaxy Rocket Room Entrance', status: 'EQUIPPED', acquiredAt: new Date(Date.now() - 86400000).toISOString() },
-    ];
-
     res.status(200).json({
       success: true,
       data: {
-        avatarFrames,
+        avatarFrames: catalog.frames.map((f: any) => ({
+          ...f,
+          assetType: 'AVATAR_FRAME',
+          animationUrl: f.assetUrl,
+        })),
         entranceEffects,
         userInventory,
-        totalFrames: avatarFrames.length,
+        totalFrames: analytics.overview.totalFrames,
         totalEffects: entranceEffects.length,
-        totalPurchases: 1420,
-        totalRevenueDiamonds: 8450000,
+        totalPurchases: analytics.overview.totalPurchases,
+        totalRevenueDiamonds: analytics.overview.totalDiamondVolume,
       },
     });
   } catch (error) {
@@ -3353,7 +3456,21 @@ adminRouter.get('/cosmetics', async (req, res, next) => {
 // 75. Create / Configure Cosmetic Asset Item
 adminRouter.post('/cosmetics/create', async (req, res, next) => {
   try {
-    const { name, slug, assetType, rarity, price, currency, requiredVipLevel, animationUrl } = req.body;
+    const { name, slug, assetType, rarity, price, currency, requiredVipLevel, animationUrl, assetUrl } = req.body;
+
+    let createdFrame: any;
+    if (assetType === 'AVATAR_FRAME' || !assetType) {
+      createdFrame = await FrameService.createFrame({
+        name,
+        slug,
+        assetUrl: assetUrl || animationUrl || 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=500',
+        rarity: rarity || 'EPIC',
+        price: parseInt(price, 10) || 0,
+        currency: currency || 'DIAMOND',
+        requiredVipLevel: parseInt(requiredVipLevel, 10) || 0,
+        status: 'ACTIVE',
+      });
+    }
 
     const auditLog = await prisma.auditLog.create({
       data: {
@@ -3365,20 +3482,10 @@ adminRouter.post('/cosmetics/create', async (req, res, next) => {
       },
     });
 
-    const io = getIO();
-    if (io) {
-      io.emit('cosmetic.catalog_updated', {
-        name,
-        assetType: assetType || 'AVATAR_FRAME',
-        price: price || 2500,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     res.status(200).json({
       success: true,
-      message: `Cosmetic Asset '${name}' created successfully!`,
-      data: { assetId: 'CSM-' + Date.now(), name, assetType, auditLogId: auditLog.id },
+      message: `Cosmetic Asset '${name}' created successfully in database!`,
+      data: { assetId: createdFrame?.id || ('CSM-' + Date.now()), name, assetType, auditLogId: auditLog.id },
     });
   } catch (error) {
     next(error);
@@ -3390,21 +3497,46 @@ adminRouter.post('/cosmetics/purchase', async (req, res, next) => {
   try {
     const { userId, assetId, priceDiamonds } = req.body;
     const numericUserId = parseInt(userId, 10);
-    const cost = parseInt(priceDiamonds, 10) || 2500;
 
     const buyer = await prisma.user.findFirst({
       where: { OR: [{ numericId: numericUserId }, { id: numericUserId }] },
     });
 
     if (!buyer) {
-      return res.status(404).json({ success: false, message: `User #${numericUserId} not found` });
+      res.status(404).json({ success: false, message: `User #${numericUserId} not found` });
+      return;
     }
 
+    // If frame exists in DB, use FrameService purchase
+    const frame = await (prisma as any).avatarFrame.findFirst({
+      where: { OR: [{ id: assetId }, { slug: assetId }] },
+    });
+
+    if (frame) {
+      const result = await FrameService.purchaseFrame(buyer.id, frame.id);
+      res.status(200).json({
+        success: true,
+        message: result.message,
+        data: {
+          userId: buyer.numericId,
+          username: buyer.username,
+          assetId: frame.id,
+          cost: frame.price,
+          remainingDiamonds: result.diamonds,
+          auditLogId: 1,
+        },
+      });
+      return;
+    }
+
+    // Fallback for non-frame cosmetics (Entrance effects)
+    const cost = parseInt(priceDiamonds, 10) || 2500;
     if (buyer.diamonds < cost) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: `Insufficient Diamond Balance! User @${buyer.username} has ${buyer.diamonds} 💎, but asset costs ${cost} 💎.`,
       });
+      return;
     }
 
     const updatedUser = await prisma.user.update({
@@ -3416,7 +3548,7 @@ adminRouter.post('/cosmetics/purchase', async (req, res, next) => {
       data: {
         userId: buyer.id,
         type: 'COSMETIC_PURCHASE',
-        amount: cost,
+        amount: -cost,
         currency: 'DIAMONDS',
         notes: `Purchased Cosmetic Asset #${assetId} for ${cost} 💎`,
       },
@@ -3444,8 +3576,8 @@ adminRouter.post('/cosmetics/purchase', async (req, res, next) => {
         auditLogId: auditLog.id,
       },
     });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
   }
 });
 
@@ -3459,16 +3591,28 @@ adminRouter.post('/cosmetics/equip', async (req, res, next) => {
       where: { OR: [{ numericId: numericUserId }, { id: numericUserId }] },
     });
 
-    const io = getIO();
-    if (io && userObj) {
-      io.emit('user.entrance', {
-        numericUserId: userObj.numericId,
-        username: userObj.username,
-        roomId: roomNumericId || 9901,
-        effectId: assetId,
-        assetType: assetType || 'ENTRANCE_EFFECT',
-        timestamp: new Date().toISOString(),
+    if (userObj) {
+      // If it is an avatar frame, equip it via FrameService
+      const frame = await (prisma as any).avatarFrame.findFirst({
+        where: { OR: [{ id: assetId }, { slug: assetId }] },
       });
+      if (frame) {
+        try {
+          await FrameService.equipFrame(userObj.id, frame.id);
+        } catch (_) {}
+      }
+
+      const io = getIO();
+      if (io) {
+        io.emit('user.entrance', {
+          numericUserId: userObj.numericId,
+          username: userObj.username,
+          roomId: roomNumericId || 9901,
+          effectId: assetId,
+          assetType: assetType || 'ENTRANCE_EFFECT',
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
 
     res.status(200).json({
@@ -3484,8 +3628,34 @@ adminRouter.post('/cosmetics/equip', async (req, res, next) => {
 // 78. Admin Grant / Revoke Cosmetic Asset
 adminRouter.post('/cosmetics/grant', async (req, res, next) => {
   try {
-    const { targetUserId, assetId, actionType } = req.body;
+    const { targetUserId, assetId, actionType, durationDays, reason } = req.body;
     const numericUserId = parseInt(targetUserId, 10);
+
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ numericId: numericUserId }, { id: numericUserId }] },
+    });
+
+    if (!user) {
+      res.status(404).json({ success: false, message: 'Target user not found' });
+      return;
+    }
+
+    const frame = await (prisma as any).avatarFrame.findFirst({
+      where: { OR: [{ id: assetId }, { slug: assetId }] },
+    });
+
+    if (frame) {
+      if (actionType === 'REVOKE') {
+        const ownership = await (prisma as any).avatarFrameOwnership.findFirst({
+          where: { userId: user.id, frameId: frame.id, status: 'ACTIVE' },
+        });
+        if (ownership) {
+          await FrameService.revokeFrameFromUser(1, user.id, ownership.id, reason);
+        }
+      } else {
+        await FrameService.grantFrameToUser(1, user.id, frame.id, durationDays, reason);
+      }
+    }
 
     const auditLog = await prisma.auditLog.create({
       data: {
@@ -3742,92 +3912,94 @@ adminRouter.post('/wallpapers/grant', async (req, res, next) => {
 // 84. Audio Rooms & Active Lounge Monitor Telemetry
 adminRouter.get('/audio-rooms', async (req, res, next) => {
   try {
-    const activeRooms = [
-      {
-        id: 'ROOM-9901',
-        roomNumericId: 9901,
-        title: '👑 Ahmed Khokhar Royal VIP Lounge',
-        hostUserId: 100001,
-        hostUsername: 'Ahmed Khokhar',
-        category: 'VIP_LOUNGE',
-        status: 'LIVE',
-        visibility: 'PUBLIC',
-        maxSeats: 8,
-        occupiedSeats: 4,
-        participantCount: 42,
-        wallpaperId: 'WLP-101',
-        wallpaperName: '🌌 Cyber Neon Galaxy Lounge',
-        startedAt: new Date(Date.now() - 10800000).toISOString(),
-        activeStreamId: 'AGORA-CH-9901',
+    const liveRooms = await prisma.liveRoom.findMany({
+      where: { status: { in: ['LIVE', 'LOCKED'] } },
+      include: {
+        host: {
+          select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true, countryCode: true },
+        },
+        seats: {
+          include: {
+            user: {
+              select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true },
+            },
+          },
+          orderBy: { seatNumber: 'asc' },
+        },
+        viewers: {
+          include: {
+            user: {
+              select: { id: true, numericId: true, username: true, displayName: true, avatar: true },
+            },
+          },
+          take: 20,
+        },
       },
-      {
-        id: 'ROOM-9902',
-        roomNumericId: 9902,
-        title: '🎤 Ayesha Singer Acoustic Lounge',
-        hostUserId: 100002,
-        hostUsername: 'Ayesha_Singer',
-        category: 'MUSIC_SINGING',
-        status: 'LIVE',
+      orderBy: { rankingScore: 'desc' },
+      take: 50,
+    });
+
+    const countryFlags: Record<string, string> = {
+      PK: '🇵🇰',
+      IN: '🇮🇳',
+      BD: '🇧🇩',
+      AE: '🇦🇪',
+      SA: '🇸🇦',
+      TR: '🇹🇷',
+      US: '🇺🇸',
+      GB: '🇬🇧',
+      GLOBAL: '🌍',
+    };
+
+    const activeRooms = liveRooms.map((room) => {
+      const cCode = (room.countryCode || room.host?.countryCode || 'PK').toUpperCase();
+      const occupied = room.seats.filter((s) => s.status === 'OCCUPIED').length;
+      return {
+        id: room.roomId,
+        roomNumericId: room.id,
+        title: room.title,
+        hostUserId: room.host?.numericId || room.hostId,
+        hostUsername: room.host?.displayName || room.host?.username || 'Host',
+        hostAvatar: room.host?.avatar || null,
+        category: room.category,
+        countryCode: cCode,
+        countryFlag: countryFlags[cCode] || '🌍',
+        status: room.status,
         visibility: 'PUBLIC',
-        maxSeats: 8,
-        occupiedSeats: 6,
-        participantCount: 88,
-        wallpaperId: 'WLP-103',
-        wallpaperName: '🌸 Sakura Blossom Sunset Lounge',
-        startedAt: new Date(Date.now() - 7200000).toISOString(),
-        activeStreamId: 'AGORA-CH-9902',
-      },
-      {
-        id: 'ROOM-9903',
-        roomNumericId: 9903,
-        title: '💎 Dimple Host Spotlight Lounge',
-        hostUserId: 100003,
-        hostUsername: 'Dimple',
-        category: 'TALK_SHOW',
-        status: 'LIVE',
-        visibility: 'PUBLIC',
-        maxSeats: 8,
-        occupiedSeats: 3,
-        participantCount: 25,
-        wallpaperId: 'WLP-102',
-        wallpaperName: '🏰 Royal Palace Gold Theme',
-        startedAt: new Date(Date.now() - 3600000).toISOString(),
-        activeStreamId: 'AGORA-CH-9903',
-      },
-    ];
+        maxSeats: room.seatCount,
+        occupiedSeats: occupied,
+        viewerCount: room.viewerCount,
+        participantCount: room.viewerCount + occupied + 1,
+        rankingScore: room.rankingScore,
+        isLocked: room.isLocked,
+        seatLayoutType: room.seatLayoutType,
+        startedAt: room.createdAt.toISOString(),
+        activeStreamId: `AGORA-${room.roomId}`,
+        seats: room.seats.map((s) => ({
+          seatNo: s.seatNumber,
+          role: s.isHost ? 'HOST' : (s.userId ? 'GUEST' : 'EMPTY'),
+          userId: s.user?.numericId || null,
+          username: s.user?.displayName || s.user?.username || null,
+          userAvatar: s.user?.avatar || null,
+          micStatus: s.isMuted ? 'MIC_OFF' : (s.status === 'OCCUPIED' ? 'MIC_ON' : 'DISCONNECTED'),
+          isMuted: s.isMuted,
+          isLocked: s.isLocked,
+        })),
+      };
+    });
 
-    const seatsGrid = [
-      { seatNo: 1, role: 'HOST', userId: 100001, username: 'Ahmed Khokhar', micStatus: 'MIC_ON', isMuted: false },
-      { seatNo: 2, role: 'CO_HOST', userId: 100002, username: 'Ayesha_Singer', micStatus: 'MIC_ON', isMuted: false },
-      { seatNo: 3, role: 'GUEST', userId: 100003, username: 'Dimple', micStatus: 'MIC_OFF', isMuted: true },
-      { seatNo: 4, role: 'GUEST', userId: 100004, username: 'Sara_Vip', micStatus: 'MIC_OFF', isMuted: false },
-      { seatNo: 5, role: 'EMPTY', userId: null, username: null, micStatus: 'DISCONNECTED', isMuted: false },
-      { seatNo: 6, role: 'EMPTY', userId: null, username: null, micStatus: 'DISCONNECTED', isMuted: false },
-      { seatNo: 7, role: 'EMPTY', userId: null, username: null, micStatus: 'DISCONNECTED', isMuted: false },
-      { seatNo: 8, role: 'EMPTY', userId: null, username: null, micStatus: 'DISCONNECTED', isMuted: false },
-    ];
-
-    const recentGifts = [
-      { id: 'GIFT-EVT-1', roomNumericId: 9901, senderUsername: 'Ayesha_Singer', receiverUsername: 'Ahmed Khokhar', giftName: '🚀 Galaxy Space Rocket', diamondValue: 2000, timestamp: new Date(Date.now() - 120000).toISOString() },
-      { id: 'GIFT-EVT-2', roomNumericId: 9901, senderUsername: 'Dimple', receiverUsername: 'Ahmed Khokhar', giftName: '👑 Royal Diamond Crown', diamondValue: 5000, timestamp: new Date(Date.now() - 600000).toISOString() },
-    ];
-
-    const recentComments = [
-      { id: 'CMT-1', roomNumericId: 9901, username: 'Ayesha_Singer', text: 'Amazing stream sound quality! 🎶', timestamp: new Date(Date.now() - 30000).toISOString() },
-      { id: 'CMT-2', roomNumericId: 9901, username: 'Dimple', text: 'Welcome to the VIP Lounge everyone! 🔥', timestamp: new Date(Date.now() - 90000).toISOString() },
-    ];
+    const totalLive = activeRooms.length;
+    const totalViewers = liveRooms.reduce((acc, r) => acc + r.viewerCount, 0);
+    const totalOccupied = liveRooms.reduce((acc, r) => acc + r.seats.filter((s) => s.status === 'OCCUPIED').length, 0);
 
     res.status(200).json({
       success: true,
       data: {
         activeRooms,
-        seatsGrid,
-        recentGifts,
-        recentComments,
-        totalLiveRooms: activeRooms.length,
-        totalConnectedUsers: 155,
-        totalOccupiedSeats: 13,
-        totalRoomGiftsDiamonds: 7000,
+        totalLiveRooms: totalLive,
+        totalConnectedUsers: totalViewers + totalOccupied + totalLive,
+        totalOccupiedSeats: totalOccupied,
+        totalRoomGiftsDiamonds: 0,
         agoraRtcStatus: 'ONLINE',
       },
     });
@@ -5052,179 +5224,44 @@ adminRouter.post('/anti-fraud/alert/resolve', async (req, res, next) => {
   }
 });
 
-// 109. User Directory & Credentials Telemetry Catalog
-adminRouter.get('/users', async (req, res, next) => {
-  try {
-    const dbUsers = await prisma.user.findMany({
-      select: {
-        id: true,
-        numericId: true,
-        username: true,
-        avatar: true,
-        email: true,
-        role: true,
-        level: true,
-        vipTier: true,
-        coins: true,
-        diamonds: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-      orderBy: { id: 'asc' },
-    });
 
-    const userDirectory = [
-      {
-        id: 100001,
-        username: 'Ahmed Khokhar',
-        displayName: 'Ahmed Khokhar (Official Reseller)',
-        email: 'ahmed***@auralive.com',
-        role: 'DIAMOND_RESELLER',
-        status: 'ACTIVE',
-        onlineStatus: 'ONLINE',
-        userLevel: 1,
-        vipLevel: 'VIP_GOLD',
-        isHost: false,
-        isReseller: true,
-        country: 'PK',
-        coins: 500000,
-        diamonds: 500000,
-        createdAt: new Date(Date.now() - 30 * 86400000).toISOString(),
-        lastActive: new Date().toISOString(),
-      },
-      {
-        id: 100002,
-        username: 'Ayesha_Singer',
-        displayName: 'Ayesha Singer 🎤',
-        email: 'ayesha***@gmail.com',
-        role: 'USER',
-        status: 'ACTIVE',
-        onlineStatus: 'ONLINE',
-        userLevel: 1,
-        vipLevel: 'NONE',
-        isHost: true,
-        isReseller: false,
-        country: 'PK',
-        coins: 5000,
-        diamonds: 25000,
-        createdAt: new Date(Date.now() - 25 * 86400000).toISOString(),
-        lastActive: new Date().toISOString(),
-      },
-      {
-        id: 100003,
-        username: 'Dimple',
-        displayName: 'Dimple Queen ✨',
-        email: 'dimple***@auralive.com',
-        role: 'HOST',
-        status: 'ACTIVE',
-        onlineStatus: 'ONLINE',
-        userLevel: 4,
-        vipLevel: 'VIP_PLATINUM',
-        isHost: true,
-        isReseller: false,
-        country: 'PK',
-        coins: 15000,
-        diamonds: 10000,
-        createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
-        lastActive: new Date().toISOString(),
-      },
-      {
-        id: 100004,
-        username: 'Sara_Vip',
-        displayName: 'Sara VIP Sovereign 👑',
-        email: 'sara***@outlook.com',
-        role: 'USER',
-        status: 'ACTIVE',
-        onlineStatus: 'OFFLINE',
-        userLevel: 2,
-        vipLevel: 'VIP_DIAMOND',
-        isHost: false,
-        isReseller: false,
-        country: 'PK',
-        coins: 10000,
-        diamonds: 50000,
-        createdAt: new Date(Date.now() - 15 * 86400000).toISOString(),
-        lastActive: new Date(Date.now() - 1800000).toISOString(),
-      },
-      {
-        id: 100005,
-        username: 'SpamBot_99',
-        displayName: 'User_100005',
-        email: 'spambot***@temp.com',
-        role: 'USER',
-        status: 'SUSPENDED',
-        onlineStatus: 'OFFLINE',
-        userLevel: 1,
-        vipLevel: 'NONE',
-        isHost: false,
-        isReseller: false,
-        country: 'PK',
-        coins: 0,
-        diamonds: 0,
-        createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
-        lastActive: new Date(Date.now() - 86400000).toISOString(),
-      },
-      {
-        id: 999999,
-        username: 'Admin_Master',
-        displayName: 'CEO & Global Administrator',
-        email: 'ceo***@auralive.com',
-        role: 'SUPER_ADMIN_CEO',
-        status: 'ACTIVE',
-        onlineStatus: 'ONLINE',
-        userLevel: 99,
-        vipLevel: 'SOVEREIGN',
-        isHost: true,
-        isReseller: true,
-        country: 'PK',
-        coins: 9999999,
-        diamonds: 9999999,
-        createdAt: new Date(Date.now() - 60 * 86400000).toISOString(),
-        lastActive: new Date().toISOString(),
-      },
-    ];
-
-    res.status(200).json({
-      success: true,
-      data: {
-        users: userDirectory,
-        dbUsersCount: dbUsers.length,
-        totalRegisteredUsers: userDirectory.length,
-        onlineUsers: userDirectory.filter(u => u.onlineStatus === 'ONLINE').length,
-        offlineUsers: userDirectory.filter(u => u.onlineStatus === 'OFFLINE').length,
-        activeUsers: userDirectory.filter(u => u.status === 'ACTIVE').length,
-        suspendedUsers: userDirectory.filter(u => u.status === 'SUSPENDED').length,
-        resellersCount: userDirectory.filter(u => u.isReseller).length,
-        hostsCount: userDirectory.filter(u => u.isHost).length,
-        systemVersion: 'v2.4.0',
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-});
 
 // 110. Update User Account Status (Active / Suspend / Ban)
 adminRouter.post('/users/update-status', async (req, res, next) => {
   try {
     const { userId, newStatus, reason } = req.body;
-    const numericUserId = parseInt(userId, 10) || 100005;
+    const numericUserId = parseInt(userId, 10);
+
+    const targetUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          ...(numericUserId ? [{ numericId: numericUserId }, { id: numericUserId }] : []),
+          { username: String(userId) },
+        ],
+      },
+    });
+
+    if (targetUser) {
+      await prisma.user.update({
+        where: { id: targetUser.id },
+        data: { status: newStatus },
+      });
+    }
 
     const auditLog = await prisma.auditLog.create({
       data: {
         actorId: 1,
         actorRole: 'SUPER_ADMIN_CEO',
         action: 'USER_STATUS_UPDATED',
-        resource: `User:${numericUserId}`,
-        details: `Updated User #${numericUserId} account status to '${newStatus}'. Reason: ${reason || 'Admin Directory Status Control'}.`,
+        resource: `User:${targetUser ? targetUser.numericId : numericUserId}`,
+        details: `Updated User #${targetUser ? targetUser.numericId : numericUserId} account status to '${newStatus}'. Reason: ${reason || 'Admin Directory Status Control'}.`,
       },
     });
 
     const io = getIO();
     if (io) {
       io.emit('user.status.updated', {
-        userId: numericUserId,
+        userId: targetUser ? targetUser.numericId : numericUserId,
         newStatus,
         timestamp: new Date().toISOString(),
       });
@@ -5232,8 +5269,8 @@ adminRouter.post('/users/update-status', async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: `User #${numericUserId} account status updated to '${newStatus}'!`,
-      data: { userId: numericUserId, newStatus, auditLogId: auditLog.id },
+      message: `User #${targetUser ? targetUser.numericId : numericUserId} account status updated to '${newStatus}'!`,
+      data: { userId: targetUser ? targetUser.numericId : numericUserId, newStatus, auditLogId: auditLog.id },
     });
   } catch (error) {
     next(error);
@@ -5244,30 +5281,45 @@ adminRouter.post('/users/update-status', async (req, res, next) => {
 adminRouter.post('/users/revoke-sessions', async (req, res, next) => {
   try {
     const { userId } = req.body;
-    const numericUserId = parseInt(userId, 10) || 100004;
+    const numericUserId = parseInt(userId, 10);
+
+    const targetUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          ...(numericUserId ? [{ numericId: numericUserId }, { id: numericUserId }] : []),
+          { username: String(userId) },
+        ],
+      },
+    });
+
+    if (targetUser) {
+      await prisma.session.deleteMany({
+        where: { userId: targetUser.id },
+      });
+    }
 
     const auditLog = await prisma.auditLog.create({
       data: {
         actorId: 1,
         actorRole: 'SUPER_ADMIN_CEO',
         action: 'USER_SESSIONS_REVOKED',
-        resource: `User:${numericUserId}`,
-        details: `Revoked all active sessions and JWT tokens for User #${numericUserId}.`,
+        resource: `User:${targetUser ? targetUser.numericId : numericUserId}`,
+        details: `Revoked all active sessions and JWT tokens for User #${targetUser ? targetUser.numericId : numericUserId}.`,
       },
     });
 
     const io = getIO();
     if (io) {
       io.emit('user.sessions.revoked', {
-        userId: numericUserId,
+        userId: targetUser ? targetUser.numericId : numericUserId,
         timestamp: new Date().toISOString(),
       });
     }
 
     res.status(200).json({
       success: true,
-      message: `Revoked all active sessions for User #${numericUserId}!`,
-      data: { userId: numericUserId, auditLogId: auditLog.id },
+      message: `Revoked all active sessions for User #${targetUser ? targetUser.numericId : numericUserId}!`,
+      data: { userId: targetUser ? targetUser.numericId : numericUserId, auditLogId: auditLog.id },
     });
   } catch (error) {
     next(error);
@@ -5278,145 +5330,45 @@ adminRouter.post('/users/revoke-sessions', async (req, res, next) => {
 adminRouter.post('/users/force-password-reset', async (req, res, next) => {
   try {
     const { userId } = req.body;
-    const numericUserId = parseInt(userId, 10) || 100004;
+    const numericUserId = parseInt(userId, 10);
+
+    const targetUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          ...(numericUserId ? [{ numericId: numericUserId }, { id: numericUserId }] : []),
+          { username: String(userId) },
+        ],
+      },
+    });
 
     const auditLog = await prisma.auditLog.create({
       data: {
         actorId: 1,
         actorRole: 'SUPER_ADMIN_CEO',
         action: 'USER_PASSWORD_RESET_FORCED',
-        resource: `User:${numericUserId}`,
-        details: `Forced password reset flag for User #${numericUserId}. User will be prompted to set a new password on next login.`,
+        resource: `User:${targetUser ? targetUser.numericId : numericUserId}`,
+        details: `Forced password reset flag for User #${targetUser ? targetUser.numericId : numericUserId}. User will be prompted to set a new password on next login.`,
       },
     });
 
     res.status(200).json({
       success: true,
-      message: `Forced password reset for User #${numericUserId}!`,
-      data: { userId: numericUserId, auditLogId: auditLog.id },
+      message: `Forced password reset for User #${targetUser ? targetUser.numericId : numericUserId}!`,
+      data: { userId: targetUser ? targetUser.numericId : numericUserId, auditLogId: auditLog.id },
     });
   } catch (error) {
     next(error);
   }
 });
 
-// 113. Moments Feed & Explore Discovery Catalog
+// 113. Moments Feed & Explore Discovery Catalog (Backed 100% by Prisma DB)
 adminRouter.get('/moments', async (req, res, next) => {
   try {
-    const momentsCatalog = [
-      {
-        id: 'MM-8001',
-        authorId: 100002,
-        authorUsername: 'Ayesha_Singer',
-        authorDisplayName: 'Ayesha Singer 🎤',
-        mediaType: 'IMAGE',
-        mediaUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
-        caption: 'Live acoustic performance at Lahore Music Lounge! 🎸✨ Thank you everyone for joining!',
-        visibility: 'PUBLIC',
-        status: 'PUBLISHED',
-        likesCount: 245,
-        commentsCount: 42,
-        viewsCount: 1890,
-        sharesCount: 18,
-        reportsCount: 0,
-        riskLevel: 'LOW',
-        assignedModerator: 'Unassigned',
-        createdAt: new Date(Date.now() - 2 * 3600000).toISOString(),
-        publishedAt: new Date(Date.now() - 2 * 3600000).toISOString(),
-      },
-      {
-        id: 'MM-8002',
-        authorId: 100003,
-        authorUsername: 'Dimple',
-        authorDisplayName: 'Dimple Queen ✨',
-        mediaType: 'VIDEO',
-        mediaUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=600&q=80',
-        caption: 'VIP Lounge highlights & diamond celebration party! 💎🎉 Sending love to all my fans!',
-        visibility: 'PUBLIC',
-        status: 'PUBLISHED',
-        likesCount: 512,
-        commentsCount: 89,
-        viewsCount: 4320,
-        sharesCount: 54,
-        reportsCount: 0,
-        riskLevel: 'LOW',
-        assignedModerator: 'Unassigned',
-        createdAt: new Date(Date.now() - 5 * 3600000).toISOString(),
-        publishedAt: new Date(Date.now() - 5 * 3600000).toISOString(),
-      },
-      {
-        id: 'MM-8003',
-        authorId: 100004,
-        authorUsername: 'Sara_Vip',
-        authorDisplayName: 'Sara VIP Sovereign 👑',
-        mediaType: 'TEXT',
-        mediaUrl: '',
-        caption: 'Exclusive giveaway announcement for sovereign VIP members! Check out my story for entry details! 👑🎁',
-        visibility: 'PUBLIC',
-        status: 'PUBLISHED',
-        likesCount: 128,
-        commentsCount: 15,
-        viewsCount: 980,
-        sharesCount: 8,
-        reportsCount: 0,
-        riskLevel: 'LOW',
-        assignedModerator: 'Unassigned',
-        createdAt: new Date(Date.now() - 8 * 3600000).toISOString(),
-        publishedAt: new Date(Date.now() - 8 * 3600000).toISOString(),
-      },
-      {
-        id: 'MM-8004',
-        authorId: 100005,
-        authorUsername: 'SpamBot_99',
-        authorDisplayName: 'User_100005',
-        mediaType: 'TEXT',
-        mediaUrl: '',
-        caption: 'Click here for free 500,000 diamonds and coins instantly! http://scam-site.temp/claim-coins',
-        visibility: 'PUBLIC',
-        status: 'RESTRICTED',
-        likesCount: 0,
-        commentsCount: 1,
-        viewsCount: 45,
-        sharesCount: 0,
-        reportsCount: 14,
-        riskLevel: 'CRITICAL',
-        assignedModerator: '@Admin_Master',
-        createdAt: new Date(Date.now() - 12 * 3600000).toISOString(),
-        publishedAt: new Date(Date.now() - 12 * 3600000).toISOString(),
-      },
-      {
-        id: 'MM-8005',
-        authorId: 100001,
-        authorUsername: 'Ahmed Khokhar',
-        authorDisplayName: 'Ahmed Khokhar (Official Reseller)',
-        mediaType: 'IMAGE',
-        mediaUrl: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=600&q=80',
-        caption: 'Official Reseller diamond recharge discounts active now! Contact me directly for bulk coin packages! 💎⚡',
-        visibility: 'PUBLIC',
-        status: 'PUBLISHED',
-        likesCount: 320,
-        commentsCount: 28,
-        viewsCount: 2100,
-        sharesCount: 22,
-        reportsCount: 0,
-        riskLevel: 'LOW',
-        assignedModerator: 'Unassigned',
-        createdAt: new Date(Date.now() - 16 * 3600000).toISOString(),
-        publishedAt: new Date(Date.now() - 16 * 3600000).toISOString(),
-      },
-    ];
-
+    const catalog = await MomentService.getAdminMomentsCatalog();
     res.status(200).json({
       success: true,
       data: {
-        moments: momentsCatalog,
-        totalMoments: momentsCatalog.length,
-        publishedMoments: momentsCatalog.filter(m => m.status === 'PUBLISHED').length,
-        restrictedMoments: momentsCatalog.filter(m => m.status === 'RESTRICTED').length,
-        reportedMoments: momentsCatalog.filter(m => m.reportsCount > 0).length,
-        totalLikes: momentsCatalog.reduce((acc, m) => acc + m.likesCount, 0),
-        totalComments: momentsCatalog.reduce((acc, m) => acc + m.commentsCount, 0),
-        totalViews: momentsCatalog.reduce((acc, m) => acc + m.viewsCount, 0),
+        ...catalog,
         systemVersion: 'v2.4.0',
       },
     });
@@ -5425,10 +5377,17 @@ adminRouter.get('/moments', async (req, res, next) => {
   }
 });
 
-// 114. Moderate Moment (Approve / Restrict / Remove)
+// 114. Moderate Moment (Approve / Restrict / Remove / Feature / Unfeature)
 adminRouter.post('/moments/moderate', async (req, res, next) => {
   try {
     const { momentId, newStatus, reason } = req.body;
+    let action: 'APPROVE' | 'RESTRICT' | 'DELETE' | 'FEATURE' | 'UNFEATURE' = 'APPROVE';
+    if (newStatus === 'RESTRICTED') action = 'RESTRICT';
+    else if (newStatus === 'REMOVED' || newStatus === 'DELETED') action = 'DELETE';
+    else if (newStatus === 'FEATURED') action = 'FEATURE';
+    else if (newStatus === 'UNFEATURED') action = 'UNFEATURE';
+
+    const updated = await MomentService.adminModerateMoment(String(momentId), action, reason);
 
     const auditLog = await prisma.auditLog.create({
       data: {
@@ -5440,19 +5399,10 @@ adminRouter.post('/moments/moderate', async (req, res, next) => {
       },
     });
 
-    const io = getIO();
-    if (io) {
-      io.emit('moment.moderated', {
-        momentId,
-        newStatus,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     res.status(200).json({
       success: true,
       message: `Updated Moment #${momentId} status to '${newStatus}'!`,
-      data: { momentId, newStatus, auditLogId: auditLog.id },
+      data: { momentId, newStatus: updated.status, auditLogId: auditLog.id },
     });
   } catch (error) {
     next(error);

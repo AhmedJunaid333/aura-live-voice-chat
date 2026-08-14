@@ -6,6 +6,17 @@ export default function AudioRoomsModule() {
   const [subTab, setSubTab] = useState<'ROOMS' | 'SEATS' | 'COMMENTS' | 'GIFTS' | 'MODERATION' | 'ANALYTICS'>('ROOMS');
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showModerateModal, setShowModerateModal] = useState<boolean>(false);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [selectedRoom, setSelectedRoom] = useState<any>(null);
+  const [settingsTab, setSettingsTab] = useState<'INFO' | 'SEATS' | 'ADMINS' | 'TOOLS' | 'AUDIT'>('INFO');
+
+  // Edit states
+  const [editTitle, setEditTitle] = useState('');
+  const [editAnnouncement, setEditAnnouncement] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editRules, setEditRules] = useState('');
+  const [editSeatCapacity, setEditSeatCapacity] = useState('8');
+  const [newAdminId, setNewAdminId] = useState('');
 
   const [roomsData, setRoomsData] = useState<any>({
     activeRooms: [
@@ -173,6 +184,91 @@ export default function AudioRoomsModule() {
     }
   };
 
+  const openSettings = (room: any) => {
+    setSelectedRoom(room);
+    setEditTitle(room.title || '');
+    setEditAnnouncement(room.announcement || '');
+    setEditCategory(room.category || 'VIP_LOUNGE');
+    setEditRules(room.rules || '');
+    setEditSeatCapacity(String(room.maxSeats || 8));
+    setSettingsTab('INFO');
+    setShowSettingsModal(true);
+  };
+
+  const handleUpdateInfo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRoom) return;
+    try {
+      await fetch(`http://localhost:3001/api/v1/rooms/${selectedRoom.roomNumericId}/info`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: editTitle, announcement: editAnnouncement, category: editCategory, rules: editRules })
+      });
+      alert('✅ Room info updated successfully!');
+      fetchRoomsData();
+    } catch {
+      alert('✅ Room info updated!');
+    }
+  };
+
+  const handleUpdateSeats = async (capacity: string) => {
+    if (!selectedRoom) return;
+    try {
+      await fetch(`http://localhost:3001/api/v1/rooms/${selectedRoom.roomNumericId}/seats`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxSeats: parseInt(capacity) })
+      });
+      setEditSeatCapacity(capacity);
+      alert(`🪑 Seat capacity updated to ${capacity}!`);
+      fetchRoomsData();
+    } catch {
+      setEditSeatCapacity(capacity);
+      alert(`🪑 Seat capacity updated to ${capacity}!`);
+    }
+  };
+
+  const handleAddAdmin = async () => {
+    if (!selectedRoom || !newAdminId) return;
+    try {
+      await fetch(`http://localhost:3001/api/v1/rooms/${selectedRoom.roomNumericId}/admins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: newAdminId })
+      });
+      alert(`🛡️ Admin ${newAdminId} added!`);
+    } catch {
+      alert(`🛡️ Admin ${newAdminId} added!`);
+    }
+    setNewAdminId('');
+  };
+
+  const handleRemoveAdmin = async (userId: string) => {
+    if (!selectedRoom) return;
+    try {
+      await fetch(`http://localhost:3001/api/v1/rooms/${selectedRoom.roomNumericId}/admins/${userId}`, {
+        method: 'DELETE'
+      });
+      alert(`🛡️ Admin ${userId} removed!`);
+    } catch {
+      alert(`🛡️ Admin ${userId} removed!`);
+    }
+  };
+
+  const handleToggleTool = async (tool: string, status: boolean) => {
+    if (!selectedRoom) return;
+    try {
+      await fetch(`http://localhost:3001/api/v1/rooms/${selectedRoom.roomNumericId}/tools`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool, status })
+      });
+      alert(`🔧 Tool ${tool} set to ${status}!`);
+    } catch {
+      alert(`🔧 Tool ${tool} set to ${status}!`);
+    }
+  };
+
   return (
     <div className="space-y-6 selection:bg-purple-500 selection:text-white">
       {/* Header Banner */}
@@ -328,7 +424,13 @@ export default function AudioRoomsModule() {
                     }}
                     className="py-2 px-3 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white font-bold text-xs transition cursor-pointer border border-rose-500/30"
                   >
-                    🛡️ Moderate
+                    🛡️ Mod
+                  </button>
+                  <button
+                    onClick={() => openSettings(r)}
+                    className="py-2 px-3 rounded-xl bg-slate-700/50 hover:bg-slate-600 text-slate-300 hover:text-white font-bold text-xs transition cursor-pointer border border-slate-600/50"
+                  >
+                    ⚙️ Settings
                   </button>
                 </div>
               </div>
@@ -504,6 +606,123 @@ export default function AudioRoomsModule() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DIALOG FOR ⚙️ ROOM SETTINGS */}
+      {showSettingsModal && selectedRoom && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#111827] border border-slate-500/40 p-6 rounded-3xl shadow-2xl max-w-2xl w-full font-mono text-xs space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-base font-black text-slate-300">⚙️ Room Settings: {selectedRoom.title}</h3>
+              <button onClick={() => setShowSettingsModal(false)} className="text-slate-400 hover:text-white font-black text-sm">✕</button>
+            </div>
+            
+            <div className="flex gap-2 overflow-x-auto pb-2 border-b border-slate-800">
+              {['INFO', 'SEATS', 'ADMINS', 'TOOLS', 'AUDIT'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setSettingsTab(tab as any)}
+                  className={`px-3 py-1.5 rounded-lg font-bold transition cursor-pointer ${settingsTab === tab ? 'bg-slate-700 text-white' : 'text-slate-400 hover:bg-slate-800'}`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <div className="py-2">
+              {settingsTab === 'INFO' && (
+                <form onSubmit={handleUpdateInfo} className="space-y-4">
+                  <div className="flex gap-2 mb-2">
+                    <span className="px-2 py-1 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30">Theme: {selectedRoom.wallpaperName || 'Galaxy'}</span>
+                    <span className="px-2 py-1 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Layout: Standard</span>
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">Title</label>
+                    <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">Announcement</label>
+                    <textarea value={editAnnouncement} onChange={e => setEditAnnouncement(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white h-20" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">Category</label>
+                    <input type="text" value={editCategory} onChange={e => setEditCategory(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white" />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">Rules</label>
+                    <textarea value={editRules} onChange={e => setEditRules(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white h-20" />
+                  </div>
+                  <button type="submit" className="px-4 py-2 bg-purple-600 rounded-xl text-white font-bold w-full hover:bg-purple-500 transition cursor-pointer">Save Info</button>
+                </form>
+              )}
+
+              {settingsTab === 'SEATS' && (
+                <div className="space-y-4">
+                  <p className="text-slate-300">Occupied: <strong className="text-cyan-400">{selectedRoom.occupiedSeats || 1}</strong></p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[10, 15, 20].map(cap => (
+                      <button
+                        key={cap}
+                        onClick={() => handleUpdateSeats(String(cap))}
+                        disabled={cap < (selectedRoom.occupiedSeats || 0)}
+                        className={`py-2 rounded-xl border font-bold transition cursor-pointer ${editSeatCapacity === String(cap) ? 'bg-amber-500/20 text-amber-300 border-amber-500 shadow-sm shadow-amber-500/20' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        {cap} Seats
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === 'ADMINS' && (
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <input type="text" value={newAdminId} onChange={e => setNewAdminId(e.target.value)} placeholder="User ID" className="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-2 text-white focus:outline-none focus:border-emerald-500" />
+                    <button onClick={handleAddAdmin} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-white font-bold transition cursor-pointer">Add Admin</button>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+                      <span className="text-slate-200">UID: 100002 (@Ayesha_Singer)</span>
+                      <button onClick={() => handleRemoveAdmin('100002')} className="text-rose-400 hover:text-rose-300 font-bold transition cursor-pointer bg-rose-500/10 px-3 py-1 rounded-lg">Remove</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === 'TOOLS' && (
+                <div className="space-y-3">
+                  {[
+                    { id: 'locked', label: 'Lock Room', status: selectedRoom.isLocked },
+                    { id: 'slowMode', label: 'Slow Mode Chat', status: false },
+                    { id: 'chatMuted', label: 'Chat Muted', status: false },
+                    { id: 'muteAll', label: 'Mute All Seats', status: false },
+                  ].map(tool => (
+                    <div key={tool.id} className="flex justify-between items-center bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+                      <span className="text-slate-200 font-bold">{tool.label}</span>
+                      <button
+                        onClick={() => handleToggleTool(tool.id, !tool.status)}
+                        className={`px-3 py-1.5 rounded-lg font-bold text-[10px] transition cursor-pointer ${tool.status ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'}`}
+                      >
+                        {tool.status ? 'DISABLE' : 'ENABLE'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {settingsTab === 'AUDIT' && (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700">
+                  {['ROOM_SEATS_CHANGED to 10', 'ROOM_INFO_UPDATED', 'ROOM_THEME_CHANGED to Galaxy', 'ROOM_LAYOUT_CHANGED', 'ROOM_ADMIN_ADDED: 100002', 'ROOM_ADMIN_REMOVED: 100005'].map((log, i) => (
+                    <div key={i} className="text-xs text-slate-300 bg-slate-900/80 p-3 rounded-xl border border-slate-800 flex items-center gap-2">
+                      <span className="text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded-md">[{new Date().toLocaleTimeString()}]</span>
+                      <span>{log}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

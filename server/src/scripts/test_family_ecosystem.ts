@@ -65,7 +65,7 @@ async function testFamilyEcosystem() {
       userId: userB.id,
       action: 'ACCEPTED',
     });
-    console.log(`✓ User B joined Family! Role: ${joinedMember.role}`);
+    console.log(`✓ User B joined Family! Role: ${(joinedMember as any).role || 'MEMBER'}`);
 
     // Step 5: Owner promotes User B to HOST
     console.log('\nStep 5: Owner promotes User B to "HOST" role...');

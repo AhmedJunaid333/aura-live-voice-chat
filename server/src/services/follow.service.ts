@@ -124,6 +124,20 @@ export class FollowService {
       throw new Error('Target user not found.');
     }
 
+    // Check block status
+    const isBlocked = await prisma.blockedUser.findFirst({
+      where: {
+        OR: [
+          { blockerId: followerId, blockedId: targetUser.id },
+          { blockerId: targetUser.id, blockedId: followerId },
+        ],
+      },
+    });
+
+    if (isBlocked) {
+      throw new Error('Action blocked by privacy settings.');
+    }
+
     const existing = await prisma.follow.findUnique({
       where: {
         followerId_followingId: {

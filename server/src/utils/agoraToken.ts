@@ -1,4 +1,5 @@
-import crypto from 'crypto';
+// @ts-ignore
+import { RtcTokenBuilder2, RtcRole as AgoraRtcRole } from 'agora-token';
 import { ENV } from '../config/env.js';
 
 export enum RtcRole {
@@ -18,22 +19,23 @@ export function generateAgoraRtcToken(
   const appId = ENV.AGORA_APP_ID;
   const appCertificate = ENV.AGORA_APP_CERTIFICATE;
   const currentTimestamp = Math.floor(Date.now() / 1000);
-  const privilegeExpiredTs = currentTimestamp + expireTimeSeconds;
+  const expiresAt = currentTimestamp + expireTimeSeconds;
 
-  // Simple token signature mechanism for RTC channel authorization
-  const rawSignature = `${appId}${channelName}${uid}${role}${privilegeExpiredTs}`;
-  const signature = crypto
-    .createHmac('sha256', appCertificate)
-    .update(rawSignature)
-    .digest('hex');
-
-  const token = `AGORA_V1_${appId}_${signature}_${privilegeExpiredTs}`;
+  const token = RtcTokenBuilder2.buildTokenWithUid(
+    appId,
+    appCertificate,
+    channelName,
+    uid,
+    role as unknown as AgoraRtcRole,
+    expireTimeSeconds,
+    expireTimeSeconds
+  );
 
   return {
     token,
     appId,
     channel: channelName,
     uid,
-    expiresAt: privilegeExpiredTs,
+    expiresAt,
   };
 }

@@ -21,6 +21,8 @@ import { visitorRouter } from './routes/visitor.routes.js';
 import { notificationRouter } from './routes/notification.routes.js';
 import { storeRouter } from './routes/store.routes.js';
 import { familyRouter } from './routes/family.routes.js';
+import { momentRouter } from './routes/moment.routes.js';
+import { frameRouter } from './routes/frame.routes.js';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -31,8 +33,9 @@ const io = initSocketServer(httpServer);
 // Security & Parsing Middleware
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(corsMiddleware);
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use('/uploads', express.static('uploads'));
 app.use('/api', apiLimiter);
 
 // Health Check Endpoint
@@ -53,6 +56,8 @@ app.use('/api/users', usersRouter);
 app.use('/api/v1/users', usersRouter);
 app.use('/api/live', liveRouter);
 app.use('/api/v1/live', liveRouter);
+app.use('/api/rooms', liveRouter);
+app.use('/api/v1/rooms', liveRouter);
 app.use('/api/reseller', resellerRouter);
 app.use('/api/v1/reseller', resellerRouter);
 app.use('/api/admin', adminRouter);
@@ -69,6 +74,10 @@ app.use('/api/v1/notifications', notificationRouter);
 app.use('/api/v1/store', storeRouter);
 app.use('/api/families', familyRouter);
 app.use('/api/v1/families', familyRouter);
+app.use('/api/moments', momentRouter);
+app.use('/api/v1/moments', momentRouter);
+app.use('/api/frames', frameRouter);
+app.use('/api/v1/frames', frameRouter);
 
 
 // Global Error Handler

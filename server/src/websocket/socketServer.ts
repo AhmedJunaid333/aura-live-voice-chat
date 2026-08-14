@@ -145,6 +145,16 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       });
     });
 
+    // ⚙️ Room Settings Relays
+    socket.on('room.settings.update', (data: { roomId: string, action: string, payload: any }) => {
+      io.to(`room_${data.roomId}`).emit(data.action, {
+        roomId: data.roomId,
+        ...data.payload,
+        updatedBy: numericId,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
     // Live Room Comment
     socket.on('live.comment', (data: { roomId: string; comment: string }) => {
       io.to(`room_${data.roomId}`).emit('live.comment', {

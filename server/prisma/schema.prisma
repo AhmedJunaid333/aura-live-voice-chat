@@ -59,6 +59,7 @@ model User {
   withdrawalRequests    WithdrawalRequest[]     @relation("UserWithdrawals")
   following             Follow[]                @relation("UserFollowers")
   followers             Follow[]                @relation("UserFollowing")
+  activeViewers         LiveRoomViewer[]
   visitsMade            ProfileVisit[]          @relation("UserVisitsMade")
   visitsReceived        ProfileVisit[]          @relation("UserVisitsReceived")
   notifications         Notification[]          @relation("NotificationRecipient")
@@ -78,6 +79,19 @@ model User {
   mutedBy               MutedUser[]             @relation("UserMuted")
   userReportsFiled      UserReport[]            @relation("UserReportedBy")
   userReportsReceived   UserReport[]            @relation("UserReportedTarget")
+  restrictions          AccountRestriction[]    @relation("UserRestrictions")
+  createdRestrictions   AccountRestriction[]    @relation("AdminCreatedRestrictions")
+  roomAdminRoles        LiveRoomAdmin[]         @relation("UserRoomAdmin")
+  createdRoomAdmins     LiveRoomAdmin[]         @relation("AdminCreatedRoomAdmins")
+  occupiedSeats         LiveRoomSeat[]          @relation("UserOccupiedSeats")
+  moments               Moment[]                @relation("UserMoments")
+  momentLikes           MomentLike[]            @relation("UserMomentLikes")
+  momentComments        MomentComment[]         @relation("UserMomentComments")
+  momentShares          MomentShare[]           @relation("UserMomentShares")
+  momentReports         MomentReport[]          @relation("UserMomentReports")
+  equippedFrameId       String?
+  frameOwnerships       AvatarFrameOwnership[]  @relation("UserFrameOwnerships")
+  framePurchases        AvatarFramePurchase[]   @relation("UserFramePurchases")
 
   @@index([numericId])
   @@index([username])
@@ -121,11 +135,22 @@ model WalletTransaction {
 model ResellerAccount {
   id                String            @id @default(uuid())
   userId            Int               @unique
+  resellerCode      String?           @unique
+  displayName       String?
   role              String            @default("DIAMOND_RESELLER")
   status            String            @default("ACTIVE")
-  diamondBalance    Int               @default(0)
-  diamondsReceived  Int               @default(0)
+  diamondBalance    Int               @default(500000)
+  diamondsReceived  Int               @default(500000)
   diamondsSent      Int               @default(0)
+  whatsappNumber    String?           @default("+923001234567")
+  phone             String?           @default("+923001234567")
+  minPurchase       Int               @default(10000)
+  startingRate      String?           @default("10,000 Diamonds = Rs. 1,500")
+  paymentMethods    String?           @default("Easypaisa, JazzCash, Bank Transfer")
+  packages          String?           @default("[{\"diamonds\":10000,\"price\":\"Rs. 1,500\",\"priceUsd\":5.0},{\"diamonds\":50000,\"price\":\"Rs. 7,250\",\"priceUsd\":25.0},{\"diamonds\":100000,\"price\":\"Rs. 14,000\",\"priceUsd\":50.0},{\"diamonds\":500000,\"price\":\"Rs. 68,000\",\"priceUsd\":240.0}]")
+  operatingInfo     String?           @default("Instant delivery within 2-5 minutes via authorized Reseller Portal. Official KYC verified.")
+  isVerified        Boolean           @default(true)
+  displayOrder      Int               @default(0)
   assignedAt        DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -241,9 +266,17 @@ model LiveRoom {
   id                String            @id @default(uuid())
   roomId            String            @unique
   title             String
+  description       String?
+  announcement      String?
+  cover             String?
+  tags              String?
+  language          String            @default("English")
+  rules             String?
   category          String            @default("Music")
+  countryCode       String            @default("PK")
   hostId            Int
   seatCount         Int               @default(10)
+  seatLayoutType    String            @default("2_ROWS") // 1_ROW, 2_ROWS, CIRCULAR, GRID, PREMIUM
   status            String            @default("LIVE") // LIVE, LOCKED, ENDED
   isLocked          Boolean           @default(false)
   lockedAt          DateTime?
@@ -252,10 +285,18 @@ model LiveRoom {
   lockPassword      String?
   allowsJoinRequest Boolean           @default(true)
   listenersCount    Int               @default(0)
+  viewerCount       Int               @default(0)
+  rankingScore      Float             @default(0)
+  likesCount        Int               @default(0)
   isPK              Boolean           @default(false)
   theme             String            @default("galaxy")
   familyId          String?
   isFamilyOnly      Boolean           @default(false)
+  slowMode          Boolean           @default(false)
+  slowModeSeconds   Int               @default(3)
+  chatMuted         Boolean           @default(false)
+  muteAllMics        Boolean           @default(false)
+  endedAt           DateTime?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
@@ -263,6 +304,65 @@ model LiveRoom {
   family            Family?           @relation(fields: [familyId], references: [id], onDelete: SetNull)
   giftTxns          GiftTransaction[]
   joinRequests      RoomJoinRequest[]
+  roomAdmins        LiveRoomAdmin[]
+  seats             LiveRoomSeat[]
+  viewers           LiveRoomViewer[]
+}
+
+model LiveRoomViewer {
+  id          String    @id @default(uuid())
+  roomId      String
+  userId      Int
+  socketId    String?
+  countryCode String?   @default("PK")
+  joinedAt    DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
+
+  room        LiveRoom  @relation(fields: [roomId], references: [roomId], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+}
+
+model LiveRoomSeat {
+  id          String    @id @default(uuid())
+  roomId      String
+  seatNumber  Int       // 1 to 20
+  userId      Int?
+  status      String    @default("EMPTY") // "EMPTY" | "OCCUPIED" | "LOCKED" | "MUTED" | "SPEAKING"
+  isMuted     Boolean   @default(false)
+  isLocked    Boolean   @default(false)
+  isHost      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  room        LiveRoom  @relation(fields: [roomId], references: [roomId], onDelete: Cascade)
+  user        User?     @relation("UserOccupiedSeats", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([roomId, seatNumber])
+  @@index([roomId])
+  @@index([userId])
+}
+
+model LiveRoomAdmin {
+  id          String    @id @default(uuid())
+  roomId      String
+  userId      Int
+  role        String    @default("ROOM_ADMIN") // "ROOM_ADMIN" | "ROOM_MODERATOR"
+  permissions String    @default("manage_room,manage_seats,mute_users,kick_users,ban_users,manage_chat,edit_info")
+  createdBy   Int
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  room        LiveRoom  @relation(fields: [roomId], references: [roomId], onDelete: Cascade)
+  user        User      @relation("UserRoomAdmin", fields: [userId], references: [id], onDelete: Cascade)
+  adminActor  User      @relation("AdminCreatedRoomAdmins", fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
 }
 
 model RoomJoinRequest {
@@ -481,6 +581,25 @@ model BlockedUser {
   @@unique([blockerId, blockedId])
 }
 
+model AccountRestriction {
+  id            String    @id @default(uuid())
+  userId        Int
+  type          String    // "SUSPENDED" | "BLOCKED" | "BANNED"
+  reason        String
+  createdBy     Int?
+  expiresAt     DateTime?
+  status        String    @default("ACTIVE") // "ACTIVE" | "EXPIRED" | "REVOKED"
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user          User      @relation("UserRestrictions", fields: [userId], references: [id], onDelete: Cascade)
+  admin         User?     @relation("AdminCreatedRestrictions", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
 model AuditLog {
   id            String    @id @default(uuid())
   actorId       Int?
@@ -671,5 +790,219 @@ model UserReport {
   @@index([reporterId])
   @@index([reportedUserId])
   @@index([status])
+}
+
+model Moment {
+  id                String          @id @default(uuid())
+  numericId         Int             @unique
+  authorId          Int
+  mediaUrl          String
+  mediaType         String          @default("IMAGE") // IMAGE, VIDEO, TEXT
+  thumbnailUrl      String?
+  caption           String?
+  hashtags          String?         // JSON array or comma separated
+  mentions          String?         // JSON array
+  privacy           String          @default("PUBLIC") // PUBLIC, FOLLOWERS, PRIVATE
+  countryCode       String          @default("PK")
+  status            String          @default("PUBLISHED") // PUBLISHED, RESTRICTED, DELETED, PENDING_REVIEW
+  moderationStatus  String          @default("APPROVED") // APPROVED, FLAGGED, REJECTED, PENDING
+  featured          Boolean         @default(false)
+  featuredAt        DateTime?
+  rankingScore      Float           @default(0.0)
+  viewCount         Int             @default(0)
+  likeCount         Int             @default(0)
+  commentCount      Int             @default(0)
+  shareCount        Int             @default(0)
+  reportsCount      Int             @default(0)
+  assignedModerator String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  expiresAt         DateTime?
+
+  author            User            @relation("UserMoments", fields: [authorId], references: [id], onDelete: Cascade)
+  likes             MomentLike[]
+  comments          MomentComment[]
+  shares            MomentShare[]
+  views             MomentView[]
+  reports           MomentReport[]
+
+  @@index([authorId])
+  @@index([status])
+  @@index([featured])
+  @@index([countryCode])
+  @@index([rankingScore])
+  @@index([createdAt])
+}
+
+model MomentLike {
+  id        String   @id @default(uuid())
+  momentId  String
+  userId    Int
+  createdAt DateTime @default(now())
+
+  moment    Moment   @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  user      User     @relation("UserMomentLikes", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, momentId])
+  @@index([momentId])
+  @@index([userId])
+}
+
+model MomentComment {
+  id        String   @id @default(uuid())
+  momentId  String
+  userId    Int
+  text      String
+  status    String   @default("ACTIVE") // ACTIVE, HIDDEN, DELETED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  moment    Moment   @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  user      User     @relation("UserMomentComments", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([momentId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model MomentShare {
+  id        String   @id @default(uuid())
+  momentId  String
+  userId    Int
+  platform  String   @default("INTERNAL") // INTERNAL, CHAT, WHATSAPP, COPY_LINK
+  createdAt DateTime @default(now())
+
+  moment    Moment   @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  user      User     @relation("UserMomentShares", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([momentId])
+  @@index([userId])
+}
+
+model MomentView {
+  id        String   @id @default(uuid())
+  momentId  String
+  userId    Int?
+  viewerIp  String?
+  createdAt DateTime @default(now())
+
+  moment    Moment   @relation(fields: [momentId], references: [id], onDelete: Cascade)
+
+  @@index([momentId])
+  @@index([userId])
+}
+
+model MomentReport {
+  id          String   @id @default(uuid())
+  momentId    String
+  reporterId  Int
+  reason      String
+  details     String?
+  status      String   @default("PENDING") // PENDING, RESOLVED, DISMISSED
+  createdAt   DateTime @default(now())
+
+  moment      Moment   @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  reporter    User     @relation("UserMomentReports", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([momentId])
+  @@index([reporterId])
+  @@index([status])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ████ AVATAR FRAME SYSTEM — Complete Cosmetic Frame Management ████
+// ═══════════════════════════════════════════════════════════════════════════════
+
+model AvatarFrame {
+  id                  String    @id @default(uuid())
+  name                String
+  description         String?
+  slug                String    @unique
+  assetUrl            String    // PNG/WebP/SVG URL for the frame overlay
+  thumbnailUrl        String?   // Small preview thumbnail
+  previewUrl          String?   // Full-size preview
+  animationType       String    @default("static") // static, lottie, svga
+  category            String    @default("CLASSIC") // CLASSIC, VIP, PREMIUM, LUXURY, EVENT, FESTIVAL, FAMILY, ACHIEVEMENT, LEVEL, LIMITED_EDITION, SEASONAL, COUNTRY, SPECIAL
+  price               Int       @default(0)         // Diamond price
+  currency            String    @default("DIAMOND") // DIAMOND or COIN
+  durationDays        Int?      // null = permanent
+  isPermanent         Boolean   @default(false)
+  requiredVipLevel    Int       @default(0)    // Minimum VIP tier to purchase
+  requiredUserLevel   Int       @default(0)    // Minimum user level to purchase
+  countryAvailability String?   // JSON array of country codes, null = worldwide
+  rarity              String    @default("COMMON") // COMMON, RARE, EPIC, LEGENDARY, MYTHIC
+  status              String    @default("DRAFT")  // DRAFT, ACTIVE, INACTIVE, ARCHIVED
+  isFeatured          Boolean   @default(false)
+  sortOrder           Int       @default(0)
+  startAt             DateTime? // Time-limited availability start
+  endAt               DateTime? // Time-limited availability end
+  salesCount          Int       @default(0)
+  ownersCount         Int       @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  ownerships          AvatarFrameOwnership[]
+  purchases           AvatarFramePurchase[]
+  grants              AvatarFrameGrant[]
+
+  @@index([category])
+  @@index([status])
+  @@index([rarity])
+  @@index([isFeatured])
+  @@index([sortOrder])
+}
+
+model AvatarFrameOwnership {
+  id            String    @id @default(uuid())
+  userId        Int
+  frameId       String
+  source        String    @default("PURCHASE") // PURCHASE, VIP_REWARD, LEVEL_REWARD, EVENT_REWARD, ADMIN_GRANT, FAMILY_REWARD
+  status        String    @default("ACTIVE")   // ACTIVE, EXPIRED, REVOKED
+  isEquipped    Boolean   @default(false)
+  acquiredAt    DateTime  @default(now())
+  expiresAt     DateTime? // null = permanent
+  revokedAt     DateTime?
+  revokedReason String?
+
+  user          User          @relation("UserFrameOwnerships", fields: [userId], references: [id], onDelete: Cascade)
+  frame         AvatarFrame   @relation(fields: [frameId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, frameId, source])
+  @@index([userId])
+  @@index([frameId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model AvatarFramePurchase {
+  id              String    @id @default(uuid())
+  userId          Int
+  frameId         String
+  amount          Int       // Diamond/Coin amount paid
+  currency        String    @default("DIAMOND")
+  idempotencyKey  String    @unique
+  status          String    @default("COMPLETED") // COMPLETED, FAILED, REFUNDED
+  createdAt       DateTime  @default(now())
+
+  user            User          @relation("UserFramePurchases", fields: [userId], references: [id], onDelete: Cascade)
+  frame           AvatarFrame   @relation(fields: [frameId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([frameId])
+}
+
+model AvatarFrameGrant {
+  id            String    @id @default(uuid())
+  adminId       Int       // Admin who granted
+  userId        Int       // User who received
+  frameId       String
+  durationDays  Int?      // null = permanent
+  reason        String?
+  createdAt     DateTime  @default(now())
+
+  frame         AvatarFrame @relation(fields: [frameId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([frameId])
 }
 

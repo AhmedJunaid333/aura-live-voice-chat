@@ -107,3 +107,65 @@ resellerRouter.get('/portal', authenticateToken, requireReseller, async (req: Au
     next(error);
   }
 });
+
+// 💎 Public / Wallet: Get all Active & Verified Coinsellors
+resellerRouter.get('/active-coinsellors', async (req, res, next) => {
+  try {
+    const coinsellors = await ResellerService.getActiveCoinsellors();
+    res.status(200).json({
+      success: true,
+      data: coinsellors,
+      total: coinsellors.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 💎 Admin / Reseller: Update Coinsellor Profile & Settings
+resellerRouter.put('/coinsellors/:numericId', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const numericId = parseInt(req.params.numericId as string, 10);
+    const {
+      displayName,
+      whatsappNumber,
+      phone,
+      startingRate,
+      minPurchase,
+      paymentMethods,
+      packages,
+      status,
+      operatingInfo,
+      displayOrder,
+    } = req.body;
+
+    const user = await prisma.user.findUnique({
+      where: { numericId },
+      include: { resellerAccount: true },
+    });
+
+    if (!user || !user.resellerAccount) {
+      return res.status(404).json({ success: false, message: 'Coinsellor not found.' });
+    }
+
+    const updatedAccount = await prisma.resellerAccount.update({
+      where: { id: user.resellerAccount.id },
+      data: {
+        displayName: displayName ?? user.resellerAccount.displayName,
+        whatsappNumber: whatsappNumber ?? user.resellerAccount.whatsappNumber,
+        phone: phone ?? user.resellerAccount.phone,
+        startingRate: startingRate ?? user.resellerAccount.startingRate,
+        minPurchase: minPurchase ? parseInt(minPurchase, 10) : user.resellerAccount.minPurchase,
+        paymentMethods: paymentMethods ?? user.resellerAccount.paymentMethods,
+        packages: typeof packages === 'object' ? JSON.stringify(packages) : packages ?? user.resellerAccount.packages,
+        status: status ?? user.resellerAccount.status,
+        operatingInfo: operatingInfo ?? user.resellerAccount.operatingInfo,
+        displayOrder: displayOrder !== undefined ? parseInt(displayOrder, 10) : user.resellerAccount.displayOrder,
+      },
+    });
+
+    res.status(200).json({ success: true, data: updatedAccount });
+  } catch (error) {
+    next(error);
+  }
+});

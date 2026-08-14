@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
 import { ENV } from '../config/env.js';
 
+import crypto from 'crypto';
+
 export interface TokenPayload {
   userId: number;
   numericId: number;
@@ -11,12 +13,14 @@ export interface TokenPayload {
 export function generateAccessToken(payload: TokenPayload): string {
   return jwt.sign(payload, ENV.JWT_ACCESS_SECRET, {
     expiresIn: ENV.JWT_ACCESS_EXPIRES_IN as jwt.SignOptions['expiresIn'],
+    jwtid: crypto.randomUUID(),
   });
 }
 
 export function generateRefreshToken(payload: TokenPayload): string {
   return jwt.sign(payload, ENV.JWT_REFRESH_SECRET, {
     expiresIn: ENV.JWT_REFRESH_EXPIRES_IN as jwt.SignOptions['expiresIn'],
+    jwtid: crypto.randomUUID(),
   });
 }
 
