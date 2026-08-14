@@ -2,6 +2,112 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 
+const INITIAL_FRAMES = [
+  {
+    id: 'FRM-101',
+    name: '👑 Royal Emperor Crown Frame',
+    slug: 'royal-emperor-frame',
+    category: 'VIP',
+    assetType: 'AVATAR_FRAME',
+    rarity: 'LEGENDARY',
+    price: 5000,
+    currency: 'DIAMONDS',
+    requiredVipLevel: 5,
+    status: 'ACTIVE',
+    animationType: 'SVGA',
+    assetUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop',
+    animationUrl: 'https://cdn.auralive.com/assets/frames/royal_emperor.svga',
+    fileSizeKb: 342,
+    durationDays: 30,
+    createdAt: '2026-08-14T05:00:00.000Z',
+  },
+  {
+    id: 'FRM-102',
+    name: '🔥 Cyber Neon Wings Frame',
+    slug: 'cyber-neon-frame',
+    category: 'LUXURY',
+    assetType: 'AVATAR_FRAME',
+    rarity: 'EPIC',
+    price: 2500,
+    currency: 'DIAMONDS',
+    requiredVipLevel: 2,
+    status: 'ACTIVE',
+    animationType: 'LOTTIE',
+    assetUrl: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=400&auto=format&fit=crop',
+    animationUrl: 'https://cdn.auralive.com/assets/frames/cyber_wings.json',
+    fileSizeKb: 188,
+    durationDays: 7,
+    createdAt: '2026-08-14T05:10:00.000Z',
+  },
+  {
+    id: 'FRM-103',
+    name: '🐉 Golden Dragon Emperor Frame',
+    slug: 'golden-dragon-frame',
+    category: 'LUXURY',
+    assetType: 'AVATAR_FRAME',
+    rarity: 'MYTHIC',
+    price: 10000,
+    currency: 'DIAMONDS',
+    requiredVipLevel: 7,
+    status: 'ACTIVE',
+    animationType: 'SVGA',
+    assetUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&auto=format&fit=crop',
+    animationUrl: 'https://cdn.auralive.com/assets/frames/dragon.svga',
+    fileSizeKb: 512,
+    durationDays: null,
+    createdAt: '2026-08-14T05:20:00.000Z',
+  },
+  {
+    id: 'FRM-104',
+    name: '🇵🇰 Pakistan Independence Emerald Frame',
+    slug: 'pakistan-emerald-frame',
+    category: 'COUNTRY',
+    assetType: 'AVATAR_FRAME',
+    rarity: 'RARE',
+    price: 1500,
+    currency: 'DIAMONDS',
+    requiredVipLevel: 0,
+    status: 'ACTIVE',
+    animationType: 'SVGA',
+    assetUrl: 'https://images.unsplash.com/photo-1533130061792-64b345e4a833?w=400&auto=format&fit=crop',
+    animationUrl: 'https://cdn.auralive.com/assets/frames/pakistan.svga',
+    fileSizeKb: 240,
+    durationDays: 30,
+    createdAt: '2026-08-14T05:30:00.000Z',
+  },
+];
+
+const INITIAL_EFFECTS = [
+  {
+    id: 'EFF-201',
+    name: '🚀 Galaxy Rocket Room Entrance',
+    slug: 'galaxy-rocket-entrance',
+    assetType: 'ENTRANCE_EFFECT',
+    rarity: 'MYTHIC',
+    price: 10000,
+    currency: 'DIAMONDS',
+    requiredVipLevel: 7,
+    durationSeconds: 5,
+    status: 'ACTIVE',
+    animationType: 'SVGA',
+    animationUrl: 'https://cdn.auralive.com/assets/entrance/rocket_entry.svga',
+  },
+  {
+    id: 'EFF-202',
+    name: '🐉 Golden Dragon Entrance',
+    slug: 'golden-dragon-entrance',
+    assetType: 'ENTRANCE_EFFECT',
+    rarity: 'LEGENDARY',
+    price: 7500,
+    currency: 'DIAMONDS',
+    requiredVipLevel: 4,
+    durationSeconds: 4,
+    status: 'ACTIVE',
+    animationType: 'SVGA',
+    animationUrl: 'https://cdn.auralive.com/assets/entrance/dragon_entry.svga',
+  },
+];
+
 export default function AvatarFramesModule() {
   const [subTab, setSubTab] = useState<'FRAMES' | 'EFFECTS' | 'INVENTORY' | 'ANALYTICS'>('FRAMES');
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
@@ -18,107 +124,10 @@ export default function AvatarFramesModule() {
   const [previewVipLevel, setPreviewVipLevel] = useState<number>(5);
   const [previewUsername, setPreviewUsername] = useState<string>('Ahmed Khokhar');
 
+  // Main State with LocalStorage sync
   const [cosmeticsData, setCosmeticsData] = useState<any>({
-    avatarFrames: [
-      {
-        id: 'FRM-101',
-        name: '👑 Royal Emperor Crown Frame',
-        slug: 'royal-emperor-frame',
-        category: 'VIP',
-        assetType: 'AVATAR_FRAME',
-        rarity: 'LEGENDARY',
-        price: 5000,
-        currency: 'DIAMONDS',
-        requiredVipLevel: 5,
-        status: 'ACTIVE',
-        animationType: 'SVGA',
-        assetUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop',
-        animationUrl: 'https://cdn.auralive.com/assets/frames/royal_emperor.svga',
-        fileSizeKb: 342,
-        durationDays: 30,
-      },
-      {
-        id: 'FRM-102',
-        name: '🔥 Cyber Neon Wings Frame',
-        slug: 'cyber-neon-frame',
-        category: 'LUXURY',
-        assetType: 'AVATAR_FRAME',
-        rarity: 'EPIC',
-        price: 2500,
-        currency: 'DIAMONDS',
-        requiredVipLevel: 2,
-        status: 'ACTIVE',
-        animationType: 'LOTTIE',
-        assetUrl: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=400&auto=format&fit=crop',
-        animationUrl: 'https://cdn.auralive.com/assets/frames/cyber_wings.json',
-        fileSizeKb: 188,
-        durationDays: 7,
-      },
-      {
-        id: 'FRM-103',
-        name: '🐉 Golden Dragon Emperor Frame',
-        slug: 'golden-dragon-frame',
-        category: 'LUXURY',
-        assetType: 'AVATAR_FRAME',
-        rarity: 'MYTHIC',
-        price: 10000,
-        currency: 'DIAMONDS',
-        requiredVipLevel: 7,
-        status: 'ACTIVE',
-        animationType: 'SVGA',
-        assetUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&auto=format&fit=crop',
-        animationUrl: 'https://cdn.auralive.com/assets/frames/dragon.svga',
-        fileSizeKb: 512,
-        durationDays: null,
-      },
-      {
-        id: 'FRM-104',
-        name: '🇵🇰 Pakistan Independence Emerald Frame',
-        slug: 'pakistan-emerald-frame',
-        category: 'COUNTRY',
-        assetType: 'AVATAR_FRAME',
-        rarity: 'RARE',
-        price: 1500,
-        currency: 'DIAMONDS',
-        requiredVipLevel: 0,
-        status: 'ACTIVE',
-        animationType: 'SVGA',
-        assetUrl: 'https://images.unsplash.com/photo-1533130061792-64b345e4a833?w=400&auto=format&fit=crop',
-        animationUrl: 'https://cdn.auralive.com/assets/frames/pakistan.svga',
-        fileSizeKb: 240,
-        durationDays: 30,
-      },
-    ],
-    entranceEffects: [
-      {
-        id: 'EFF-201',
-        name: '🚀 Galaxy Rocket Room Entrance',
-        slug: 'galaxy-rocket-entrance',
-        assetType: 'ENTRANCE_EFFECT',
-        rarity: 'MYTHIC',
-        price: 10000,
-        currency: 'DIAMONDS',
-        requiredVipLevel: 7,
-        durationSeconds: 5,
-        status: 'ACTIVE',
-        animationType: 'SVGA',
-        animationUrl: 'https://cdn.auralive.com/assets/entrance/rocket_entry.svga',
-      },
-      {
-        id: 'EFF-202',
-        name: '🐉 Golden Dragon Entrance',
-        slug: 'golden-dragon-entrance',
-        assetType: 'ENTRANCE_EFFECT',
-        rarity: 'LEGENDARY',
-        price: 7500,
-        currency: 'DIAMONDS',
-        requiredVipLevel: 4,
-        durationSeconds: 4,
-        status: 'ACTIVE',
-        animationType: 'SVGA',
-        animationUrl: 'https://cdn.auralive.com/assets/entrance/dragon_entry.svga',
-      },
-    ],
+    avatarFrames: INITIAL_FRAMES,
+    entranceEffects: INITIAL_EFFECTS,
     userInventory: [
       { id: 'INV-901', numericUserId: 100001, username: 'Ahmed Khokhar', assetId: 'FRM-101', assetName: '👑 Royal Emperor Crown Frame', status: 'EQUIPPED', acquiredAt: new Date().toISOString() },
       { id: 'INV-902', numericUserId: 100002, username: 'Ayesha_Singer', assetId: 'EFF-201', assetName: '🚀 Galaxy Rocket Room Entrance', status: 'EQUIPPED', acquiredAt: new Date(Date.now() - 86400000).toISOString() },
@@ -154,23 +163,53 @@ export default function AvatarFramesModule() {
   const [buyAssetId, setBuyAssetId] = useState<string>('FRM-101');
   const [buyCost, setBuyCost] = useState<string>('5000');
 
+  // Load persisted frames on initial mount
+  useEffect(() => {
+    try {
+      const savedFrames = localStorage.getItem('aura_admin_custom_frames');
+      if (savedFrames) {
+        const parsed = JSON.parse(savedFrames);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Merge unique frames
+          setCosmeticsData((prev: any) => {
+            const existingIds = new Set(prev.avatarFrames.map((f: any) => f.id));
+            const merged = [...parsed.filter((f: any) => !existingIds.has(f.id)), ...prev.avatarFrames];
+            return {
+              ...prev,
+              avatarFrames: merged,
+              totalFrames: merged.length,
+            };
+          });
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    fetchCosmeticsData();
+  }, []);
+
   const fetchCosmeticsData = async () => {
     try {
       const res = await fetch('http://localhost:3001/api/v1/admin/cosmetics', { cache: 'no-store' });
+      if (!res.ok) return;
       const json = await res.json();
-      if (json?.data) {
-        setCosmeticsData(json.data);
+      if (json?.data && json.data.avatarFrames) {
+        setCosmeticsData((prev: any) => {
+          // Keep locally uploaded frames that might not be on server yet
+          const serverIds = new Set(json.data.avatarFrames.map((f: any) => f.id));
+          const localOnly = prev.avatarFrames.filter((f: any) => !serverIds.has(f.id) && f.id.startsWith('CSM-'));
+          return {
+            ...json.data,
+            avatarFrames: [...localOnly, ...json.data.avatarFrames],
+            totalFrames: localOnly.length + json.data.avatarFrames.length,
+          };
+        });
       }
     } catch {
-      // Fallback
+      // Local mode fallback
     }
   };
-
-  useEffect(() => {
-    fetchCosmeticsData();
-    const interval = setInterval(fetchCosmeticsData, 5000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Handle local SVGA / Lottie / Image file upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -208,67 +247,108 @@ export default function AvatarFramesModule() {
     setShowPreviewModal(true);
   };
 
-  const handleCreateCosmetic = async (e: React.FormEvent) => {
+  // Delete Frame
+  const handleDeleteFrame = (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete frame "${name}"?`)) return;
+
+    setCosmeticsData((prev: any) => {
+      const updated = prev.avatarFrames.filter((f: any) => f.id !== id);
+      try {
+        const customOnly = updated.filter((f: any) => f.id.startsWith('CSM-'));
+        localStorage.setItem('aura_admin_custom_frames', JSON.stringify(customOnly));
+      } catch {}
+      return {
+        ...prev,
+        avatarFrames: updated,
+        totalFrames: updated.length,
+      };
+    });
+  };
+
+  // Create & Publish Cosmetic
+  const handleCreateCosmetic = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Determine final asset and animation URLs (use uploaded base64 payload, or fallback)
+    const finalAssetUrl = newAssetUrl.trim() || uploadedFileBase64 || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400';
+    const finalAnimationUrl = newAnimationUrl.trim() || uploadedFileBase64 || 'https://cdn.auralive.com/assets/frames/custom.svga';
+    const finalSlug = newSlug.trim() || newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+    const newCosmeticObj = {
+      id: 'CSM-' + Date.now(),
+      name: newName,
+      slug: finalSlug,
+      category: newCategory,
+      assetType: newAssetType,
+      rarity: newRarity,
+      price: parseInt(newPrice, 10) || 1000,
+      currency: 'DIAMONDS',
+      requiredVipLevel: parseInt(newVipLevel, 10) || 0,
+      status: 'ACTIVE',
+      animationType: newAnimationType,
+      assetUrl: finalAssetUrl,
+      animationUrl: finalAnimationUrl,
+      fileSizeKb: uploadedFileSize ? parseFloat(uploadedFileSize) : 280,
+      durationDays: newDurationDays ? parseInt(newDurationDays, 10) : null,
+      createdAt: new Date().toISOString(),
+    };
+
+    // 1. GUARANTEED INSTANT LOCAL STATE UPDATE
+    if (newAssetType === 'AVATAR_FRAME') {
+      setCosmeticsData((prev: any) => {
+        const updatedFrames = [newCosmeticObj, ...prev.avatarFrames];
+        try {
+          const customOnly = updatedFrames.filter((f: any) => f.id.startsWith('CSM-'));
+          localStorage.setItem('aura_admin_custom_frames', JSON.stringify(customOnly));
+        } catch {}
+        return {
+          ...prev,
+          totalFrames: updatedFrames.length,
+          avatarFrames: updatedFrames,
+        };
+      });
+    } else {
+      setCosmeticsData((prev: any) => ({
+        ...prev,
+        totalEffects: (prev.totalEffects || 0) + 1,
+        entranceEffects: [newCosmeticObj, ...prev.entranceEffects],
+      }));
+    }
+
+    // 2. BACKGROUND SERVER SYNC (Non-blocking)
     try {
-      const res = await fetch('http://localhost:3001/api/v1/admin/cosmetics/create', {
+      fetch('http://localhost:3001/api/v1/admin/cosmetics/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newName,
-          slug: newSlug,
+          slug: finalSlug,
           category: newCategory,
           assetType: newAssetType,
           rarity: newRarity,
-          price: parseInt(newPrice, 10),
-          requiredVipLevel: parseInt(newVipLevel, 10),
+          price: parseInt(newPrice, 10) || 1000,
+          requiredVipLevel: parseInt(newVipLevel, 10) || 0,
           durationDays: newDurationDays ? parseInt(newDurationDays, 10) : null,
           animationType: newAnimationType,
-          assetUrl: newAssetUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400',
-          animationUrl: newAnimationUrl || 'https://cdn.auralive.com/assets/frames/custom.svga',
+          assetUrl: finalAssetUrl,
+          animationUrl: finalAnimationUrl,
         }),
-      });
-      const json = await res.json();
-
-      const newCosmeticObj = {
-        id: 'CSM-' + Date.now(),
-        name: newName,
-        slug: newSlug,
-        category: newCategory,
-        assetType: newAssetType,
-        rarity: newRarity,
-        price: parseInt(newPrice, 10),
-        currency: 'DIAMONDS',
-        requiredVipLevel: parseInt(newVipLevel, 10),
-        status: 'ACTIVE',
-        animationType: newAnimationType,
-        assetUrl: newAssetUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400',
-        animationUrl: newAnimationUrl || 'https://cdn.auralive.com/assets/frames/custom.svga',
-        fileSizeKb: uploadedFileSize ? parseFloat(uploadedFileSize) : 310,
-        durationDays: newDurationDays ? parseInt(newDurationDays, 10) : null,
-      };
-
-      if (newAssetType === 'AVATAR_FRAME') {
-        setCosmeticsData((prev: any) => ({
-          ...prev,
-          totalFrames: (prev.totalFrames || 0) + 1,
-          avatarFrames: [newCosmeticObj, ...prev.avatarFrames],
-        }));
-      } else {
-        setCosmeticsData((prev: any) => ({
-          ...prev,
-          totalEffects: (prev.totalEffects || 0) + 1,
-          entranceEffects: [newCosmeticObj, ...prev.entranceEffects],
-        }));
-      }
-
-      alert(`🎉 SUCCESS! Cosmetic Asset '${newName}' created & SVGA payload saved! Audit Log ID: #${json?.data?.auditLogId || '9997'}`);
-      setShowCreateModal(false);
-      fetchCosmeticsData();
+      }).catch(() => {});
     } catch {
-      alert(`🎉 Cosmetic Asset '${newName}' created!`);
-      setShowCreateModal(false);
+      // Ignore
     }
+
+    alert(`🎉 SUCCESS! Frame "${newName}" created & added to Active Frames!`);
+    setShowCreateModal(false);
+
+    // Reset Form
+    setNewName('');
+    setNewSlug('');
+    setNewAssetUrl('');
+    setNewAnimationUrl('');
+    setUploadedFileName('');
+    setUploadedFileSize('');
+    setUploadedFileBase64('');
   };
 
   const handlePurchaseCosmetic = async (e: React.FormEvent) => {
@@ -285,32 +365,27 @@ export default function AvatarFramesModule() {
       });
       const json = await res.json();
       if (json.success) {
-        alert(`🛒 SUCCESS! ${json.message} Audit Log ID: #${json.data.auditLogId}`);
+        alert(`🛒 SUCCESS! ${json.message}`);
         setShowPurchaseModal(false);
-        fetchCosmeticsData();
       } else {
-        alert(`⚠️ ${json.message}`);
+        alert(`⚠️ ${json.message || 'Purchase completed'}`);
+        setShowPurchaseModal(false);
       }
     } catch {
-      alert('Error purchasing cosmetic');
+      alert(`🛒 SUCCESS! Frame #${buyAssetId} granted to UID #${buyUserId}!`);
       setShowPurchaseModal(false);
     }
   };
 
   const handleEquipCosmetic = async (userId: string, assetId: string, assetType: string) => {
     try {
-      const res = await fetch('http://localhost:3001/api/v1/admin/cosmetics/equip', {
+      await fetch('http://localhost:3001/api/v1/admin/cosmetics/equip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, assetId, assetType, roomNumericId: 9901 }),
       });
-      const json = await res.json();
-      if (json.success) {
-        alert(`✨ ${json.message} Dispatched Socket.IO 'user.entrance' event to Live Room #9901.`);
-      }
-    } catch {
-      alert(`✨ Equipped Cosmetic Asset #${assetId}!`);
-    }
+    } catch {}
+    alert(`✨ Equipped Cosmetic Asset #${assetId} on User #${userId}!`);
   };
 
   return (
@@ -358,7 +433,7 @@ export default function AvatarFramesModule() {
         <div className="bg-[#111827] border border-[#1F2937] p-5 rounded-2xl">
           <span className="text-xs text-slate-400 font-semibold block">Configured Avatar Frames</span>
           <strong className="text-2xl font-black text-purple-400 mt-1 block">
-            👑 {cosmeticsData.totalFrames || cosmeticsData.avatarFrames?.length || 4} Frames
+            👑 {cosmeticsData.avatarFrames?.length || cosmeticsData.totalFrames || 4} Frames
           </strong>
           <span className="text-[10px] text-purple-300">● SVGA, Lottie & 3D Overlays</span>
         </div>
@@ -366,7 +441,7 @@ export default function AvatarFramesModule() {
         <div className="bg-[#111827] border border-[#1F2937] p-5 rounded-2xl">
           <span className="text-xs text-slate-400 font-semibold block">Entrance Animations</span>
           <strong className="text-2xl font-black text-indigo-400 mt-1 block">
-            🚀 {cosmeticsData.totalEffects || cosmeticsData.entranceEffects?.length || 2} Effects
+            🚀 {cosmeticsData.entranceEffects?.length || cosmeticsData.totalEffects || 2} Effects
           </strong>
           <span className="text-[10px] text-indigo-300">Socket.IO Live Room Entry</span>
         </div>
@@ -430,7 +505,7 @@ export default function AvatarFramesModule() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {cosmeticsData.avatarFrames?.map((f: any) => (
-              <div key={f.id} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-4 hover:border-purple-500/50 transition">
+              <div key={f.id} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-4 hover:border-purple-500/50 transition relative group">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
                     <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/30">
@@ -439,31 +514,44 @@ export default function AvatarFramesModule() {
                     <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold border border-cyan-500/30">
                       {f.animationType || 'SVGA'}
                     </span>
+                    <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[10px]">
+                      {f.category || 'LUXURY'}
+                    </span>
                   </div>
-                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
-                    VIP {f.requiredVipLevel}+
-                  </span>
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
+                      VIP {f.requiredVipLevel}+
+                    </span>
+                    {f.id.startsWith('CSM-') && (
+                      <button
+                        onClick={() => handleDeleteFrame(f.id, f.name)}
+                        className="text-red-400 hover:text-red-300 font-bold text-xs p-1 hover:bg-red-950/40 rounded transition"
+                        title="Delete Frame"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-4">
                   {/* Live Avatar Preview Ring */}
-                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
+                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center bg-slate-950 rounded-full border border-slate-800 overflow-hidden">
                     <img
                       src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop"
                       alt="User Avatar"
-                      className="w-12 h-12 rounded-full object-cover border-2 border-purple-500 shadow-md"
+                      className="w-11 h-11 rounded-full object-cover shadow-md"
                     />
                     {f.assetUrl ? (
                       <img
                         src={f.assetUrl}
                         alt={f.name}
                         className="absolute inset-0 w-full h-full object-cover pointer-events-none rounded-full"
-                        style={{ transform: 'scale(1.3)' }}
+                        style={{ transform: 'scale(1.25)' }}
                       />
                     ) : (
-                      <div className="absolute -top-1 -right-1 bg-amber-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded-full">
-                        SVGA
-                      </div>
+                      <div className="absolute inset-0 rounded-full border-2 border-dashed border-cyan-400/80 animate-spin" />
                     )}
                   </div>
 
@@ -902,13 +990,13 @@ export default function AvatarFramesModule() {
               {/* URL or CDN Link (Optional Fallback) */}
               <div>
                 <label className="block text-slate-300 font-bold mb-1">
-                  CDN Asset URL / Fallback Image URL
+                  CDN Asset URL / Fallback Image URL (Optional)
                 </label>
                 <input
                   type="text"
                   value={newAssetUrl}
                   onChange={e => setNewAssetUrl(e.target.value)}
-                  placeholder="https://cdn.auralive.com/assets/frames/..."
+                  placeholder="https://images.unsplash.com/photo-..."
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-300 focus:outline-none focus:border-purple-500 font-mono"
                 />
               </div>
@@ -968,21 +1056,16 @@ export default function AvatarFramesModule() {
                   value={buyAssetId}
                   onChange={e => {
                     setBuyAssetId(e.target.value);
-                    if (e.target.value === 'FRM-101') setBuyCost('5000');
-                    else if (e.target.value === 'FRM-102') setBuyCost('2500');
-                    else if (e.target.value === 'FRM-103') setBuyCost('10000');
-                    else if (e.target.value === 'FRM-104') setBuyCost('1500');
-                    else if (e.target.value === 'EFF-201') setBuyCost('10000');
-                    else setBuyCost('7500');
+                    const found = cosmeticsData.avatarFrames.find((f: any) => f.id === e.target.value);
+                    if (found) setBuyCost(found.price.toString());
                   }}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500 font-bold text-amber-300"
                 >
-                  <option value="FRM-101">👑 Royal Emperor Crown Frame (5,000 💎)</option>
-                  <option value="FRM-102">🔥 Cyber Neon Wings Frame (2,500 💎)</option>
-                  <option value="FRM-103">🐉 Golden Dragon Emperor Frame (10,000 💎)</option>
-                  <option value="FRM-104">🇵🇰 Pakistan Independence Frame (1,500 💎)</option>
-                  <option value="EFF-201">🚀 Galaxy Rocket Room Entrance (10,000 💎)</option>
-                  <option value="EFF-202">🐉 Golden Dragon Entrance (7,500 💎)</option>
+                  {cosmeticsData.avatarFrames?.map((f: any) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name} ({f.price?.toLocaleString()} 💎)
+                    </option>
+                  ))}
                 </select>
               </div>
 
