@@ -113,7 +113,7 @@ const INITIAL_EFFECTS = [
   },
 ];
 
-// Helper to convert Base64 string to Blob
+// Helper to convert Base64 string to Blob URL
 function base64ToBlobUrl(base64Str: string): string | null {
   try {
     if (!base64Str || !base64Str.includes(';base64,')) return null;
@@ -132,15 +132,21 @@ function base64ToBlobUrl(base64Str: string): string | null {
   }
 }
 
-// Universal SVGA & Image Frame Player Component
+// Precision-Centered Universal SVGA & Image Frame Player Component
 function UniversalFramePlayer({
   item,
   isAnimated = true,
   scale = 1.0,
+  offsetX = 0,
+  offsetY = 0,
+  size = 120,
 }: {
   item: any;
   isAnimated?: boolean;
   scale?: number;
+  offsetX?: number;
+  offsetY?: number;
+  size?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const playerRef = useRef<any>(null);
@@ -164,6 +170,9 @@ function UniversalFramePlayer({
       rawUrl.includes('.svg') ||
       rawUrl.includes('.gif'));
 
+  // Frame dimension perfectly proportional to avatar size (1.38x)
+  const frameDimension = Math.round(size * 1.38);
+
   // Load and play SVGA file on Canvas using official SVGA Web Player
   useEffect(() => {
     let active = true;
@@ -174,11 +183,17 @@ function UniversalFramePlayer({
         if (!active || !canvasRef.current) return;
         const SVGA = (window as any).SVGA;
         if (!SVGA) {
-          setTimeout(initSvga, 200);
+          setTimeout(initSvga, 150);
           return;
         }
 
         try {
+          if (playerRef.current) {
+            try {
+              playerRef.current.stopAnimation();
+            } catch {}
+          }
+
           const player = new SVGA.Player(canvasRef.current);
           const parser = new SVGA.Parser();
           playerRef.current = player;
@@ -199,6 +214,11 @@ function UniversalFramePlayer({
               targetUrl,
               (videoItem: any) => {
                 if (!active || !canvasRef.current) return;
+                // Set explicit internal canvas resolution to match SVGA video size
+                const vw = videoItem?.videoSize?.width || 300;
+                const vh = videoItem?.videoSize?.height || 300;
+                canvasRef.current.width = vw;
+                canvasRef.current.height = vh;
                 player.setVideoItem(videoItem);
                 if (isAnimated) {
                   player.startAnimation();
@@ -247,26 +267,26 @@ function UniversalFramePlayer({
     }
   }, [isAnimated, svgaLoaded]);
 
-  // 1. If it's a real SVGA file and canvas is active
+  // 1. If it's a real SVGA file and canvas is active (Centered directly on top of Avatar ring)
   if (isSvga) {
     return (
-      <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+      <div
+        className="absolute pointer-events-none flex items-center justify-center"
+        style={{
+          width: `${frameDimension}px`,
+          height: `${frameDimension}px`,
+          left: '50%',
+          top: '50%',
+          transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px) scale(${scale})`,
+          zIndex: 10,
+        }}
+      >
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-          style={{ transform: `scale(${1.35 * scale})` }}
+          className="w-full h-full object-contain pointer-events-none"
         />
-        {/* If SVGA is loading or had network error, render smooth glowing vector frame as backup */}
         {!svgaLoaded && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div
-              className={`absolute -inset-2 rounded-full border-4 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.8)] ${
-                isAnimated ? 'animate-spin' : ''
-              }`}
-              style={{ animationDuration: '6s' }}
-            />
-            <div className="absolute -top-5 text-2xl animate-bounce">👑</div>
-          </div>
+          <div className="absolute inset-0 rounded-full border-4 border-amber-400 shadow-[0_0_20px_#f59e0b] animate-spin" />
         )}
       </div>
     );
@@ -275,117 +295,53 @@ function UniversalFramePlayer({
   // 2. If it's a custom uploaded image (PNG, WebP, GIF, SVG)
   if (isDirectImage && !imgError) {
     return (
-      <img
-        src={rawUrl}
-        alt={item?.name || 'Frame'}
-        onError={() => setImgError(true)}
-        className={`absolute inset-0 w-full h-full object-contain pointer-events-none ${
-          isAnimated ? 'animate-pulse' : ''
-        }`}
-        style={{ transform: `scale(${1.25 * scale})` }}
-      />
+      <div
+        className="absolute pointer-events-none flex items-center justify-center"
+        style={{
+          width: `${frameDimension}px`,
+          height: `${frameDimension}px`,
+          left: '50%',
+          top: '50%',
+          transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px) scale(${scale})`,
+          zIndex: 10,
+        }}
+      >
+        <img
+          src={rawUrl}
+          alt={item?.name || 'Frame'}
+          onError={() => setImgError(true)}
+          className={`w-full h-full object-contain pointer-events-none ${
+            isAnimated ? 'animate-pulse' : ''
+          }`}
+        />
+      </div>
     );
   }
 
-  // 3. Pure Vector Thematic Frame (Fallbacks for template themes)
-  switch (item?.theme) {
-    case 'GOLD_CROWN':
-      return (
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          <div
-            className={`absolute inset-0 rounded-full border-4 border-amber-400/90 shadow-[0_0_25px_rgba(245,158,11,0.8)] ${
-              isAnimated ? 'animate-spin' : ''
-            }`}
-            style={{ animationDuration: '6s' }}
-          />
-          <div
-            className={`absolute -inset-2 rounded-full border-2 border-dashed border-yellow-300/60 ${
-              isAnimated ? 'animate-spin' : ''
-            }`}
-            style={{ animationDuration: '12s', animationDirection: 'reverse' }}
-          />
-          <div className="absolute -top-6 text-2xl filter drop-shadow-[0_4px_10px_rgba(245,158,11,0.9)] animate-bounce">
-            👑
-          </div>
-          <div className="absolute -bottom-2.5 flex items-center gap-1 bg-gradient-to-r from-amber-600 via-yellow-400 to-amber-600 px-2 py-0.5 rounded-full border border-yellow-200 shadow-md">
-            <span className="text-[9px] font-black text-black tracking-wider">ROYAL</span>
-          </div>
-        </div>
-      );
-
-    case 'CYBER_NEON':
-      return (
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          <div
-            className={`absolute -inset-2 rounded-full border-4 border-cyan-400 shadow-[0_0_30px_rgba(6,182,212,0.9)] ${
-              isAnimated ? 'animate-pulse' : ''
-            }`}
-          />
-          <div
-            className={`absolute -inset-3.5 rounded-full border-2 border-fuchsia-500/80 ${
-              isAnimated ? 'animate-spin' : ''
-            }`}
-            style={{ animationDuration: '4s' }}
-          />
-          <div className="absolute -left-5 top-1/3 text-lg filter drop-shadow-[0_0_8px_#06b6d4]">🪽</div>
-          <div className="absolute -right-5 top-1/3 text-lg filter drop-shadow-[0_0_8px_#d946ef] scale-x-[-1]">🪽</div>
-          <div className="absolute -top-3 text-lg">⚡</div>
-        </div>
-      );
-
-    case 'DRAGON_AURA':
-      return (
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          <div
-            className={`absolute -inset-3 rounded-full border-4 border-amber-500 shadow-[0_0_35px_rgba(217,119,6,0.9)] ${
-              isAnimated ? 'animate-spin' : ''
-            }`}
-            style={{ animationDuration: '8s' }}
-          />
-          <div
-            className={`absolute -inset-1 rounded-full border-2 border-red-500/80 ${
-              isAnimated ? 'animate-pulse' : ''
-            }`}
-          />
-          <div className="absolute -top-6 text-2xl filter drop-shadow-[0_0_12px_#f59e0b]">🐉</div>
-          <div className="absolute -bottom-2 text-base">🔥</div>
-        </div>
-      );
-
-    case 'EMERALD_STAR':
-      return (
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          <div
-            className={`absolute -inset-2 rounded-full border-4 border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.9)] ${
-              isAnimated ? 'animate-spin' : ''
-            }`}
-            style={{ animationDuration: '10s' }}
-          />
-          <div className="absolute -top-5 text-2xl filter drop-shadow-[0_0_10px_#10b981]">🇵🇰</div>
-          <div className="absolute -bottom-2 text-xs bg-emerald-700 text-white font-black px-2 py-0.5 rounded-full border border-emerald-300">
-            ★ EMERALD ★
-          </div>
-        </div>
-      );
-
-    default:
-      return (
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          <div
-            className={`absolute -inset-2 rounded-full border-4 border-purple-500 shadow-[0_0_30px_rgba(168,85,247,0.9)] ${
-              isAnimated ? 'animate-pulse' : ''
-            }`}
-          />
-          <div
-            className={`absolute -inset-3.5 rounded-full border-2 border-dashed border-cyan-400/80 ${
-              isAnimated ? 'animate-spin' : ''
-            }`}
-            style={{ animationDuration: '5s' }}
-          />
-          <div className="absolute -top-4 text-xl filter drop-shadow-[0_0_8px_#c084fc]">✨</div>
-        </div>
-      );
-  }
+  // 3. Fallback theme
+  return (
+    <div
+      className="absolute pointer-events-none flex items-center justify-center"
+      style={{
+        width: `${frameDimension}px`,
+        height: `${frameDimension}px`,
+        left: '50%',
+        top: '50%',
+        transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px) scale(${scale})`,
+        zIndex: 10,
+      }}
+    >
+      <div
+        className={`w-full h-full rounded-full border-4 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.8)] ${
+          isAnimated ? 'animate-spin' : ''
+        }`}
+        style={{ animationDuration: '6s' }}
+      />
+      <div className="absolute -top-5 text-2xl filter drop-shadow-[0_4px_10px_rgba(245,158,11,0.9)] animate-bounce">
+        👑
+      </div>
+    </div>
+  );
 }
 
 export default function AvatarFramesModule() {
@@ -395,13 +351,16 @@ export default function AvatarFramesModule() {
   const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
   const [selectedPreviewItem, setSelectedPreviewItem] = useState<any>(null);
 
-  // Live interactive preview settings
+  // Live interactive preview settings & Offset Fine-Tuning
   const [previewAvatarUrl, setPreviewAvatarUrl] = useState<string>(
     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop'
   );
   const [previewSize, setPreviewSize] = useState<number>(120);
+  const [frameScale, setFrameScale] = useState<number>(1.0);
+  const [offsetX, setOffsetX] = useState<number>(0);
+  const [offsetY, setOffsetY] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
-  const [previewVipLevel, setPreviewVipLevel] = useState<number>(5);
+  const [previewVipLevel, setPreviewVipLevel] = useState<number>(3);
   const [previewUsername, setPreviewUsername] = useState<string>('Ahmed Khokhar');
 
   // Main State with LocalStorage sync
@@ -531,6 +490,9 @@ export default function AvatarFramesModule() {
 
   const handleOpenPreview = (item: any) => {
     setSelectedPreviewItem(item);
+    setOffsetX(0);
+    setOffsetY(0);
+    setFrameScale(1.0);
     setShowPreviewModal(true);
   };
 
@@ -831,7 +793,8 @@ export default function AvatarFramesModule() {
                     <UniversalFramePlayer
                       item={f}
                       isAnimated={true}
-                      scale={0.5}
+                      size={44}
+                      scale={1.0}
                     />
                   </div>
 
@@ -956,28 +919,31 @@ export default function AvatarFramesModule() {
             </div>
 
             {/* Live Canvas / Stage */}
-            <div className="bg-gradient-to-b from-[#111827] to-[#07090E] border border-slate-800 rounded-3xl p-10 flex flex-col items-center justify-center relative overflow-hidden min-h-[280px]">
+            <div className="bg-gradient-to-b from-[#111827] to-[#07090E] border border-slate-800 rounded-3xl p-10 flex flex-col items-center justify-center relative overflow-hidden min-h-[300px]">
               {/* Background Ambient Glow */}
               <div className="absolute w-56 h-56 bg-purple-600/25 rounded-full blur-3xl pointer-events-none" />
 
               {/* Avatar Frame Stage */}
               <div
                 className="relative flex items-center justify-center transition-all duration-300"
-                style={{ width: `${previewSize * 1.5}px`, height: `${previewSize * 1.5}px` }}
+                style={{ width: `${previewSize}px`, height: `${previewSize}px` }}
               >
                 {/* Core Circular User Avatar */}
                 <img
                   src={previewAvatarUrl}
                   alt="Preview Avatar"
-                  className="rounded-full object-cover shadow-2xl border-2 border-slate-800"
+                  className="rounded-full object-cover shadow-2xl border-2 border-slate-800 relative z-0"
                   style={{ width: `${previewSize}px`, height: `${previewSize}px` }}
                 />
 
-                {/* Exact Uploaded SVGA or Image Player */}
+                {/* Symmetrical Centered Exact Uploaded SVGA or Image Player */}
                 <UniversalFramePlayer
                   item={selectedPreviewItem}
                   isAnimated={isPlaying}
-                  scale={previewSize / 120}
+                  scale={frameScale}
+                  offsetX={offsetX}
+                  offsetY={offsetY}
+                  size={previewSize}
                 />
 
                 {/* VIP Level Badge */}
@@ -989,7 +955,7 @@ export default function AvatarFramesModule() {
               </div>
 
               {/* Username Tag */}
-              <div className="mt-6 text-center z-10">
+              <div className="mt-8 text-center z-10">
                 <span className="text-white font-black text-base tracking-wide block">
                   @{previewUsername}
                 </span>
@@ -999,36 +965,68 @@ export default function AvatarFramesModule() {
               </div>
             </div>
 
-            {/* Interactive Controls Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
-              <div>
-                <label className="block text-slate-400 text-[10px] font-bold mb-1">Frame Scale: {previewSize}px</label>
-                <input
-                  type="range"
-                  min="80"
-                  max="180"
-                  value={previewSize}
-                  onChange={e => setPreviewSize(parseInt(e.target.value, 10))}
-                  className="w-full accent-cyan-400 cursor-pointer"
-                />
+            {/* Precision Interactive Controls Bar */}
+            <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-400 text-[10px] font-bold mb-1">
+                    Frame Scale: {(frameScale * 100).toFixed(0)}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0.7"
+                    max="1.6"
+                    step="0.02"
+                    value={frameScale}
+                    onChange={e => setFrameScale(parseFloat(e.target.value))}
+                    className="w-full accent-cyan-400 cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 text-[10px] font-bold mb-1">
+                    Horizontal (X): {offsetX}px
+                  </label>
+                  <input
+                    type="range"
+                    min="-40"
+                    max="40"
+                    value={offsetX}
+                    onChange={e => setOffsetX(parseInt(e.target.value, 10))}
+                    className="w-full accent-purple-400 cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 text-[10px] font-bold mb-1">
+                    Vertical (Y): {offsetY}px
+                  </label>
+                  <input
+                    type="range"
+                    min="-40"
+                    max="40"
+                    value={offsetY}
+                    onChange={e => setOffsetY(parseInt(e.target.value, 10))}
+                    className="w-full accent-purple-400 cursor-pointer"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-slate-400 text-[10px] font-bold mb-1">VIP Level: {previewVipLevel}</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  value={previewVipLevel}
-                  onChange={e => setPreviewVipLevel(parseInt(e.target.value, 10))}
-                  className="w-full accent-amber-400 cursor-pointer"
-                />
-              </div>
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <button
+                  onClick={() => {
+                    setOffsetX(0);
+                    setOffsetY(0);
+                    setFrameScale(1.0);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] cursor-pointer"
+                >
+                  🎯 Reset Alignment (Center)
+                </button>
 
-              <div className="flex items-center justify-between gap-2 pt-2 sm:pt-0">
                 <button
                   onClick={() => setIsPlaying(!isPlaying)}
-                  className={`w-full py-2 px-3 rounded-xl font-black text-xs transition cursor-pointer border ${
+                  className={`py-1.5 px-4 rounded-xl font-black text-xs transition cursor-pointer border ${
                     isPlaying
                       ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/30'
                       : 'bg-slate-800 text-slate-300 border-slate-700'
