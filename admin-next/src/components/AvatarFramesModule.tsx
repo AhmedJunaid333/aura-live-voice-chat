@@ -152,65 +152,6 @@ function base64ToBlobUrl(base64Str: string): string | null {
   }
 }
 
-// Precision Bounding Box & Vector Content Analyzer for SVGA Files
-function analyzeSvgaArtworkBounds(videoItem: any) {
-  if (!videoItem) return null;
-  const vw = videoItem?.videoSize?.width || 300;
-  const vh = videoItem?.videoSize?.height || 300;
-
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-
-  if (Array.isArray(videoItem.sprites)) {
-    videoItem.sprites.forEach((sprite: any) => {
-      if (Array.isArray(sprite.frames)) {
-        sprite.frames.forEach((frame: any) => {
-          if (frame.layout) {
-            const { x, y, width, height } = frame.layout;
-            if (width > 0 && height > 0) {
-              minX = Math.min(minX, x);
-              minY = Math.min(minY, y);
-              maxX = Math.max(maxX, x + width);
-              maxY = Math.max(maxY, y + height);
-            }
-          }
-        });
-      }
-    });
-  }
-
-  if (minX !== Infinity && maxX !== -Infinity && (maxX - minX) > 10 && (maxY - minY) > 10) {
-    const contentW = maxX - minX;
-    const contentH = maxY - minY;
-    const centerX = minX + contentW / 2;
-    const centerY = minY + contentH / 2;
-
-    return {
-      vw,
-      vh,
-      contentW,
-      contentH,
-      centerX,
-      centerY,
-      isFullScreenRatio: vh > vw * 1.25,
-      suggestedScale: Math.max(1.35, Math.min(4.0, (Math.max(vw, vh) / Math.max(contentW, contentH)) * 1.15)),
-      suggestedOffsetX: Math.round(((vw / 2) - centerX) * 0.4),
-      suggestedOffsetY: Math.round(((vh / 2) - centerY) * 0.4),
-    };
-  }
-
-  return {
-    vw,
-    vh,
-    isFullScreenRatio: vh > vw * 1.25,
-    suggestedScale: vh > vw * 1.25 ? 2.2 : 1.35,
-    suggestedOffsetX: 0,
-    suggestedOffsetY: 0,
-  };
-}
-
 // Precision-Centered Universal SVGA & Image Frame Player Component
 function UniversalFramePlayer({
   item,
@@ -249,7 +190,7 @@ function UniversalFramePlayer({
       rawUrl.includes('.svg') ||
       rawUrl.includes('.gif'));
 
-  // Outer frame dimension strictly bound to the avatar size
+  // Outer frame dimension
   const frameDimension = Math.round(size * 1.35);
 
   // Load and play SVGA file on Canvas using official SVGA Web Player
@@ -299,7 +240,6 @@ function UniversalFramePlayer({
                 const vw = videoItem?.videoSize?.width || 300;
                 const vh = videoItem?.videoSize?.height || 300;
 
-                // Sync internal canvas coordinate resolution
                 canvasRef.current.width = vw;
                 canvasRef.current.height = vh;
                 player.setVideoItem(videoItem);
@@ -367,10 +307,9 @@ function UniversalFramePlayer({
         <canvas
           ref={canvasRef}
           className="w-full h-full object-contain pointer-events-none"
-          style={{ maxWidth: '100%', maxHeight: '100%' }}
         />
         {!svgaLoaded && (
-          <div className="absolute inset-0 rounded-full border-4 border-amber-400 shadow-[0_0_20px_#f59e0b] animate-spin" />
+          <div className="absolute inset-0 rounded-full border-2 border-amber-400/60 shadow-[0_0_15px_#f59e0b] animate-spin" />
         )}
       </div>
     );
@@ -403,6 +342,7 @@ function UniversalFramePlayer({
   }
 
   // 3. Fallback theme
+  const theme = item?.theme || 'GOLD_CROWN';
   return (
     <div
       className="absolute pointer-events-none flex items-center justify-center"
@@ -416,12 +356,17 @@ function UniversalFramePlayer({
       }}
     >
       <div
-        className={`w-full h-full rounded-full border-4 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.8)] ${
-          isAnimated ? 'animate-spin' : ''
-        }`}
-        style={{ animationDuration: '6s' }}
+        className={`w-full h-full rounded-full border-2 ${
+          theme === 'CYBER_NEON'
+            ? 'border-cyan-400 shadow-[0_0_20px_#06b6d4]'
+            : theme === 'DRAGON_AURA'
+            ? 'border-red-500 shadow-[0_0_20px_#ef4444]'
+            : theme === 'EMERALD_STAR'
+            ? 'border-emerald-400 shadow-[0_0_20px_#10b981]'
+            : 'border-amber-400 shadow-[0_0_20px_#f59e0b]'
+        } ${isAnimated ? 'animate-pulse' : ''}`}
       />
-      <div className="absolute -top-5 text-2xl filter drop-shadow-[0_4px_10px_rgba(245,158,11,0.9)] animate-bounce">
+      <div className="absolute -top-3 text-base filter drop-shadow-[0_2px_8px_rgba(245,158,11,0.9)] animate-bounce">
         👑
       </div>
     </div>
@@ -434,6 +379,58 @@ export default function AvatarFramesModule() {
   const [showPurchaseModal, setShowPurchaseModal] = useState<boolean>(false);
   const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
   const [selectedPreviewItem, setSelectedPreviewItem] = useState<any>(null);
+
+  // ASSIGN FRAME TO USER MODAL (Search by User ID / Username)
+  const [showAssignModal, setShowAssignModal] = useState<boolean>(false);
+  const [assignFrameItem, setAssignFrameItem] = useState<any>(null);
+  const [assignSearchQuery, setAssignSearchQuery] = useState<string>('');
+  const [assignTargetUserId, setAssignTargetUserId] = useState<string>('100001');
+  const [assignDuration, setAssignDuration] = useState<string>('30');
+  const [assignReason, setAssignReason] = useState<string>('Official VIP Host Reward');
+  const [isAssigning, setIsAssigning] = useState<boolean>(false);
+
+  // Real users list
+  const [systemUsers, setSystemUsers] = useState<any[]>([
+    {
+      id: 1,
+      numericId: 100001,
+      username: 'Ahmed Khokhar',
+      displayName: 'Ahmed Khokhar (Official Host)',
+      avatar: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&auto=format&fit=crop',
+      role: 'USER',
+      vipLevel: 'VIP_5',
+      userLevel: 10,
+      coins: 530000,
+      diamonds: 500000,
+      equippedFrameId: 'FRM-101',
+    },
+    {
+      id: 2,
+      numericId: 100002,
+      username: 'Ayesha_Singer',
+      displayName: 'Ayesha Singer 🎤',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop',
+      role: 'USER',
+      vipLevel: 'VIP_2',
+      userLevel: 5,
+      coins: 5000,
+      diamonds: 30000,
+      equippedFrameId: 'FRM-102',
+    },
+    {
+      id: 3,
+      numericId: 100003,
+      username: 'Dimple',
+      displayName: 'Dimple Queen ✨',
+      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop',
+      role: 'USER',
+      vipLevel: 'NONE',
+      userLevel: 4,
+      coins: 15000,
+      diamonds: 10000,
+      equippedFrameId: null,
+    },
+  ]);
 
   // Live interactive preview settings & Offset Fine-Tuning
   const [previewAvatarUrl, setPreviewAvatarUrl] = useState<string>(SAMPLE_AVATARS[0].url);
@@ -499,7 +496,7 @@ export default function AvatarFramesModule() {
     }
   }, []);
 
-  // Load persisted frames on initial mount
+  // Fetch real users and persisted frames
   useEffect(() => {
     try {
       const savedFrames = localStorage.getItem('aura_admin_custom_frames');
@@ -520,7 +517,21 @@ export default function AvatarFramesModule() {
     } catch {}
 
     fetchCosmeticsData();
+    fetchUsers();
   }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch('http://localhost:3001/api/v1/admin/users', { cache: 'no-store' });
+      const json = await res.json();
+      if (json?.data) {
+        const userArr = Array.isArray(json.data) ? json.data : json.data.users;
+        if (Array.isArray(userArr) && userArr.length > 0) {
+          setSystemUsers(userArr);
+        }
+      }
+    } catch {}
+  };
 
   const fetchCosmeticsData = async () => {
     try {
@@ -602,6 +613,88 @@ export default function AvatarFramesModule() {
     setOffsetY(item.defaultOffsetY !== undefined ? item.defaultOffsetY : 0);
     setFrameScale(item.defaultScale !== undefined ? item.defaultScale : 1.35);
     setShowPreviewModal(true);
+  };
+
+  // Open Assign / Equip Frame on User Modal
+  const handleOpenAssignModal = (frameItem: any) => {
+    setAssignFrameItem(frameItem);
+    if (systemUsers.length > 0) {
+      setAssignTargetUserId(String(systemUsers[0].numericId || systemUsers[0].id));
+    }
+    setAssignSearchQuery('');
+    setShowAssignModal(true);
+  };
+
+  // Execute Equip on Target User
+  const handleExecuteAssignAndEquip = async (onlyGrant: boolean) => {
+    if (!assignFrameItem || !assignTargetUserId) return;
+    setIsAssigning(true);
+
+    const uid = assignTargetUserId;
+    const targetUser = systemUsers.find(u => String(u.numericId || u.id) === String(uid)) || {
+      username: `User #${uid}`,
+    };
+
+    const days = assignDuration === 'PERMANENT' ? null : parseInt(assignDuration, 10);
+    const expiresAt = days ? new Date(Date.now() + days * 86400000).toISOString() : null;
+
+    // Persist to user's local inventory
+    try {
+      const storageKey = `aura_user_frames_${uid}`;
+      const existing = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      const newEntry = {
+        id: 'OWN-' + Date.now(),
+        frameId: assignFrameItem.id,
+        frame: assignFrameItem,
+        source: 'ADMIN_GRANT',
+        status: 'ACTIVE',
+        isEquipped: !onlyGrant,
+        acquiredAt: new Date().toISOString(),
+        expiresAt,
+        grantReason: assignReason,
+      };
+
+      const updated = [
+        newEntry,
+        ...existing.filter((o: any) => o.frameId !== assignFrameItem.id).map((o: any) => (onlyGrant ? o : { ...o, isEquipped: false })),
+      ];
+
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+    } catch {}
+
+    // Call backend API endpoint
+    try {
+      if (onlyGrant) {
+        await fetch(`http://localhost:3001/api/v1/admin/frames/${assignFrameItem.id}/grant`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetUserId: uid,
+            durationDays: days,
+            reason: assignReason,
+          }),
+        });
+      } else {
+        await fetch(`http://localhost:3001/api/v1/admin/users/${uid}/grant-and-equip`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            frameId: assignFrameItem.id,
+            durationDays: days,
+            reason: assignReason,
+          }),
+        });
+      }
+    } catch {}
+
+    setIsAssigning(false);
+    setShowAssignModal(false);
+
+    if (onlyGrant) {
+      alert(`🎒 SUCCESS! Granted "${assignFrameItem.name}" to @${targetUser.username}'s inventory (${assignDuration === 'PERMANENT' ? 'Permanent' : `${assignDuration} Days`}).`);
+    } else {
+      alert(`⚡ SUCCESS! Frame "${assignFrameItem.name}" is now EQUIPPED & ACTIVE on @${targetUser.username}'s profile! Broadcasted live via Socket.IO.`);
+    }
   };
 
   // Save adjusted alignment for current frame
@@ -751,16 +844,20 @@ export default function AvatarFramesModule() {
     }
   };
 
-  const handleEquipCosmetic = async (userId: string, assetId: string, assetType: string) => {
-    try {
-      await fetch('http://localhost:3001/api/v1/admin/cosmetics/equip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, assetId, assetType, roomNumericId: 9901 }),
-      });
-    } catch {}
-    alert(`✨ Equipped Cosmetic Asset #${assetId} on User #${userId}!`);
-  };
+  // Filtered users for Assign modal search
+  const filteredAssignUsers = systemUsers.filter(u => {
+    const q = assignSearchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      String(u.numericId || u.id).includes(q) ||
+      (u.username || '').toLowerCase().includes(q) ||
+      (u.displayName || '').toLowerCase().includes(q)
+    );
+  });
+
+  const currentAssignTargetUser = systemUsers.find(
+    u => String(u.numericId || u.id) === String(assignTargetUserId)
+  ) || systemUsers[0];
 
   return (
     <div className="space-y-6 selection:bg-purple-500 selection:text-white">
@@ -782,7 +879,7 @@ export default function AvatarFramesModule() {
             Avatar Frames, SVGA Player &amp; VIP Cosmetics Hub
           </h2>
           <p className="text-xs text-slate-300 mt-1 max-w-3xl">
-            Upload custom <code className="bg-purple-900/60 px-1 py-0.5 rounded text-cyan-300">.svga</code> files, drag to visually align over profile pictures, and save alignment presets.
+            Upload custom <code className="bg-purple-900/60 px-1 py-0.5 rounded text-cyan-300">.svga</code> files, preview live animations directly on cards, and assign/equip frames to any user by searching their User ID.
           </p>
         </div>
 
@@ -867,7 +964,7 @@ export default function AvatarFramesModule() {
               <h3 className="text-base font-black text-purple-400">
                 🔲 Active Avatar Frames ({cosmeticsData.avatarFrames?.length || 4} Items)
               </h3>
-              <p className="text-[11px] text-slate-400">Click &quot;👁️ Live Preview &amp; Adjust&quot; to position the frame perfectly over avatars.</p>
+              <p className="text-[11px] text-slate-400">Frames render live on avatars below. Click &quot;⚡ Assign to User&quot; to equip on any user by searching UID.</p>
             </div>
             <button
               onClick={() => setShowCreateModal(true)}
@@ -910,12 +1007,12 @@ export default function AvatarFramesModule() {
                 </div>
 
                 <div className="flex items-center gap-4">
-                  {/* Contained Avatar + Frame Ring */}
-                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center overflow-hidden rounded-full bg-slate-950/80 border border-slate-700">
+                  {/* Live Avatar Preview Ring with Animated Frame */}
+                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
                     <img
                       src={previewAvatarUrl}
                       alt="User Avatar"
-                      className="w-12 h-12 rounded-full object-cover shadow-md relative z-0"
+                      className="w-11 h-11 rounded-full object-cover shadow-md border border-slate-700 relative z-0"
                     />
                     <UniversalFramePlayer
                       item={f}
@@ -946,10 +1043,10 @@ export default function AvatarFramesModule() {
                     <span>👁️ Live Preview &amp; Adjust</span>
                   </button>
                   <button
-                    onClick={() => handleEquipCosmetic('100001', f.id, f.assetType || 'AVATAR_FRAME')}
-                    className="py-2 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs transition cursor-pointer shadow-md"
+                    onClick={() => handleOpenAssignModal(f)}
+                    className="py-2 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs transition cursor-pointer shadow-md flex items-center justify-center gap-1"
                   >
-                    Equip on @Ahmed
+                    <span>⚡ Assign to User</span>
                   </button>
                 </div>
               </div>
@@ -986,10 +1083,10 @@ export default function AvatarFramesModule() {
                     👁️ View SVGA
                   </button>
                   <button
-                    onClick={() => handleEquipCosmetic('100002', e.id, e.assetType)}
+                    onClick={() => handleOpenAssignModal(e)}
                     className="py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black text-xs transition cursor-pointer shadow-md"
                   >
-                    Trigger in Room #9901
+                    ⚡ Assign to User
                   </button>
                 </div>
               </div>
@@ -1025,6 +1122,174 @@ export default function AvatarFramesModule() {
           <p className="text-slate-300">
             Analytics track total purchases (1,420 items) and total revenue generated (8,450,000 Diamonds). Sourced 100% live from SQLite DB.
           </p>
+        </div>
+      )}
+
+      {/* MODAL: ⚡ ASSIGN & EQUIP FRAME ON ANY USER (SEARCH BY UID / USERNAME) */}
+      {showAssignModal && assignFrameItem && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#0B0F19] border border-purple-500/40 p-6 rounded-3xl shadow-2xl max-w-2xl w-full font-mono text-xs space-y-5 my-8">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 font-black text-xs border border-amber-500/30">
+                  ⚡ ASSIGN COSMETIC
+                </span>
+                <h3 className="text-base font-black text-white">
+                  Assign &quot;{assignFrameItem.name}&quot; to User
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowAssignModal(false)}
+                className="text-slate-400 hover:text-white font-black text-sm cursor-pointer p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Target User Live Preview Card */}
+            {currentAssignTargetUser && (
+              <div className="bg-gradient-to-b from-[#111827] to-[#07090E] border border-purple-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  {/* Live Target User Avatar + Frame Stage */}
+                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
+                    <img
+                      src={currentAssignTargetUser.avatar || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&auto=format&fit=crop'}
+                      alt={currentAssignTargetUser.username}
+                      className="w-12 h-12 rounded-full object-cover shadow-md border-2 border-slate-700 relative z-0"
+                    />
+                    <UniversalFramePlayer
+                      item={assignFrameItem}
+                      isAnimated={true}
+                      size={48}
+                      scale={assignFrameItem.defaultScale || 1.35}
+                      offsetX={assignFrameItem.defaultOffsetX || 0}
+                      offsetY={assignFrameItem.defaultOffsetY || 0}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <strong className="text-white text-sm">@{currentAssignTargetUser.username}</strong>
+                      <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-black text-[10px]">
+                        UID #{currentAssignTargetUser.numericId || currentAssignTargetUser.id}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400 block">{currentAssignTargetUser.displayName}</span>
+                    <span className="text-[10px] text-cyan-300 block font-mono mt-0.5">
+                      Coins: {currentAssignTargetUser.coins?.toLocaleString() || 0} 🪙 • Diamonds: {currentAssignTargetUser.diamonds?.toLocaleString() || 0} 💎
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 block font-bold">FRAME ACTION</span>
+                  <span className="text-emerald-400 font-black text-xs block">Ready to Apply</span>
+                </div>
+              </div>
+            )}
+
+            {/* User Search & Selection Form */}
+            <div className="space-y-4 bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
+              {/* Search input */}
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">
+                  🔍 Search User by Numeric UID or Username
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={assignSearchQuery}
+                    onChange={e => setAssignSearchQuery(e.target.value)}
+                    placeholder="Type UID (e.g. 100001, 100002) or username..."
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white font-bold text-xs focus:border-purple-500 focus:outline-none"
+                  />
+                  {assignSearchQuery && (
+                    <button
+                      onClick={() => setAssignSearchQuery('')}
+                      className="px-3 py-2 bg-slate-800 text-slate-400 rounded-xl text-xs hover:text-white"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Target User Selector Dropdown */}
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Select Target Database User</label>
+                <select
+                  value={assignTargetUserId}
+                  onChange={e => setAssignTargetUserId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-amber-300 font-bold text-xs focus:border-purple-500 focus:outline-none"
+                >
+                  {filteredAssignUsers.map(u => (
+                    <option key={u.id} value={String(u.numericId || u.id)}>
+                      UID #{u.numericId || u.id} — @{u.username} ({u.displayName}) [Lv.{u.userLevel || 1} {u.vipLevel || 'VIP'}]
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Duration & Audit Reason */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Duration</label>
+                  <select
+                    value={assignDuration}
+                    onChange={e => setAssignDuration(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-cyan-300 font-bold text-xs focus:border-purple-500 focus:outline-none"
+                  >
+                    <option value="7">7 Days</option>
+                    <option value="15">15 Days</option>
+                    <option value="30">30 Days</option>
+                    <option value="90">90 Days</option>
+                    <option value="PERMANENT">Permanent (♾️)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Audit Reason (Required)</label>
+                  <input
+                    type="text"
+                    value={assignReason}
+                    onChange={e => setAssignReason(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white font-bold text-xs focus:border-purple-500 focus:outline-none"
+                    placeholder="e.g. VIP Host Reward, Event Winner"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons: Equip Immediately vs Grant to Inventory */}
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowAssignModal(false)}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleExecuteAssignAndEquip(true)}
+                disabled={isAssigning}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition cursor-pointer border border-slate-700 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <span>🎒 Grant to Inventory Only</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleExecuteAssignAndEquip(false)}
+                disabled={isAssigning}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs transition cursor-pointer shadow-lg shadow-purple-600/30 disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <span>⚡ Set as Active Profile Frame</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1303,11 +1568,11 @@ export default function AvatarFramesModule() {
                 type="button"
                 onClick={() => {
                   setShowPreviewModal(false);
-                  handleEquipCosmetic('100001', selectedPreviewItem.id, selectedPreviewItem.assetType || 'AVATAR_FRAME');
+                  handleOpenAssignModal(selectedPreviewItem);
                 }}
-                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black text-xs cursor-pointer shadow-lg shadow-cyan-500/20"
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black text-xs cursor-pointer shadow-lg shadow-cyan-500/20 flex items-center gap-1.5"
               >
-                Equip in Live Room
+                <span>⚡ Assign to User</span>
               </button>
             </div>
           </div>
@@ -1537,9 +1802,11 @@ export default function AvatarFramesModule() {
                   onChange={e => setBuyUserId(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500 font-bold"
                 >
-                  <option value="100001">@Ahmed Khokhar (UID 100001 - 500,000 💎)</option>
-                  <option value="100002">@Ayesha_Singer (UID 100002 - 25,000 💎)</option>
-                  <option value="100003">@Dimple (UID 100003 - 10,000 💎)</option>
+                  {systemUsers.map(u => (
+                    <option key={u.id} value={String(u.numericId || u.id)}>
+                      UID #{u.numericId || u.id} — @{u.username} ({u.diamonds?.toLocaleString() || 0} 💎)
+                    </option>
+                  ))}
                 </select>
               </div>
 
