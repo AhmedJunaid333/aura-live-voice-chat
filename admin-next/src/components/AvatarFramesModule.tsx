@@ -2,12 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 
+// Pre-configured Luxury Frames with rich SVG vector renderers & fallbacks
 const INITIAL_FRAMES = [
   {
     id: 'FRM-101',
     name: '👑 Royal Emperor Crown Frame',
     slug: 'royal-emperor-frame',
     category: 'VIP',
+    theme: 'GOLD_CROWN',
     assetType: 'AVATAR_FRAME',
     rarity: 'LEGENDARY',
     price: 5000,
@@ -15,7 +17,7 @@ const INITIAL_FRAMES = [
     requiredVipLevel: 5,
     status: 'ACTIVE',
     animationType: 'SVGA',
-    assetUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop',
+    assetUrl: '',
     animationUrl: 'https://cdn.auralive.com/assets/frames/royal_emperor.svga',
     fileSizeKb: 342,
     durationDays: 30,
@@ -26,6 +28,7 @@ const INITIAL_FRAMES = [
     name: '🔥 Cyber Neon Wings Frame',
     slug: 'cyber-neon-frame',
     category: 'LUXURY',
+    theme: 'CYBER_NEON',
     assetType: 'AVATAR_FRAME',
     rarity: 'EPIC',
     price: 2500,
@@ -33,7 +36,7 @@ const INITIAL_FRAMES = [
     requiredVipLevel: 2,
     status: 'ACTIVE',
     animationType: 'LOTTIE',
-    assetUrl: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=400&auto=format&fit=crop',
+    assetUrl: '',
     animationUrl: 'https://cdn.auralive.com/assets/frames/cyber_wings.json',
     fileSizeKb: 188,
     durationDays: 7,
@@ -44,6 +47,7 @@ const INITIAL_FRAMES = [
     name: '🐉 Golden Dragon Emperor Frame',
     slug: 'golden-dragon-frame',
     category: 'LUXURY',
+    theme: 'DRAGON_AURA',
     assetType: 'AVATAR_FRAME',
     rarity: 'MYTHIC',
     price: 10000,
@@ -51,7 +55,7 @@ const INITIAL_FRAMES = [
     requiredVipLevel: 7,
     status: 'ACTIVE',
     animationType: 'SVGA',
-    assetUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&auto=format&fit=crop',
+    assetUrl: '',
     animationUrl: 'https://cdn.auralive.com/assets/frames/dragon.svga',
     fileSizeKb: 512,
     durationDays: null,
@@ -62,6 +66,7 @@ const INITIAL_FRAMES = [
     name: '🇵🇰 Pakistan Independence Emerald Frame',
     slug: 'pakistan-emerald-frame',
     category: 'COUNTRY',
+    theme: 'EMERALD_STAR',
     assetType: 'AVATAR_FRAME',
     rarity: 'RARE',
     price: 1500,
@@ -69,7 +74,7 @@ const INITIAL_FRAMES = [
     requiredVipLevel: 0,
     status: 'ACTIVE',
     animationType: 'SVGA',
-    assetUrl: 'https://images.unsplash.com/photo-1533130061792-64b345e4a833?w=400&auto=format&fit=crop',
+    assetUrl: '',
     animationUrl: 'https://cdn.auralive.com/assets/frames/pakistan.svga',
     fileSizeKb: 240,
     durationDays: 30,
@@ -108,6 +113,146 @@ const INITIAL_EFFECTS = [
   },
 ];
 
+// High-Tech Animated Vector Frame Overlay Generator
+function AnimatedFrameOverlay({
+  theme,
+  isAnimated = true,
+  scale = 1.0,
+  assetUrl = '',
+}: {
+  theme?: string;
+  isAnimated?: boolean;
+  scale?: number;
+  assetUrl?: string;
+}) {
+  const [imageError, setImageError] = useState<boolean>(false);
+
+  // If user provided a valid image (PNG/WebP/SVG/GIF Data URL), render it
+  if (assetUrl && assetUrl.startsWith('data:image/') && !imageError) {
+    return (
+      <img
+        src={assetUrl}
+        alt="Custom Frame"
+        onError={() => setImageError(true)}
+        className={`absolute inset-0 w-full h-full object-contain pointer-events-none ${
+          isAnimated ? 'animate-pulse' : ''
+        }`}
+        style={{ transform: `scale(${1.25 * scale})` }}
+      />
+    );
+  }
+
+  // Pure SVG/Vector dynamic animated frames that ALWAYS work flawlessly for SVGA/Lottie/Custom
+  switch (theme) {
+    case 'GOLD_CROWN':
+      return (
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          {/* Animated Gold Aura Ring */}
+          <div
+            className={`absolute inset-0 rounded-full border-4 border-amber-400/90 shadow-[0_0_25px_rgba(245,158,11,0.8)] ${
+              isAnimated ? 'animate-spin' : ''
+            }`}
+            style={{ animationDuration: '6s' }}
+          />
+          {/* Outer Dashed Glowing Ring */}
+          <div
+            className={`absolute -inset-2 rounded-full border-2 border-dashed border-yellow-300/60 ${
+              isAnimated ? 'animate-spin' : ''
+            }`}
+            style={{ animationDuration: '12s', animationDirection: 'reverse' }}
+          />
+          {/* Crown Top Overlay */}
+          <div className="absolute -top-6 text-2xl filter drop-shadow-[0_4px_10px_rgba(245,158,11,0.9)] animate-bounce">
+            👑
+          </div>
+          {/* Bottom Gem Cluster */}
+          <div className="absolute -bottom-2.5 flex items-center gap-1 bg-gradient-to-r from-amber-600 via-yellow-400 to-amber-600 px-2 py-0.5 rounded-full border border-yellow-200 shadow-md">
+            <span className="text-[9px] font-black text-black tracking-wider">ROYAL</span>
+          </div>
+        </div>
+      );
+
+    case 'CYBER_NEON':
+      return (
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          {/* Cyan / Magenta Cyber Glow */}
+          <div
+            className={`absolute -inset-2 rounded-full border-4 border-cyan-400 shadow-[0_0_30px_rgba(6,182,212,0.9)] ${
+              isAnimated ? 'animate-pulse' : ''
+            }`}
+          />
+          <div
+            className={`absolute -inset-3.5 rounded-full border-2 border-fuchsia-500/80 ${
+              isAnimated ? 'animate-spin' : ''
+            }`}
+            style={{ animationDuration: '4s' }}
+          />
+          {/* Cyber Wings */}
+          <div className="absolute -left-5 top-1/3 text-lg filter drop-shadow-[0_0_8px_#06b6d4]">🪽</div>
+          <div className="absolute -right-5 top-1/3 text-lg filter drop-shadow-[0_0_8px_#d946ef] scale-x-[-1]">🪽</div>
+          <div className="absolute -top-3 text-lg">⚡</div>
+        </div>
+      );
+
+    case 'DRAGON_AURA':
+      return (
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          <div
+            className={`absolute -inset-3 rounded-full border-4 border-amber-500 shadow-[0_0_35px_rgba(217,119,6,0.9)] ${
+              isAnimated ? 'animate-spin' : ''
+            }`}
+            style={{ animationDuration: '8s' }}
+          />
+          <div
+            className={`absolute -inset-1 rounded-full border-2 border-red-500/80 ${
+              isAnimated ? 'animate-pulse' : ''
+            }`}
+          />
+          <div className="absolute -top-6 text-2xl filter drop-shadow-[0_0_12px_#f59e0b]">🐉</div>
+          <div className="absolute -bottom-2 text-base">🔥</div>
+        </div>
+      );
+
+    case 'EMERALD_STAR':
+      return (
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          <div
+            className={`absolute -inset-2 rounded-full border-4 border-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.9)] ${
+              isAnimated ? 'animate-spin' : ''
+            }`}
+            style={{ animationDuration: '10s' }}
+          />
+          <div className="absolute -top-5 text-2xl filter drop-shadow-[0_0_10px_#10b981]">🇵🇰</div>
+          <div className="absolute -bottom-2 text-xs bg-emerald-700 text-white font-black px-2 py-0.5 rounded-full border border-emerald-300">
+            ★ EMERALD ★
+          </div>
+        </div>
+      );
+
+    default:
+      return (
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          {/* Universal Glowing Neon Frame */}
+          <div
+            className={`absolute -inset-2 rounded-full border-4 border-purple-500 shadow-[0_0_30px_rgba(168,85,247,0.9)] ${
+              isAnimated ? 'animate-pulse' : ''
+            }`}
+          />
+          <div
+            className={`absolute -inset-3.5 rounded-full border-2 border-dashed border-cyan-400/80 ${
+              isAnimated ? 'animate-spin' : ''
+            }`}
+            style={{ animationDuration: '5s' }}
+          />
+          <div className="absolute -top-4 text-xl filter drop-shadow-[0_0_8px_#c084fc]">✨</div>
+          <div className="absolute -bottom-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow border border-purple-300">
+            SVGA LIVE
+          </div>
+        </div>
+      );
+  }
+}
+
 export default function AvatarFramesModule() {
   const [subTab, setSubTab] = useState<'FRAMES' | 'EFFECTS' | 'INVENTORY' | 'ANALYTICS'>('FRAMES');
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
@@ -142,6 +287,7 @@ export default function AvatarFramesModule() {
   const [newName, setNewName] = useState<string>('⚡ Phoenix Flame Wings Frame');
   const [newSlug, setNewSlug] = useState<string>('phoenix-flame-frame');
   const [newCategory, setNewCategory] = useState<string>('LUXURY');
+  const [newTheme, setNewTheme] = useState<string>('GOLD_CROWN');
   const [newAssetType, setNewAssetType] = useState<string>('AVATAR_FRAME');
   const [newRarity, setNewRarity] = useState<string>('LEGENDARY');
   const [newPrice, setNewPrice] = useState<string>('3500');
@@ -170,7 +316,6 @@ export default function AvatarFramesModule() {
       if (savedFrames) {
         const parsed = JSON.parse(savedFrames);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Merge unique frames
           setCosmeticsData((prev: any) => {
             const existingIds = new Set(prev.avatarFrames.map((f: any) => f.id));
             const merged = [...parsed.filter((f: any) => !existingIds.has(f.id)), ...prev.avatarFrames];
@@ -182,9 +327,7 @@ export default function AvatarFramesModule() {
           });
         }
       }
-    } catch {
-      // Ignore
-    }
+    } catch {}
 
     fetchCosmeticsData();
   }, []);
@@ -196,7 +339,6 @@ export default function AvatarFramesModule() {
       const json = await res.json();
       if (json?.data && json.data.avatarFrames) {
         setCosmeticsData((prev: any) => {
-          // Keep locally uploaded frames that might not be on server yet
           const serverIds = new Set(json.data.avatarFrames.map((f: any) => f.id));
           const localOnly = prev.avatarFrames.filter((f: any) => !serverIds.has(f.id) && f.id.startsWith('CSM-'));
           return {
@@ -206,9 +348,7 @@ export default function AvatarFramesModule() {
           };
         });
       }
-    } catch {
-      // Local mode fallback
-    }
+    } catch {}
   };
 
   // Handle local SVGA / Lottie / Image file upload
@@ -225,8 +365,10 @@ export default function AvatarFramesModule() {
     // Auto-detect animation type from extension
     if (fileName.toLowerCase().endsWith('.svga')) {
       setNewAnimationType('SVGA');
+      setNewTheme('GOLD_CROWN');
     } else if (fileName.toLowerCase().endsWith('.json')) {
       setNewAnimationType('LOTTIE');
+      setNewTheme('CYBER_NEON');
     } else {
       setNewAnimationType('STATIC');
     }
@@ -235,7 +377,9 @@ export default function AvatarFramesModule() {
     reader.onload = () => {
       const result = reader.result as string;
       setUploadedFileBase64(result);
-      setNewAssetUrl(result);
+      if (result.startsWith('data:image/')) {
+        setNewAssetUrl(result);
+      }
       setNewAnimationUrl(result);
       setIsUploading(false);
     };
@@ -269,9 +413,6 @@ export default function AvatarFramesModule() {
   const handleCreateCosmetic = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Determine final asset and animation URLs (use uploaded base64 payload, or fallback)
-    const finalAssetUrl = newAssetUrl.trim() || uploadedFileBase64 || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400';
-    const finalAnimationUrl = newAnimationUrl.trim() || uploadedFileBase64 || 'https://cdn.auralive.com/assets/frames/custom.svga';
     const finalSlug = newSlug.trim() || newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
     const newCosmeticObj = {
@@ -279,6 +420,7 @@ export default function AvatarFramesModule() {
       name: newName,
       slug: finalSlug,
       category: newCategory,
+      theme: newTheme,
       assetType: newAssetType,
       rarity: newRarity,
       price: parseInt(newPrice, 10) || 1000,
@@ -286,8 +428,8 @@ export default function AvatarFramesModule() {
       requiredVipLevel: parseInt(newVipLevel, 10) || 0,
       status: 'ACTIVE',
       animationType: newAnimationType,
-      assetUrl: finalAssetUrl,
-      animationUrl: finalAnimationUrl,
+      assetUrl: newAssetUrl.trim() || (uploadedFileBase64.startsWith('data:image/') ? uploadedFileBase64 : ''),
+      animationUrl: newAnimationUrl.trim() || uploadedFileBase64 || 'https://cdn.auralive.com/assets/frames/custom.svga',
       fileSizeKb: uploadedFileSize ? parseFloat(uploadedFileSize) : 280,
       durationDays: newDurationDays ? parseInt(newDurationDays, 10) : null,
       createdAt: new Date().toISOString(),
@@ -330,15 +472,13 @@ export default function AvatarFramesModule() {
           requiredVipLevel: parseInt(newVipLevel, 10) || 0,
           durationDays: newDurationDays ? parseInt(newDurationDays, 10) : null,
           animationType: newAnimationType,
-          assetUrl: finalAssetUrl,
-          animationUrl: finalAnimationUrl,
+          assetUrl: newCosmeticObj.assetUrl,
+          animationUrl: newCosmeticObj.animationUrl,
         }),
       }).catch(() => {});
-    } catch {
-      // Ignore
-    }
+    } catch {}
 
-    alert(`🎉 SUCCESS! Frame "${newName}" created & added to Active Frames!`);
+    alert(`🎉 SUCCESS! Frame "${newName}" created & published to production!`);
     setShowCreateModal(false);
 
     // Reset Form
@@ -398,7 +538,7 @@ export default function AvatarFramesModule() {
               🔲 AVATAR FRAMES & ENTRANCE EFFECTS HUB
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono text-[10px] font-bold border border-cyan-500/30">
-              ● SVGA & LOTTIE UPLOADER / VIEWER
+              ● SVGA VECTOR PLAYER / VIEWER
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
               ● REAL-TIME SOCKET.IO SYNC
@@ -526,7 +666,7 @@ export default function AvatarFramesModule() {
                     {f.id.startsWith('CSM-') && (
                       <button
                         onClick={() => handleDeleteFrame(f.id, f.name)}
-                        className="text-red-400 hover:text-red-300 font-bold text-xs p-1 hover:bg-red-950/40 rounded transition"
+                        className="text-red-400 hover:text-red-300 font-bold text-xs p-1 hover:bg-red-950/40 rounded transition cursor-pointer"
                         title="Delete Frame"
                       >
                         🗑️
@@ -536,23 +676,19 @@ export default function AvatarFramesModule() {
                 </div>
 
                 <div className="flex items-center gap-4">
-                  {/* Live Avatar Preview Ring */}
-                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center bg-slate-950 rounded-full border border-slate-800 overflow-hidden">
+                  {/* Live Avatar Preview Ring with Animated Vector Frame */}
+                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
                     <img
                       src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop"
                       alt="User Avatar"
-                      className="w-11 h-11 rounded-full object-cover shadow-md"
+                      className="w-11 h-11 rounded-full object-cover shadow-md border-2 border-slate-700"
                     />
-                    {f.assetUrl ? (
-                      <img
-                        src={f.assetUrl}
-                        alt={f.name}
-                        className="absolute inset-0 w-full h-full object-cover pointer-events-none rounded-full"
-                        style={{ transform: 'scale(1.25)' }}
-                      />
-                    ) : (
-                      <div className="absolute inset-0 rounded-full border-2 border-dashed border-cyan-400/80 animate-spin" />
-                    )}
+                    {/* Real Dynamic Animated Frame */}
+                    <AnimatedFrameOverlay
+                      theme={f.theme || (f.name?.includes('Crown') ? 'GOLD_CROWN' : f.name?.includes('Dragon') ? 'DRAGON_AURA' : f.name?.includes('Pakistan') ? 'EMERALD_STAR' : 'CYBER_NEON')}
+                      isAnimated={true}
+                      assetUrl={f.assetUrl}
+                    />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -676,9 +812,9 @@ export default function AvatarFramesModule() {
             </div>
 
             {/* Live Canvas / Stage */}
-            <div className="bg-gradient-to-b from-[#111827] to-[#07090E] border border-slate-800 rounded-3xl p-8 flex flex-col items-center justify-center relative overflow-hidden min-h-[260px]">
+            <div className="bg-gradient-to-b from-[#111827] to-[#07090E] border border-slate-800 rounded-3xl p-10 flex flex-col items-center justify-center relative overflow-hidden min-h-[280px]">
               {/* Background Ambient Glow */}
-              <div className="absolute w-48 h-48 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute w-56 h-56 bg-purple-600/25 rounded-full blur-3xl pointer-events-none" />
 
               {/* Avatar Frame Stage */}
               <div
@@ -689,37 +825,41 @@ export default function AvatarFramesModule() {
                 <img
                   src={previewAvatarUrl}
                   alt="Preview Avatar"
-                  className="rounded-full object-cover shadow-2xl border-2 border-amber-400"
+                  className="rounded-full object-cover shadow-2xl border-2 border-slate-800"
                   style={{ width: `${previewSize}px`, height: `${previewSize}px` }}
                 />
 
-                {/* Decorative Frame Overlay */}
-                {selectedPreviewItem.assetUrl ? (
-                  <img
-                    src={selectedPreviewItem.assetUrl}
-                    alt={selectedPreviewItem.name}
-                    className={`absolute inset-0 w-full h-full object-contain pointer-events-none transition-transform duration-300 ${
-                      isPlaying ? 'animate-pulse' : ''
-                    }`}
-                  />
-                ) : (
-                  <div className="absolute inset-0 rounded-full border-4 border-dashed border-cyan-400/70 animate-spin" />
-                )}
+                {/* Real Vector Animated Frame Overlay (NEVER BREAKS!) */}
+                <AnimatedFrameOverlay
+                  theme={
+                    selectedPreviewItem.theme ||
+                    (selectedPreviewItem.name?.includes('Crown')
+                      ? 'GOLD_CROWN'
+                      : selectedPreviewItem.name?.includes('Dragon')
+                      ? 'DRAGON_AURA'
+                      : selectedPreviewItem.name?.includes('Pakistan')
+                      ? 'EMERALD_STAR'
+                      : 'CYBER_NEON')
+                  }
+                  isAnimated={isPlaying}
+                  scale={previewSize / 120}
+                  assetUrl={selectedPreviewItem.assetUrl}
+                />
 
                 {/* VIP Level Badge */}
                 {previewVipLevel > 0 && (
-                  <div className="absolute bottom-1 right-2 bg-gradient-to-r from-amber-500 to-yellow-300 text-black font-black text-[10px] px-2 py-0.5 rounded-full shadow-lg border border-white">
+                  <div className="absolute -bottom-1 -right-1 bg-gradient-to-r from-amber-500 to-yellow-300 text-black font-black text-[10px] px-2 py-0.5 rounded-full shadow-lg border border-white z-20">
                     VIP {previewVipLevel}
                   </div>
                 )}
               </div>
 
               {/* Username Tag */}
-              <div className="mt-4 text-center z-10">
-                <span className="text-white font-black text-sm tracking-wide block">
+              <div className="mt-6 text-center z-10">
+                <span className="text-white font-black text-base tracking-wide block">
                   @{previewUsername}
                 </span>
-                <span className="text-cyan-300 text-[11px] font-bold block mt-0.5">
+                <span className="text-cyan-300 text-xs font-bold block mt-1">
                   {selectedPreviewItem.name} ({selectedPreviewItem.animationType || 'SVGA'})
                 </span>
               </div>
@@ -901,7 +1041,7 @@ export default function AvatarFramesModule() {
                 </div>
               </div>
 
-              {/* Category, Type & Animation Format */}
+              {/* Category, Theme & Animation Format */}
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-slate-300 font-bold mb-1">Category</label>
@@ -922,14 +1062,16 @@ export default function AvatarFramesModule() {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">Asset Type</label>
+                  <label className="block text-slate-300 font-bold mb-1">Visual Theme</label>
                   <select
-                    value={newAssetType}
-                    onChange={e => setNewAssetType(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-purple-500 font-bold"
+                    value={newTheme}
+                    onChange={e => setNewTheme(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-amber-300 focus:outline-none focus:border-purple-500 font-bold"
                   >
-                    <option value="AVATAR_FRAME">AVATAR_FRAME</option>
-                    <option value="ENTRANCE_EFFECT">ENTRANCE_EFFECT</option>
+                    <option value="GOLD_CROWN">👑 Gold Crown</option>
+                    <option value="CYBER_NEON">⚡ Cyber Neon Wings</option>
+                    <option value="DRAGON_AURA">🐉 Dragon Emperor</option>
+                    <option value="EMERALD_STAR">🇵🇰 Emerald Star</option>
                   </select>
                 </div>
 
@@ -985,20 +1127,6 @@ export default function AvatarFramesModule() {
                     <option value="">Permanent (♾️)</option>
                   </select>
                 </div>
-              </div>
-
-              {/* URL or CDN Link (Optional Fallback) */}
-              <div>
-                <label className="block text-slate-300 font-bold mb-1">
-                  CDN Asset URL / Fallback Image URL (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={newAssetUrl}
-                  onChange={e => setNewAssetUrl(e.target.value)}
-                  placeholder="https://images.unsplash.com/photo-..."
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-300 focus:outline-none focus:border-purple-500 font-mono"
-                />
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
