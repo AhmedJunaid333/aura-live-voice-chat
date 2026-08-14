@@ -10,7 +10,7 @@ const SAMPLE_AVATARS = [
   { id: 'av-3', name: 'Street Cap Boy', url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop' },
 ];
 
-// Pre-configured Luxury Frames with rich SVG vector renderers & fallbacks
+// Pre-configured Luxury Frames
 const INITIAL_FRAMES = [
   {
     id: 'FRM-101',
@@ -152,6 +152,65 @@ function base64ToBlobUrl(base64Str: string): string | null {
   }
 }
 
+// Precision Bounding Box & Vector Content Analyzer for SVGA Files
+function analyzeSvgaArtworkBounds(videoItem: any) {
+  if (!videoItem) return null;
+  const vw = videoItem?.videoSize?.width || 300;
+  const vh = videoItem?.videoSize?.height || 300;
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  if (Array.isArray(videoItem.sprites)) {
+    videoItem.sprites.forEach((sprite: any) => {
+      if (Array.isArray(sprite.frames)) {
+        sprite.frames.forEach((frame: any) => {
+          if (frame.layout) {
+            const { x, y, width, height } = frame.layout;
+            if (width > 0 && height > 0) {
+              minX = Math.min(minX, x);
+              minY = Math.min(minY, y);
+              maxX = Math.max(maxX, x + width);
+              maxY = Math.max(maxY, y + height);
+            }
+          }
+        });
+      }
+    });
+  }
+
+  if (minX !== Infinity && maxX !== -Infinity && (maxX - minX) > 10 && (maxY - minY) > 10) {
+    const contentW = maxX - minX;
+    const contentH = maxY - minY;
+    const centerX = minX + contentW / 2;
+    const centerY = minY + contentH / 2;
+
+    return {
+      vw,
+      vh,
+      contentW,
+      contentH,
+      centerX,
+      centerY,
+      isFullScreenRatio: vh > vw * 1.25,
+      suggestedScale: Math.max(1.35, Math.min(4.0, (Math.max(vw, vh) / Math.max(contentW, contentH)) * 1.15)),
+      suggestedOffsetX: Math.round(((vw / 2) - centerX) * 0.4),
+      suggestedOffsetY: Math.round(((vh / 2) - centerY) * 0.4),
+    };
+  }
+
+  return {
+    vw,
+    vh,
+    isFullScreenRatio: vh > vw * 1.25,
+    suggestedScale: vh > vw * 1.25 ? 2.2 : 1.35,
+    suggestedOffsetX: 0,
+    suggestedOffsetY: 0,
+  };
+}
+
 // Precision-Centered Universal SVGA & Image Frame Player Component
 function UniversalFramePlayer({
   item,
@@ -190,7 +249,7 @@ function UniversalFramePlayer({
       rawUrl.includes('.svg') ||
       rawUrl.includes('.gif'));
 
-  // Outer frame dimension
+  // Outer frame dimension strictly bound to the avatar size
   const frameDimension = Math.round(size * 1.35);
 
   // Load and play SVGA file on Canvas using official SVGA Web Player
@@ -239,6 +298,8 @@ function UniversalFramePlayer({
                 if (!active || !canvasRef.current) return;
                 const vw = videoItem?.videoSize?.width || 300;
                 const vh = videoItem?.videoSize?.height || 300;
+
+                // Sync internal canvas coordinate resolution
                 canvasRef.current.width = vw;
                 canvasRef.current.height = vh;
                 player.setVideoItem(videoItem);
@@ -293,7 +354,7 @@ function UniversalFramePlayer({
   if (isSvga) {
     return (
       <div
-        className="absolute pointer-events-none flex items-center justify-center transition-transform duration-75"
+        className="absolute pointer-events-none flex items-center justify-center"
         style={{
           width: `${frameDimension}px`,
           height: `${frameDimension}px`,
@@ -305,7 +366,8 @@ function UniversalFramePlayer({
       >
         <canvas
           ref={canvasRef}
-          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          className="w-full h-full object-contain pointer-events-none"
+          style={{ maxWidth: '100%', maxHeight: '100%' }}
         />
         {!svgaLoaded && (
           <div className="absolute inset-0 rounded-full border-4 border-amber-400 shadow-[0_0_20px_#f59e0b] animate-spin" />
@@ -318,7 +380,7 @@ function UniversalFramePlayer({
   if (isDirectImage && !imgError) {
     return (
       <div
-        className="absolute pointer-events-none flex items-center justify-center transition-transform duration-75"
+        className="absolute pointer-events-none flex items-center justify-center"
         style={{
           width: `${frameDimension}px`,
           height: `${frameDimension}px`,
@@ -343,7 +405,7 @@ function UniversalFramePlayer({
   // 3. Fallback theme
   return (
     <div
-      className="absolute pointer-events-none flex items-center justify-center transition-transform duration-75"
+      className="absolute pointer-events-none flex items-center justify-center"
       style={{
         width: `${frameDimension}px`,
         height: `${frameDimension}px`,
@@ -479,7 +541,7 @@ export default function AvatarFramesModule() {
     } catch {}
   };
 
-  // Handle Dragging Handlers
+  // Dragging Handlers
   const handlePointerDown = (e: React.PointerEvent) => {
     setIsDragging(true);
     dragStartRef.current = {
@@ -710,14 +772,14 @@ export default function AvatarFramesModule() {
               🔲 AVATAR FRAMES & ENTRANCE EFFECTS HUB
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono text-[10px] font-bold border border-cyan-500/30">
-              ● VISUAL DRAG & PRECISION ALIGNMENT
+              ● VISUAL DRAG &amp; PRECISION ALIGNMENT
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
               ● REAL-TIME SOCKET.IO SYNC
             </span>
           </div>
           <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">
-            Avatar Frames, SVGA Player & VIP Cosmetics Hub
+            Avatar Frames, SVGA Player &amp; VIP Cosmetics Hub
           </h2>
           <p className="text-xs text-slate-300 mt-1 max-w-3xl">
             Upload custom <code className="bg-purple-900/60 px-1 py-0.5 rounded text-cyan-300">.svga</code> files, drag to visually align over profile pictures, and save alignment presets.
@@ -848,17 +910,17 @@ export default function AvatarFramesModule() {
                 </div>
 
                 <div className="flex items-center gap-4">
-                  {/* Live Avatar Preview Ring with Universal Frame Player */}
-                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center overflow-visible">
+                  {/* Contained Avatar + Frame Ring */}
+                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center overflow-hidden rounded-full bg-slate-950/80 border border-slate-700">
                     <img
                       src={previewAvatarUrl}
                       alt="User Avatar"
-                      className="w-12 h-12 rounded-full object-cover shadow-md border-2 border-slate-700 relative z-0"
+                      className="w-12 h-12 rounded-full object-cover shadow-md relative z-0"
                     />
                     <UniversalFramePlayer
                       item={f}
                       isAnimated={true}
-                      size={48}
+                      size={44}
                       scale={f.defaultScale || 1.35}
                       offsetX={f.defaultOffsetX || 0}
                       offsetY={f.defaultOffsetY || 0}
@@ -1074,8 +1136,8 @@ export default function AvatarFramesModule() {
                   <input
                     type="range"
                     min="0.5"
-                    max="3.0"
-                    step="0.02"
+                    max="5.0"
+                    step="0.05"
                     value={frameScale}
                     onChange={e => setFrameScale(parseFloat(e.target.value))}
                     className="w-full accent-cyan-400 cursor-pointer"
@@ -1088,8 +1150,8 @@ export default function AvatarFramesModule() {
                   </label>
                   <input
                     type="range"
-                    min="-200"
-                    max="200"
+                    min="-300"
+                    max="300"
                     value={offsetX}
                     onChange={e => setOffsetX(parseInt(e.target.value, 10))}
                     className="w-full accent-purple-400 cursor-pointer"
@@ -1102,8 +1164,8 @@ export default function AvatarFramesModule() {
                   </label>
                   <input
                     type="range"
-                    min="-200"
-                    max="200"
+                    min="-300"
+                    max="300"
                     value={offsetY}
                     onChange={e => setOffsetY(parseInt(e.target.value, 10))}
                     className="w-full accent-purple-400 cursor-pointer"
@@ -1131,14 +1193,14 @@ export default function AvatarFramesModule() {
                   {/* Quick Auto Fit for Gold ADMIN Frame */}
                   <button
                     onClick={() => {
-                      setFrameScale(1.85);
-                      setOffsetX(48);
-                      setOffsetY(44);
+                      setFrameScale(2.35);
+                      setOffsetX(0);
+                      setOffsetY(-8);
                       setPreviewSize(100);
                     }}
                     className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-black font-black text-[11px] cursor-pointer shadow-md"
                   >
-                    👑 Fit Gold ADMIN Frame
+                    👑 Auto Fit Gold Frame
                   </button>
 
                   <button
@@ -1156,30 +1218,30 @@ export default function AvatarFramesModule() {
                   {/* Nudge buttons */}
                   <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
                     <button
-                      onClick={() => setOffsetX(prev => prev - 4)}
+                      onClick={() => setOffsetX(prev => prev - 5)}
                       className="px-2 py-0.5 rounded hover:bg-slate-800 text-slate-300 font-bold text-xs"
-                      title="Move Left 4px"
+                      title="Move Left 5px"
                     >
                       ⬅️
                     </button>
                     <button
-                      onClick={() => setOffsetX(prev => prev + 4)}
+                      onClick={() => setOffsetX(prev => prev + 5)}
                       className="px-2 py-0.5 rounded hover:bg-slate-800 text-slate-300 font-bold text-xs"
-                      title="Move Right 4px"
+                      title="Move Right 5px"
                     >
                       ➡️
                     </button>
                     <button
-                      onClick={() => setOffsetY(prev => prev - 4)}
+                      onClick={() => setOffsetY(prev => prev - 5)}
                       className="px-2 py-0.5 rounded hover:bg-slate-800 text-slate-300 font-bold text-xs"
-                      title="Move Up 4px"
+                      title="Move Up 5px"
                     >
                       ⬆️
                     </button>
                     <button
-                      onClick={() => setOffsetY(prev => prev + 4)}
+                      onClick={() => setOffsetY(prev => prev + 5)}
                       className="px-2 py-0.5 rounded hover:bg-slate-800 text-slate-300 font-bold text-xs"
-                      title="Move Down 4px"
+                      title="Move Down 5px"
                     >
                       ⬇️
                     </button>
