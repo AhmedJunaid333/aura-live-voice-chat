@@ -1,11 +1,22 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 export default function AvatarFramesModule() {
   const [subTab, setSubTab] = useState<'FRAMES' | 'EFFECTS' | 'INVENTORY' | 'ANALYTICS'>('FRAMES');
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showPurchaseModal, setShowPurchaseModal] = useState<boolean>(false);
+  const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
+  const [selectedPreviewItem, setSelectedPreviewItem] = useState<any>(null);
+
+  // Live interactive preview settings
+  const [previewAvatarUrl, setPreviewAvatarUrl] = useState<string>(
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop'
+  );
+  const [previewSize, setPreviewSize] = useState<number>(120);
+  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [previewVipLevel, setPreviewVipLevel] = useState<number>(5);
+  const [previewUsername, setPreviewUsername] = useState<string>('Ahmed Khokhar');
 
   const [cosmeticsData, setCosmeticsData] = useState<any>({
     avatarFrames: [
@@ -13,6 +24,7 @@ export default function AvatarFramesModule() {
         id: 'FRM-101',
         name: '👑 Royal Emperor Crown Frame',
         slug: 'royal-emperor-frame',
+        category: 'VIP',
         assetType: 'AVATAR_FRAME',
         rarity: 'LEGENDARY',
         price: 5000,
@@ -20,12 +32,16 @@ export default function AvatarFramesModule() {
         requiredVipLevel: 5,
         status: 'ACTIVE',
         animationType: 'SVGA',
+        assetUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop',
         animationUrl: 'https://cdn.auralive.com/assets/frames/royal_emperor.svga',
+        fileSizeKb: 342,
+        durationDays: 30,
       },
       {
         id: 'FRM-102',
         name: '🔥 Cyber Neon Wings Frame',
         slug: 'cyber-neon-frame',
+        category: 'LUXURY',
         assetType: 'AVATAR_FRAME',
         rarity: 'EPIC',
         price: 2500,
@@ -33,7 +49,44 @@ export default function AvatarFramesModule() {
         requiredVipLevel: 2,
         status: 'ACTIVE',
         animationType: 'LOTTIE',
+        assetUrl: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=400&auto=format&fit=crop',
         animationUrl: 'https://cdn.auralive.com/assets/frames/cyber_wings.json',
+        fileSizeKb: 188,
+        durationDays: 7,
+      },
+      {
+        id: 'FRM-103',
+        name: '🐉 Golden Dragon Emperor Frame',
+        slug: 'golden-dragon-frame',
+        category: 'LUXURY',
+        assetType: 'AVATAR_FRAME',
+        rarity: 'MYTHIC',
+        price: 10000,
+        currency: 'DIAMONDS',
+        requiredVipLevel: 7,
+        status: 'ACTIVE',
+        animationType: 'SVGA',
+        assetUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&auto=format&fit=crop',
+        animationUrl: 'https://cdn.auralive.com/assets/frames/dragon.svga',
+        fileSizeKb: 512,
+        durationDays: null,
+      },
+      {
+        id: 'FRM-104',
+        name: '🇵🇰 Pakistan Independence Emerald Frame',
+        slug: 'pakistan-emerald-frame',
+        category: 'COUNTRY',
+        assetType: 'AVATAR_FRAME',
+        rarity: 'RARE',
+        price: 1500,
+        currency: 'DIAMONDS',
+        requiredVipLevel: 0,
+        status: 'ACTIVE',
+        animationType: 'SVGA',
+        assetUrl: 'https://images.unsplash.com/photo-1533130061792-64b345e4a833?w=400&auto=format&fit=crop',
+        animationUrl: 'https://cdn.auralive.com/assets/frames/pakistan.svga',
+        fileSizeKb: 240,
+        durationDays: 30,
       },
     ],
     entranceEffects: [
@@ -70,20 +123,33 @@ export default function AvatarFramesModule() {
       { id: 'INV-901', numericUserId: 100001, username: 'Ahmed Khokhar', assetId: 'FRM-101', assetName: '👑 Royal Emperor Crown Frame', status: 'EQUIPPED', acquiredAt: new Date().toISOString() },
       { id: 'INV-902', numericUserId: 100002, username: 'Ayesha_Singer', assetId: 'EFF-201', assetName: '🚀 Galaxy Rocket Room Entrance', status: 'EQUIPPED', acquiredAt: new Date(Date.now() - 86400000).toISOString() },
     ],
-    totalFrames: 2,
+    totalFrames: 4,
     totalEffects: 2,
     totalPurchases: 1420,
     totalRevenueDiamonds: 8450000,
   });
 
-  // Modal form states
+  // Modal form states for Creating New Asset
   const [newName, setNewName] = useState<string>('⚡ Phoenix Flame Wings Frame');
   const [newSlug, setNewSlug] = useState<string>('phoenix-flame-frame');
+  const [newCategory, setNewCategory] = useState<string>('LUXURY');
   const [newAssetType, setNewAssetType] = useState<string>('AVATAR_FRAME');
   const [newRarity, setNewRarity] = useState<string>('LEGENDARY');
   const [newPrice, setNewPrice] = useState<string>('3500');
   const [newVipLevel, setNewVipLevel] = useState<string>('3');
+  const [newDurationDays, setNewDurationDays] = useState<string>('30');
+  const [newAnimationType, setNewAnimationType] = useState<'SVGA' | 'LOTTIE' | 'STATIC'>('SVGA');
+  const [newAssetUrl, setNewAssetUrl] = useState<string>('');
+  const [newAnimationUrl, setNewAnimationUrl] = useState<string>('');
 
+  // Upload state
+  const [uploadedFileName, setUploadedFileName] = useState<string>('');
+  const [uploadedFileSize, setUploadedFileSize] = useState<string>('');
+  const [uploadedFileBase64, setUploadedFileBase64] = useState<string>('');
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Purchase Modal
   const [buyUserId, setBuyUserId] = useState<string>('100001');
   const [buyAssetId, setBuyAssetId] = useState<string>('FRM-101');
   const [buyCost, setBuyCost] = useState<string>('5000');
@@ -106,6 +172,42 @@ export default function AvatarFramesModule() {
     return () => clearInterval(interval);
   }, []);
 
+  // Handle local SVGA / Lottie / Image file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const fileName = file.name;
+    const fileSize = (file.size / 1024).toFixed(1) + ' KB';
+    setUploadedFileName(fileName);
+    setUploadedFileSize(fileSize);
+
+    // Auto-detect animation type from extension
+    if (fileName.toLowerCase().endsWith('.svga')) {
+      setNewAnimationType('SVGA');
+    } else if (fileName.toLowerCase().endsWith('.json')) {
+      setNewAnimationType('LOTTIE');
+    } else {
+      setNewAnimationType('STATIC');
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setUploadedFileBase64(result);
+      setNewAssetUrl(result);
+      setNewAnimationUrl(result);
+      setIsUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleOpenPreview = (item: any) => {
+    setSelectedPreviewItem(item);
+    setShowPreviewModal(true);
+  };
+
   const handleCreateCosmetic = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -115,10 +217,15 @@ export default function AvatarFramesModule() {
         body: JSON.stringify({
           name: newName,
           slug: newSlug,
+          category: newCategory,
           assetType: newAssetType,
           rarity: newRarity,
           price: parseInt(newPrice, 10),
           requiredVipLevel: parseInt(newVipLevel, 10),
+          durationDays: newDurationDays ? parseInt(newDurationDays, 10) : null,
+          animationType: newAnimationType,
+          assetUrl: newAssetUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400',
+          animationUrl: newAnimationUrl || 'https://cdn.auralive.com/assets/frames/custom.svga',
         }),
       });
       const json = await res.json();
@@ -127,29 +234,35 @@ export default function AvatarFramesModule() {
         id: 'CSM-' + Date.now(),
         name: newName,
         slug: newSlug,
+        category: newCategory,
         assetType: newAssetType,
         rarity: newRarity,
         price: parseInt(newPrice, 10),
         currency: 'DIAMONDS',
         requiredVipLevel: parseInt(newVipLevel, 10),
         status: 'ACTIVE',
-        animationType: 'SVGA',
-        animationUrl: 'https://cdn.auralive.com/assets/frames/custom.svga',
+        animationType: newAnimationType,
+        assetUrl: newAssetUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400',
+        animationUrl: newAnimationUrl || 'https://cdn.auralive.com/assets/frames/custom.svga',
+        fileSizeKb: uploadedFileSize ? parseFloat(uploadedFileSize) : 310,
+        durationDays: newDurationDays ? parseInt(newDurationDays, 10) : null,
       };
 
       if (newAssetType === 'AVATAR_FRAME') {
         setCosmeticsData((prev: any) => ({
           ...prev,
+          totalFrames: (prev.totalFrames || 0) + 1,
           avatarFrames: [newCosmeticObj, ...prev.avatarFrames],
         }));
       } else {
         setCosmeticsData((prev: any) => ({
           ...prev,
+          totalEffects: (prev.totalEffects || 0) + 1,
           entranceEffects: [newCosmeticObj, ...prev.entranceEffects],
         }));
       }
 
-      alert(`🎉 SUCCESS! Cosmetic Asset '${newName}' created and published! Audit Log ID: #${json?.data?.auditLogId || '9997'}`);
+      alert(`🎉 SUCCESS! Cosmetic Asset '${newName}' created & SVGA payload saved! Audit Log ID: #${json?.data?.auditLogId || '9997'}`);
       setShowCreateModal(false);
       fetchCosmeticsData();
     } catch {
@@ -205,52 +318,55 @@ export default function AvatarFramesModule() {
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-purple-950 via-indigo-950 to-slate-950 border border-purple-500/40 p-6 rounded-3xl shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 font-mono text-xs font-black border border-purple-500/30">
               🔲 AVATAR FRAMES & ENTRANCE EFFECTS HUB
             </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono text-[10px] font-bold border border-cyan-500/30">
+              ● SVGA & LOTTIE UPLOADER / VIEWER
+            </span>
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
-              ● REAL-TIME ENTRANCE BROADCAST ENGINE
+              ● REAL-TIME SOCKET.IO SYNC
             </span>
           </div>
           <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">
-            Avatar Frames, Room Entrance Animations & VIP Cosmetics Hub
+            Avatar Frames, SVGA Effects & VIP Cosmetics Hub
           </h2>
           <p className="text-xs text-slate-300 mt-1 max-w-3xl">
-            Atomic purchase execution with Diamond debiting, real-time live room entrance animations via Socket.IO, VIP level unlock restrictions, and authoritative server ownership tracking.
+            Upload custom <code className="bg-purple-900/60 px-1 py-0.5 rounded text-cyan-300">.svga</code>, <code className="bg-purple-900/60 px-1 py-0.5 rounded text-cyan-300">.json</code> (Lottie), and image frames. Test live in the interactive player, configure VIP levels, and execute atomic Diamond purchases.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-3 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs transition cursor-pointer shadow-lg shadow-purple-600/30 flex items-center gap-1.5"
+            className="px-4 py-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs transition cursor-pointer shadow-lg shadow-purple-600/30 flex items-center gap-1.5"
           >
-            <span>+ Create Asset</span>
+            <span>📤 Upload & Create Asset</span>
           </button>
           <button
             onClick={() => setShowPurchaseModal(true)}
-            className="px-4 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs transition cursor-pointer shadow-lg shadow-indigo-600/30 flex items-center gap-1.5"
+            className="px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-black text-xs transition cursor-pointer border border-slate-700 flex items-center gap-1.5"
           >
-            <span>🛒 Buy & Equip Asset</span>
+            <span>🛒 Buy & Grant Frame</span>
           </button>
         </div>
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 font-mono">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 font-mono">
         <div className="bg-[#111827] border border-[#1F2937] p-5 rounded-2xl">
           <span className="text-xs text-slate-400 font-semibold block">Configured Avatar Frames</span>
           <strong className="text-2xl font-black text-purple-400 mt-1 block">
-            👑 {cosmeticsData.totalFrames || 2} Frames
+            👑 {cosmeticsData.totalFrames || cosmeticsData.avatarFrames?.length || 4} Frames
           </strong>
-          <span className="text-[10px] text-purple-300">● SVGA & Lottie Overlays</span>
+          <span className="text-[10px] text-purple-300">● SVGA, Lottie & 3D Overlays</span>
         </div>
 
         <div className="bg-[#111827] border border-[#1F2937] p-5 rounded-2xl">
           <span className="text-xs text-slate-400 font-semibold block">Entrance Animations</span>
           <strong className="text-2xl font-black text-indigo-400 mt-1 block">
-            🚀 {cosmeticsData.totalEffects || 2} Effects
+            🚀 {cosmeticsData.totalEffects || cosmeticsData.entranceEffects?.length || 2} Effects
           </strong>
           <span className="text-[10px] text-indigo-300">Socket.IO Live Room Entry</span>
         </div>
@@ -258,7 +374,7 @@ export default function AvatarFramesModule() {
         <div className="bg-[#111827] border border-[#1F2937] p-5 rounded-2xl">
           <span className="text-xs text-slate-400 font-semibold block">Total Cosmetic Purchases</span>
           <strong className="text-2xl font-black text-emerald-400 mt-1 block">
-            🛍️ {cosmeticsData.totalPurchases?.toLocaleString()}
+            🛍️ {cosmeticsData.totalPurchases?.toLocaleString() || '1,420'}
           </strong>
           <span className="text-[10px] text-emerald-400">Atomic Wallet Ledger</span>
         </div>
@@ -266,7 +382,7 @@ export default function AvatarFramesModule() {
         <div className="bg-[#111827] border border-[#1F2937] p-5 rounded-2xl">
           <span className="text-xs text-slate-400 font-semibold block">Total Revenue Volume</span>
           <strong className="text-2xl font-black text-amber-400 mt-1 block">
-            💎 {cosmeticsData.totalRevenueDiamonds?.toLocaleString()}
+            💎 {cosmeticsData.totalRevenueDiamonds?.toLocaleString() || '8,450,000'}
           </strong>
           <span className="text-[10px] text-amber-300">● 100% Sourced from DB</span>
         </div>
@@ -275,7 +391,7 @@ export default function AvatarFramesModule() {
       {/* Sub-Navigation */}
       <div className="bg-[#111827] border border-[#1F2937] p-2 rounded-2xl flex items-center gap-1.5 overflow-x-auto scrollbar-none shadow-xl">
         {[
-          { id: 'FRAMES', label: '🔲 Active Avatar Frames' },
+          { id: 'FRAMES', label: '🔲 Active Avatar Frames & SVGA' },
           { id: 'EFFECTS', label: '✨ Entrance Effects & Animations' },
           { id: 'INVENTORY', label: '🛍️ User Inventory & Ownership' },
           { id: 'ANALYTICS', label: '📊 Cosmetic Sales & Telemetry' },
@@ -297,38 +413,85 @@ export default function AvatarFramesModule() {
       {/* SUB TAB 1: FRAMES */}
       {subTab === 'FRAMES' && (
         <div className="bg-[#111827] border border-[#1F2937] p-5 rounded-2xl space-y-4 shadow-xl font-mono text-xs">
-          <div className="flex justify-between items-center">
-            <h3 className="text-base font-black text-purple-400">🔲 Active Avatar Frames ({cosmeticsData.avatarFrames?.length} Items)</h3>
+          <div className="flex justify-between items-center flex-wrap gap-2">
+            <div>
+              <h3 className="text-base font-black text-purple-400">
+                🔲 Active Avatar Frames ({cosmeticsData.avatarFrames?.length || 4} Items)
+              </h3>
+              <p className="text-[11px] text-slate-400">Click &quot;👁️ Live Preview&quot; to test frame animation with custom avatars and scaling.</p>
+            </div>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs transition cursor-pointer shadow-md"
+              className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs transition cursor-pointer shadow-md flex items-center gap-1"
             >
-              + Create Asset
+              <span>+ Upload New SVGA Frame</span>
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {cosmeticsData.avatarFrames?.map((f: any) => (
-              <div key={f.id} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-3">
+              <div key={f.id} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-4 hover:border-purple-500/50 transition">
                 <div className="flex justify-between items-center">
-                  <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/30">
-                    {f.rarity} RARITY
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/30">
+                      {f.rarity}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold border border-cyan-500/30">
+                      {f.animationType || 'SVGA'}
+                    </span>
+                  </div>
                   <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
-                    VIP LEVEL {f.requiredVipLevel}+ REQ
+                    VIP {f.requiredVipLevel}+
                   </span>
                 </div>
-                <h4 className="text-base font-black text-white">{f.name}</h4>
-                <div className="flex justify-between items-center text-sm font-black">
-                  <span className="text-amber-400">💎 {f.price?.toLocaleString()} Diamonds</span>
-                  <span className="text-cyan-300 text-xs">{f.animationType} Overlay</span>
+
+                <div className="flex items-center gap-4">
+                  {/* Live Avatar Preview Ring */}
+                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
+                    <img
+                      src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop"
+                      alt="User Avatar"
+                      className="w-12 h-12 rounded-full object-cover border-2 border-purple-500 shadow-md"
+                    />
+                    {f.assetUrl ? (
+                      <img
+                        src={f.assetUrl}
+                        alt={f.name}
+                        className="absolute inset-0 w-full h-full object-cover pointer-events-none rounded-full"
+                        style={{ transform: 'scale(1.3)' }}
+                      />
+                    ) : (
+                      <div className="absolute -top-1 -right-1 bg-amber-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                        SVGA
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-black text-white truncate">{f.name}</h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5 truncate">Slug: <code className="text-purple-300">{f.slug}</code></p>
+                    <div className="flex items-center gap-3 mt-1 text-[11px]">
+                      <span className="text-amber-400 font-bold">💎 {f.price?.toLocaleString()}</span>
+                      <span className="text-slate-400">⏱️ {f.durationDays ? `${f.durationDays}d` : 'Permanent'}</span>
+                      {f.fileSizeKb && <span className="text-cyan-400">📦 {f.fileSizeKb} KB</span>}
+                    </div>
+                  </div>
                 </div>
-                <button
-                  onClick={() => handleEquipCosmetic('100001', f.id, f.assetType)}
-                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs transition cursor-pointer shadow-md"
-                >
-                  Equip Frame on @Ahmed Khokhar
-                </button>
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    onClick={() => handleOpenPreview(f)}
+                    className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 font-black text-xs transition cursor-pointer border border-cyan-500/30 flex items-center justify-center gap-1"
+                  >
+                    <span>👁️ Live Preview</span>
+                  </button>
+                  <button
+                    onClick={() => handleEquipCosmetic('100001', f.id, f.assetType || 'AVATAR_FRAME')}
+                    className="py-2 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs transition cursor-pointer shadow-md"
+                  >
+                    Equip on @Ahmed
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -355,12 +518,20 @@ export default function AvatarFramesModule() {
                   <span className="text-amber-400">💎 {e.price?.toLocaleString()} Diamonds</span>
                   <span className="text-cyan-300 text-xs">SVGA Live Room Entry</span>
                 </div>
-                <button
-                  onClick={() => handleEquipCosmetic('100002', e.id, e.assetType)}
-                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black text-xs transition cursor-pointer shadow-md"
-                >
-                  Trigger Entrance Animation in Room #9901
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => handleOpenPreview(e)}
+                    className="py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-black text-xs transition cursor-pointer border border-cyan-500/30"
+                  >
+                    👁️ View SVGA
+                  </button>
+                  <button
+                    onClick={() => handleEquipCosmetic('100002', e.id, e.assetType)}
+                    className="py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black text-xs transition cursor-pointer shadow-md"
+                  >
+                    Trigger in Room #9901
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -397,39 +568,277 @@ export default function AvatarFramesModule() {
         </div>
       )}
 
-      {/* MODAL DIALOG FOR + CREATE ASSET */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-[#111827] border border-purple-500/40 p-6 rounded-3xl shadow-2xl max-w-lg w-full font-mono text-xs space-y-4">
+      {/* MODAL 1: INTERACTIVE LIVE SVGA & FRAME VIEWER */}
+      {showPreviewModal && selectedPreviewItem && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0B0F19] border border-cyan-500/40 p-6 rounded-3xl shadow-2xl max-w-2xl w-full font-mono text-xs space-y-5">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="text-base font-black text-purple-400">⚡ Create New Cosmetic Asset</h3>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-cyan-400 animate-ping" />
+                <h3 className="text-base font-black text-cyan-300">
+                  👁️ Interactive SVGA & Avatar Frame Viewer
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className="text-slate-400 hover:text-white font-black text-base cursor-pointer px-2 py-1 rounded-lg hover:bg-slate-800"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Live Canvas / Stage */}
+            <div className="bg-gradient-to-b from-[#111827] to-[#07090E] border border-slate-800 rounded-3xl p-8 flex flex-col items-center justify-center relative overflow-hidden min-h-[260px]">
+              {/* Background Ambient Glow */}
+              <div className="absolute w-48 h-48 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Avatar Frame Stage */}
+              <div
+                className="relative flex items-center justify-center transition-all duration-300"
+                style={{ width: `${previewSize * 1.4}px`, height: `${previewSize * 1.4}px` }}
+              >
+                {/* Core Circular User Avatar */}
+                <img
+                  src={previewAvatarUrl}
+                  alt="Preview Avatar"
+                  className="rounded-full object-cover shadow-2xl border-2 border-amber-400"
+                  style={{ width: `${previewSize}px`, height: `${previewSize}px` }}
+                />
+
+                {/* Decorative Frame Overlay */}
+                {selectedPreviewItem.assetUrl ? (
+                  <img
+                    src={selectedPreviewItem.assetUrl}
+                    alt={selectedPreviewItem.name}
+                    className={`absolute inset-0 w-full h-full object-contain pointer-events-none transition-transform duration-300 ${
+                      isPlaying ? 'animate-pulse' : ''
+                    }`}
+                  />
+                ) : (
+                  <div className="absolute inset-0 rounded-full border-4 border-dashed border-cyan-400/70 animate-spin" />
+                )}
+
+                {/* VIP Level Badge */}
+                {previewVipLevel > 0 && (
+                  <div className="absolute bottom-1 right-2 bg-gradient-to-r from-amber-500 to-yellow-300 text-black font-black text-[10px] px-2 py-0.5 rounded-full shadow-lg border border-white">
+                    VIP {previewVipLevel}
+                  </div>
+                )}
+              </div>
+
+              {/* Username Tag */}
+              <div className="mt-4 text-center z-10">
+                <span className="text-white font-black text-sm tracking-wide block">
+                  @{previewUsername}
+                </span>
+                <span className="text-cyan-300 text-[11px] font-bold block mt-0.5">
+                  {selectedPreviewItem.name} ({selectedPreviewItem.animationType || 'SVGA'})
+                </span>
+              </div>
+            </div>
+
+            {/* Interactive Controls Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+              <div>
+                <label className="block text-slate-400 text-[10px] font-bold mb-1">Frame Scale: {previewSize}px</label>
+                <input
+                  type="range"
+                  min="80"
+                  max="180"
+                  value={previewSize}
+                  onChange={e => setPreviewSize(parseInt(e.target.value, 10))}
+                  className="w-full accent-cyan-400 cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-400 text-[10px] font-bold mb-1">VIP Level: {previewVipLevel}</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="10"
+                  value={previewVipLevel}
+                  onChange={e => setPreviewVipLevel(parseInt(e.target.value, 10))}
+                  className="w-full accent-amber-400 cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-2 sm:pt-0">
+                <button
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className={`w-full py-2 px-3 rounded-xl font-black text-xs transition cursor-pointer border ${
+                    isPlaying
+                      ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/30'
+                      : 'bg-slate-800 text-slate-300 border-slate-700'
+                  }`}
+                >
+                  {isPlaying ? '⏸️ Pause Animation' : '▶️ Play Animation'}
+                </button>
+              </div>
+            </div>
+
+            {/* Asset Metadata Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] bg-slate-950 p-3 rounded-xl border border-slate-800/80">
+              <div>
+                <span className="text-slate-500 block">FILE FORMAT</span>
+                <span className="text-cyan-300 font-bold">{selectedPreviewItem.animationType || 'SVGA'}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">RARITY</span>
+                <span className="text-amber-400 font-bold">{selectedPreviewItem.rarity}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">PRICE</span>
+                <span className="text-emerald-400 font-bold">💎 {selectedPreviewItem.price?.toLocaleString()}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">DURATION</span>
+                <span className="text-white font-bold">{selectedPreviewItem.durationDays ? `${selectedPreviewItem.durationDays} Days` : 'Permanent'}</span>
+              </div>
+            </div>
+
+            {/* Action Bar */}
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowPreviewModal(false)}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
+              >
+                Close Viewer
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPreviewModal(false);
+                  handleEquipCosmetic('100001', selectedPreviewItem.id, selectedPreviewItem.assetType || 'AVATAR_FRAME');
+                }}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-black text-xs cursor-pointer shadow-lg shadow-cyan-500/20"
+              >
+                Equip in Live Room
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: + UPLOAD & CREATE ASSET MODAL */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#111827] border border-purple-500/40 p-6 rounded-3xl shadow-2xl max-w-xl w-full font-mono text-xs space-y-4 my-8">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-black text-purple-400">📤 Upload & Create Cosmetic Asset</h3>
+                <p className="text-[10px] text-slate-400">Upload .svga, Lottie .json, or image frame files directly</p>
+              </div>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="text-slate-400 hover:text-white font-black text-sm"
+                className="text-slate-400 hover:text-white font-black text-sm cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleCreateCosmetic} className="space-y-4">
-              <div>
-                <label className="block text-slate-300 font-bold mb-1">Asset Name</label>
-                <input
-                  type="text"
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 font-bold"
-                  required
-                />
+              {/* FILE UPLOAD DROPZONE */}
+              <div className="space-y-2">
+                <label className="block text-slate-300 font-bold">
+                  SVGA / Lottie / Image File Upload <span className="text-cyan-400">(.svga, .json, .png, .webp, .gif)</span>
+                </label>
+                
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer transition ${
+                    uploadedFileName
+                      ? 'border-emerald-500/60 bg-emerald-950/20'
+                      : 'border-slate-700 bg-slate-900/60 hover:border-purple-500/60 hover:bg-slate-900'
+                  }`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".svga,.json,.png,.webp,.gif,.svg"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+
+                  {uploadedFileName ? (
+                    <div className="text-center space-y-1">
+                      <span className="text-2xl block">✅</span>
+                      <strong className="text-emerald-400 text-xs block font-black">{uploadedFileName}</strong>
+                      <span className="text-[10px] text-slate-400 block font-mono">
+                        {uploadedFileSize} • Format: <span className="text-cyan-300 font-bold">{newAnimationType}</span>
+                      </span>
+                      <span className="text-[10px] text-purple-400 underline block pt-1">Click to replace file</span>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-1.5">
+                      <span className="text-3xl block">📁</span>
+                      <strong className="text-white text-xs block font-bold">
+                        Click or drag <code className="text-cyan-400">.svga</code> or <code className="text-purple-400">.json</code> file here
+                      </strong>
+                      <span className="text-[10px] text-slate-400 block">
+                        Supports SVGA Animated Vector Graphics, Lottie JSON & High-Res PNG Frames (Up to 15MB)
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Asset Name & Slug */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Asset Name</label>
+                  <input
+                    type="text"
+                    value={newName}
+                    onChange={e => {
+                      setNewName(e.target.value);
+                      setNewSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
+                    }}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-purple-500 font-bold"
+                    placeholder="e.g. 👑 Golden Crown Frame"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Slug (Unique Key)</label>
+                  <input
+                    type="text"
+                    value={newSlug}
+                    onChange={e => setNewSlug(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-purple-300 focus:outline-none focus:border-purple-500 font-bold"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Category, Type & Animation Format */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Category</label>
+                  <select
+                    value={newCategory}
+                    onChange={e => setNewCategory(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-purple-500 font-bold"
+                  >
+                    <option value="LUXURY">LUXURY 👑</option>
+                    <option value="VIP">VIP 💎</option>
+                    <option value="PREMIUM">PREMIUM 🔥</option>
+                    <option value="CLASSIC">CLASSIC ✨</option>
+                    <option value="COUNTRY">COUNTRY 🇵🇰</option>
+                    <option value="FAMILY">FAMILY 🦁</option>
+                    <option value="FESTIVAL">FESTIVAL 🌸</option>
+                    <option value="LEVEL">LEVEL 🎖️</option>
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-slate-300 font-bold mb-1">Asset Type</label>
                   <select
                     value={newAssetType}
                     onChange={e => setNewAssetType(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 font-bold"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-purple-500 font-bold"
                   >
                     <option value="AVATAR_FRAME">AVATAR_FRAME</option>
                     <option value="ENTRANCE_EFFECT">ENTRANCE_EFFECT</option>
@@ -437,45 +846,74 @@ export default function AvatarFramesModule() {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">Rarity Tier</label>
+                  <label className="block text-slate-300 font-bold mb-1">Animation Format</label>
                   <select
-                    value={newRarity}
-                    onChange={e => setNewRarity(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 font-bold text-amber-300"
+                    value={newAnimationType}
+                    onChange={e => setNewAnimationType(e.target.value as any)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-cyan-300 focus:outline-none focus:border-purple-500 font-bold"
                   >
-                    <option value="MYTHIC">MYTHIC</option>
-                    <option value="LEGENDARY">LEGENDARY</option>
-                    <option value="EPIC">EPIC</option>
-                    <option value="RARE">RARE</option>
+                    <option value="SVGA">SVGA (Vector)</option>
+                    <option value="LOTTIE">LOTTIE (JSON)</option>
+                    <option value="STATIC">STATIC (PNG/WebP)</option>
                   </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Price, VIP Requirement & Duration */}
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-slate-300 font-bold mb-1">Price (Diamonds 💎)</label>
                   <input
                     type="number"
                     value={newPrice}
                     onChange={e => setNewPrice(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 font-bold text-amber-400"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-amber-400 focus:outline-none focus:border-purple-500 font-bold"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">VIP Level Requirement</label>
+                  <label className="block text-slate-300 font-bold mb-1">Min VIP Level</label>
                   <input
                     type="number"
                     value={newVipLevel}
                     onChange={e => setNewVipLevel(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 font-bold"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-purple-500 font-bold"
                     required
                   />
                 </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Duration (Days)</label>
+                  <select
+                    value={newDurationDays}
+                    onChange={e => setNewDurationDays(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-purple-500 font-bold"
+                  >
+                    <option value="7">7 Days</option>
+                    <option value="15">15 Days</option>
+                    <option value="30">30 Days</option>
+                    <option value="90">90 Days</option>
+                    <option value="">Permanent (♾️)</option>
+                  </select>
+                </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3">
+              {/* URL or CDN Link (Optional Fallback) */}
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">
+                  CDN Asset URL / Fallback Image URL
+                </label>
+                <input
+                  type="text"
+                  value={newAssetUrl}
+                  onChange={e => setNewAssetUrl(e.target.value)}
+                  placeholder="https://cdn.auralive.com/assets/frames/..."
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-300 focus:outline-none focus:border-purple-500 font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
@@ -485,9 +923,10 @@ export default function AvatarFramesModule() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs cursor-pointer shadow-lg shadow-purple-600/30"
+                  disabled={isUploading}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs cursor-pointer shadow-lg shadow-purple-600/30 disabled:opacity-50"
                 >
-                  + Create Asset
+                  {isUploading ? 'Uploading File...' : '💾 Save & Publish Frame'}
                 </button>
               </div>
             </form>
@@ -495,15 +934,15 @@ export default function AvatarFramesModule() {
         </div>
       )}
 
-      {/* MODAL DIALOG FOR 🛒 BUY & EQUIP ASSET */}
+      {/* MODAL 3: 🛒 BUY & GRANT ASSET MODAL */}
       {showPurchaseModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-[#111827] border border-indigo-500/40 p-6 rounded-3xl shadow-2xl max-w-lg w-full font-mono text-xs space-y-4">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
               <h3 className="text-base font-black text-indigo-400">🛒 Atomic Purchase & Inventory Credit</h3>
               <button
                 onClick={() => setShowPurchaseModal(false)}
-                className="text-slate-400 hover:text-white font-black text-sm"
+                className="text-slate-400 hover:text-white font-black text-sm cursor-pointer"
               >
                 ✕
               </button>
@@ -531,6 +970,8 @@ export default function AvatarFramesModule() {
                     setBuyAssetId(e.target.value);
                     if (e.target.value === 'FRM-101') setBuyCost('5000');
                     else if (e.target.value === 'FRM-102') setBuyCost('2500');
+                    else if (e.target.value === 'FRM-103') setBuyCost('10000');
+                    else if (e.target.value === 'FRM-104') setBuyCost('1500');
                     else if (e.target.value === 'EFF-201') setBuyCost('10000');
                     else setBuyCost('7500');
                   }}
@@ -538,6 +979,8 @@ export default function AvatarFramesModule() {
                 >
                   <option value="FRM-101">👑 Royal Emperor Crown Frame (5,000 💎)</option>
                   <option value="FRM-102">🔥 Cyber Neon Wings Frame (2,500 💎)</option>
+                  <option value="FRM-103">🐉 Golden Dragon Emperor Frame (10,000 💎)</option>
+                  <option value="FRM-104">🇵🇰 Pakistan Independence Frame (1,500 💎)</option>
                   <option value="EFF-201">🚀 Galaxy Rocket Room Entrance (10,000 💎)</option>
                   <option value="EFF-202">🐉 Golden Dragon Entrance (7,500 💎)</option>
                 </select>
