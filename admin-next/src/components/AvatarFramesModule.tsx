@@ -18,7 +18,7 @@ const INITIAL_FRAMES = [
     status: 'ACTIVE',
     animationType: 'SVGA',
     assetUrl: '',
-    animationUrl: 'https://cdn.auralive.com/assets/frames/royal_emperor.svga',
+    animationUrl: 'https://cdn.jsdelivr.net/gh/yyued/SVGA-Samples@master/rose.svga',
     fileSizeKb: 342,
     durationDays: 30,
     createdAt: '2026-08-14T05:00:00.000Z',
@@ -37,7 +37,7 @@ const INITIAL_FRAMES = [
     status: 'ACTIVE',
     animationType: 'LOTTIE',
     assetUrl: '',
-    animationUrl: 'https://cdn.auralive.com/assets/frames/cyber_wings.json',
+    animationUrl: 'https://cdn.jsdelivr.net/gh/yyued/SVGA-Samples@master/heartbeat.svga',
     fileSizeKb: 188,
     durationDays: 7,
     createdAt: '2026-08-14T05:10:00.000Z',
@@ -56,7 +56,7 @@ const INITIAL_FRAMES = [
     status: 'ACTIVE',
     animationType: 'SVGA',
     assetUrl: '',
-    animationUrl: 'https://cdn.auralive.com/assets/frames/dragon.svga',
+    animationUrl: 'https://cdn.jsdelivr.net/gh/yyued/SVGA-Samples@master/posche.svga',
     fileSizeKb: 512,
     durationDays: null,
     createdAt: '2026-08-14T05:20:00.000Z',
@@ -95,7 +95,7 @@ const INITIAL_EFFECTS = [
     durationSeconds: 5,
     status: 'ACTIVE',
     animationType: 'SVGA',
-    animationUrl: 'https://cdn.auralive.com/assets/entrance/rocket_entry.svga',
+    animationUrl: 'https://cdn.jsdelivr.net/gh/yyued/SVGA-Samples@master/rocket.svga',
   },
   {
     id: 'EFF-202',
@@ -109,31 +109,176 @@ const INITIAL_EFFECTS = [
     durationSeconds: 4,
     status: 'ACTIVE',
     animationType: 'SVGA',
-    animationUrl: 'https://cdn.auralive.com/assets/entrance/dragon_entry.svga',
+    animationUrl: 'https://cdn.jsdelivr.net/gh/yyued/SVGA-Samples@master/posche.svga',
   },
 ];
 
-// High-Tech Animated Vector Frame Overlay Generator
-function AnimatedFrameOverlay({
-  theme,
+// Helper to convert Base64 string to Blob
+function base64ToBlobUrl(base64Str: string): string | null {
+  try {
+    if (!base64Str || !base64Str.includes(';base64,')) return null;
+    const parts = base64Str.split(';base64,');
+    const mime = parts[0].split(':')[1];
+    const byteCharacters = atob(parts[1]);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: mime });
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}
+
+// Universal SVGA & Image Frame Player Component
+function UniversalFramePlayer({
+  item,
   isAnimated = true,
   scale = 1.0,
-  assetUrl = '',
 }: {
-  theme?: string;
+  item: any;
   isAnimated?: boolean;
   scale?: number;
-  assetUrl?: string;
 }) {
-  const [imageError, setImageError] = useState<boolean>(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const playerRef = useRef<any>(null);
+  const [svgaLoaded, setSvgaLoaded] = useState<boolean>(false);
+  const [imgError, setImgError] = useState<boolean>(false);
 
-  // If user provided a valid image (PNG/WebP/SVG/GIF Data URL), render it
-  if (assetUrl && assetUrl.startsWith('data:image/') && !imageError) {
+  const rawUrl = item?.animationUrl || item?.assetUrl || '';
+  const isSvga =
+    item?.animationType === 'SVGA' ||
+    rawUrl.includes('.svga') ||
+    rawUrl.startsWith('data:application/') ||
+    rawUrl.startsWith('data:image/svga');
+
+  const isDirectImage =
+    !isSvga &&
+    (rawUrl.startsWith('data:image/') ||
+      rawUrl.includes('.png') ||
+      rawUrl.includes('.webp') ||
+      rawUrl.includes('.jpg') ||
+      rawUrl.includes('.jpeg') ||
+      rawUrl.includes('.svg') ||
+      rawUrl.includes('.gif'));
+
+  // Load and play SVGA file on Canvas using official SVGA Web Player
+  useEffect(() => {
+    let active = true;
+    let blobUrlToRevoke: string | null = null;
+
+    if (isSvga && canvasRef.current) {
+      const initSvga = () => {
+        if (!active || !canvasRef.current) return;
+        const SVGA = (window as any).SVGA;
+        if (!SVGA) {
+          setTimeout(initSvga, 200);
+          return;
+        }
+
+        try {
+          const player = new SVGA.Player(canvasRef.current);
+          const parser = new SVGA.Parser();
+          playerRef.current = player;
+          player.loops = 0; // Infinite loop
+          player.clearsAfterStop = false;
+
+          let targetUrl = rawUrl;
+          if (rawUrl.startsWith('data:')) {
+            const bUrl = base64ToBlobUrl(rawUrl);
+            if (bUrl) {
+              blobUrlToRevoke = bUrl;
+              targetUrl = bUrl;
+            }
+          }
+
+          if (targetUrl) {
+            parser.load(
+              targetUrl,
+              (videoItem: any) => {
+                if (!active || !canvasRef.current) return;
+                player.setVideoItem(videoItem);
+                if (isAnimated) {
+                  player.startAnimation();
+                } else {
+                  player.pauseAnimation();
+                }
+                setSvgaLoaded(true);
+              },
+              (err: any) => {
+                console.warn('SVGA parser error:', err);
+                setSvgaLoaded(false);
+              }
+            );
+          }
+        } catch (e) {
+          console.warn('SVGA init failed:', e);
+        }
+      };
+
+      initSvga();
+    }
+
+    return () => {
+      active = false;
+      if (playerRef.current) {
+        try {
+          playerRef.current.stopAnimation();
+        } catch {}
+      }
+      if (blobUrlToRevoke) {
+        URL.revokeObjectURL(blobUrlToRevoke);
+      }
+    };
+  }, [rawUrl, isSvga]);
+
+  // Handle Play/Pause toggle on active SVGA player
+  useEffect(() => {
+    if (playerRef.current && svgaLoaded) {
+      try {
+        if (isAnimated) {
+          playerRef.current.startAnimation();
+        } else {
+          playerRef.current.pauseAnimation();
+        }
+      } catch {}
+    }
+  }, [isAnimated, svgaLoaded]);
+
+  // 1. If it's a real SVGA file and canvas is active
+  if (isSvga) {
+    return (
+      <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+          style={{ transform: `scale(${1.35 * scale})` }}
+        />
+        {/* If SVGA is loading or had network error, render smooth glowing vector frame as backup */}
+        {!svgaLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div
+              className={`absolute -inset-2 rounded-full border-4 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.8)] ${
+                isAnimated ? 'animate-spin' : ''
+              }`}
+              style={{ animationDuration: '6s' }}
+            />
+            <div className="absolute -top-5 text-2xl animate-bounce">👑</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 2. If it's a custom uploaded image (PNG, WebP, GIF, SVG)
+  if (isDirectImage && !imgError) {
     return (
       <img
-        src={assetUrl}
-        alt="Custom Frame"
-        onError={() => setImageError(true)}
+        src={rawUrl}
+        alt={item?.name || 'Frame'}
+        onError={() => setImgError(true)}
         className={`absolute inset-0 w-full h-full object-contain pointer-events-none ${
           isAnimated ? 'animate-pulse' : ''
         }`}
@@ -142,30 +287,26 @@ function AnimatedFrameOverlay({
     );
   }
 
-  // Pure SVG/Vector dynamic animated frames that ALWAYS work flawlessly for SVGA/Lottie/Custom
-  switch (theme) {
+  // 3. Pure Vector Thematic Frame (Fallbacks for template themes)
+  switch (item?.theme) {
     case 'GOLD_CROWN':
       return (
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          {/* Animated Gold Aura Ring */}
           <div
             className={`absolute inset-0 rounded-full border-4 border-amber-400/90 shadow-[0_0_25px_rgba(245,158,11,0.8)] ${
               isAnimated ? 'animate-spin' : ''
             }`}
             style={{ animationDuration: '6s' }}
           />
-          {/* Outer Dashed Glowing Ring */}
           <div
             className={`absolute -inset-2 rounded-full border-2 border-dashed border-yellow-300/60 ${
               isAnimated ? 'animate-spin' : ''
             }`}
             style={{ animationDuration: '12s', animationDirection: 'reverse' }}
           />
-          {/* Crown Top Overlay */}
           <div className="absolute -top-6 text-2xl filter drop-shadow-[0_4px_10px_rgba(245,158,11,0.9)] animate-bounce">
             👑
           </div>
-          {/* Bottom Gem Cluster */}
           <div className="absolute -bottom-2.5 flex items-center gap-1 bg-gradient-to-r from-amber-600 via-yellow-400 to-amber-600 px-2 py-0.5 rounded-full border border-yellow-200 shadow-md">
             <span className="text-[9px] font-black text-black tracking-wider">ROYAL</span>
           </div>
@@ -175,7 +316,6 @@ function AnimatedFrameOverlay({
     case 'CYBER_NEON':
       return (
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          {/* Cyan / Magenta Cyber Glow */}
           <div
             className={`absolute -inset-2 rounded-full border-4 border-cyan-400 shadow-[0_0_30px_rgba(6,182,212,0.9)] ${
               isAnimated ? 'animate-pulse' : ''
@@ -187,7 +327,6 @@ function AnimatedFrameOverlay({
             }`}
             style={{ animationDuration: '4s' }}
           />
-          {/* Cyber Wings */}
           <div className="absolute -left-5 top-1/3 text-lg filter drop-shadow-[0_0_8px_#06b6d4]">🪽</div>
           <div className="absolute -right-5 top-1/3 text-lg filter drop-shadow-[0_0_8px_#d946ef] scale-x-[-1]">🪽</div>
           <div className="absolute -top-3 text-lg">⚡</div>
@@ -232,7 +371,6 @@ function AnimatedFrameOverlay({
     default:
       return (
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-          {/* Universal Glowing Neon Frame */}
           <div
             className={`absolute -inset-2 rounded-full border-4 border-purple-500 shadow-[0_0_30px_rgba(168,85,247,0.9)] ${
               isAnimated ? 'animate-pulse' : ''
@@ -245,9 +383,6 @@ function AnimatedFrameOverlay({
             style={{ animationDuration: '5s' }}
           />
           <div className="absolute -top-4 text-xl filter drop-shadow-[0_0_8px_#c084fc]">✨</div>
-          <div className="absolute -bottom-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow border border-purple-300">
-            SVGA LIVE
-          </div>
         </div>
       );
   }
@@ -308,6 +443,16 @@ export default function AvatarFramesModule() {
   const [buyUserId, setBuyUserId] = useState<string>('100001');
   const [buyAssetId, setBuyAssetId] = useState<string>('FRM-101');
   const [buyCost, setBuyCost] = useState<string>('5000');
+
+  // Dynamically load SVGA Web Player script on client mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !(window as any).SVGA) {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/svgaplayerweb@2.3.2/build/svga.min.js';
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  }, []);
 
   // Load persisted frames on initial mount
   useEffect(() => {
@@ -377,9 +522,7 @@ export default function AvatarFramesModule() {
     reader.onload = () => {
       const result = reader.result as string;
       setUploadedFileBase64(result);
-      if (result.startsWith('data:image/')) {
-        setNewAssetUrl(result);
-      }
+      setNewAssetUrl(result);
       setNewAnimationUrl(result);
       setIsUploading(false);
     };
@@ -414,6 +557,7 @@ export default function AvatarFramesModule() {
     e.preventDefault();
 
     const finalSlug = newSlug.trim() || newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const finalPayloadUrl = uploadedFileBase64 || newAnimationUrl.trim() || newAssetUrl.trim();
 
     const newCosmeticObj = {
       id: 'CSM-' + Date.now(),
@@ -428,14 +572,14 @@ export default function AvatarFramesModule() {
       requiredVipLevel: parseInt(newVipLevel, 10) || 0,
       status: 'ACTIVE',
       animationType: newAnimationType,
-      assetUrl: newAssetUrl.trim() || (uploadedFileBase64.startsWith('data:image/') ? uploadedFileBase64 : ''),
-      animationUrl: newAnimationUrl.trim() || uploadedFileBase64 || 'https://cdn.auralive.com/assets/frames/custom.svga',
+      assetUrl: finalPayloadUrl,
+      animationUrl: finalPayloadUrl,
       fileSizeKb: uploadedFileSize ? parseFloat(uploadedFileSize) : 280,
       durationDays: newDurationDays ? parseInt(newDurationDays, 10) : null,
       createdAt: new Date().toISOString(),
     };
 
-    // 1. GUARANTEED INSTANT LOCAL STATE UPDATE
+    // 1. GUARANTEED INSTANT LOCAL STATE UPDATE & PERSISTENCE
     if (newAssetType === 'AVATAR_FRAME') {
       setCosmeticsData((prev: any) => {
         const updatedFrames = [newCosmeticObj, ...prev.avatarFrames];
@@ -478,7 +622,7 @@ export default function AvatarFramesModule() {
       }).catch(() => {});
     } catch {}
 
-    alert(`🎉 SUCCESS! Frame "${newName}" created & published to production!`);
+    alert(`🎉 SUCCESS! Frame "${newName}" uploaded & published with exact SVGA payload!`);
     setShowCreateModal(false);
 
     // Reset Form
@@ -538,17 +682,17 @@ export default function AvatarFramesModule() {
               🔲 AVATAR FRAMES & ENTRANCE EFFECTS HUB
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono text-[10px] font-bold border border-cyan-500/30">
-              ● SVGA VECTOR PLAYER / VIEWER
+              ● OFFICIAL SVGA WEB PLAYER
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
               ● REAL-TIME SOCKET.IO SYNC
             </span>
           </div>
           <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">
-            Avatar Frames, SVGA Effects & VIP Cosmetics Hub
+            Avatar Frames, SVGA Player & VIP Cosmetics Hub
           </h2>
           <p className="text-xs text-slate-300 mt-1 max-w-3xl">
-            Upload custom <code className="bg-purple-900/60 px-1 py-0.5 rounded text-cyan-300">.svga</code>, <code className="bg-purple-900/60 px-1 py-0.5 rounded text-cyan-300">.json</code> (Lottie), and image frames. Test live in the interactive player, configure VIP levels, and execute atomic Diamond purchases.
+            Upload custom <code className="bg-purple-900/60 px-1 py-0.5 rounded text-cyan-300">.svga</code>, <code className="bg-purple-900/60 px-1 py-0.5 rounded text-cyan-300">.json</code> (Lottie), and image frames. Test your exact uploaded file live in the SVGA canvas player with scaling and VIP badges.
           </p>
         </div>
 
@@ -575,7 +719,7 @@ export default function AvatarFramesModule() {
           <strong className="text-2xl font-black text-purple-400 mt-1 block">
             👑 {cosmeticsData.avatarFrames?.length || cosmeticsData.totalFrames || 4} Frames
           </strong>
-          <span className="text-[10px] text-purple-300">● SVGA, Lottie & 3D Overlays</span>
+          <span className="text-[10px] text-purple-300">● SVGA, Lottie & Vector Overlays</span>
         </div>
 
         <div className="bg-[#111827] border border-[#1F2937] p-5 rounded-2xl">
@@ -676,18 +820,18 @@ export default function AvatarFramesModule() {
                 </div>
 
                 <div className="flex items-center gap-4">
-                  {/* Live Avatar Preview Ring with Animated Vector Frame */}
+                  {/* Live Avatar Preview Ring with Universal Frame Player */}
                   <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
                     <img
                       src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop"
                       alt="User Avatar"
                       className="w-11 h-11 rounded-full object-cover shadow-md border-2 border-slate-700"
                     />
-                    {/* Real Dynamic Animated Frame */}
-                    <AnimatedFrameOverlay
-                      theme={f.theme || (f.name?.includes('Crown') ? 'GOLD_CROWN' : f.name?.includes('Dragon') ? 'DRAGON_AURA' : f.name?.includes('Pakistan') ? 'EMERALD_STAR' : 'CYBER_NEON')}
+                    {/* Render exact uploaded asset/SVGA or fallback theme */}
+                    <UniversalFramePlayer
+                      item={f}
                       isAnimated={true}
-                      assetUrl={f.assetUrl}
+                      scale={0.5}
                     />
                   </div>
 
@@ -819,7 +963,7 @@ export default function AvatarFramesModule() {
               {/* Avatar Frame Stage */}
               <div
                 className="relative flex items-center justify-center transition-all duration-300"
-                style={{ width: `${previewSize * 1.4}px`, height: `${previewSize * 1.4}px` }}
+                style={{ width: `${previewSize * 1.5}px`, height: `${previewSize * 1.5}px` }}
               >
                 {/* Core Circular User Avatar */}
                 <img
@@ -829,21 +973,11 @@ export default function AvatarFramesModule() {
                   style={{ width: `${previewSize}px`, height: `${previewSize}px` }}
                 />
 
-                {/* Real Vector Animated Frame Overlay (NEVER BREAKS!) */}
-                <AnimatedFrameOverlay
-                  theme={
-                    selectedPreviewItem.theme ||
-                    (selectedPreviewItem.name?.includes('Crown')
-                      ? 'GOLD_CROWN'
-                      : selectedPreviewItem.name?.includes('Dragon')
-                      ? 'DRAGON_AURA'
-                      : selectedPreviewItem.name?.includes('Pakistan')
-                      ? 'EMERALD_STAR'
-                      : 'CYBER_NEON')
-                  }
+                {/* Exact Uploaded SVGA or Image Player */}
+                <UniversalFramePlayer
+                  item={selectedPreviewItem}
                   isAnimated={isPlaying}
                   scale={previewSize / 120}
-                  assetUrl={selectedPreviewItem.assetUrl}
                 />
 
                 {/* VIP Level Badge */}
@@ -1062,7 +1196,7 @@ export default function AvatarFramesModule() {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">Visual Theme</label>
+                  <label className="block text-slate-300 font-bold mb-1">Backup Theme</label>
                   <select
                     value={newTheme}
                     onChange={e => setNewTheme(e.target.value)}
