@@ -152,7 +152,7 @@ function base64ToBlobUrl(base64Str: string): string | null {
   }
 }
 
-// Precision-Centered Universal SVGA & Image Frame Player Component
+// Precision-Centered Universal SVGA & Image Frame Player Component with Auto-Bounds Center Engine
 function UniversalFramePlayer({
   item,
   isAnimated = true,
@@ -172,6 +172,8 @@ function UniversalFramePlayer({
   const playerRef = useRef<any>(null);
   const [svgaLoaded, setSvgaLoaded] = useState<boolean>(false);
   const [imgError, setImgError] = useState<boolean>(false);
+  const [autoShiftY, setAutoShiftY] = useState<number>(0);
+  const [autoZoom, setAutoZoom] = useState<number>(1.0);
 
   const rawUrl = item?.animationUrl || item?.assetUrl || '';
   const isSvga =
@@ -190,8 +192,11 @@ function UniversalFramePlayer({
       rawUrl.includes('.svg') ||
       rawUrl.includes('.gif'));
 
-  // Outer frame dimension
+  // Outer frame dimension strictly bound to the avatar size
   const frameDimension = Math.round(size * 1.35);
+
+  // Check if item is the custom gold frame or has specific preset
+  const isGoldFrame = item?.slug === 'gold' || item?.name?.toLowerCase().includes('gold') || item?.name?.toLowerCase().includes('phoenix');
 
   // Load and play SVGA file on Canvas using official SVGA Web Player
   useEffect(() => {
@@ -240,6 +245,14 @@ function UniversalFramePlayer({
                 const vw = videoItem?.videoSize?.width || 300;
                 const vh = videoItem?.videoSize?.height || 300;
 
+                // Detect if artwork inside SVGA is offset (e.g. portrait 750x1334)
+                if (vh > vw * 1.15 || isGoldFrame) {
+                  // For portrait SVGA files, artwork is offset downward, so calculate auto-shift
+                  const shift = Math.round(-frameDimension * 0.32);
+                  setAutoShiftY(shift);
+                  setAutoZoom(1.8);
+                }
+
                 canvasRef.current.width = vw;
                 canvasRef.current.height = vh;
                 player.setVideoItem(videoItem);
@@ -275,20 +288,11 @@ function UniversalFramePlayer({
         URL.revokeObjectURL(blobUrlToRevoke);
       }
     };
-  }, [rawUrl, isSvga]);
+  }, [rawUrl, isSvga, frameDimension, isGoldFrame]);
 
-  // Handle Play/Pause toggle
-  useEffect(() => {
-    if (playerRef.current && svgaLoaded) {
-      try {
-        if (isAnimated) {
-          playerRef.current.startAnimation();
-        } else {
-          playerRef.current.pauseAnimation();
-        }
-      } catch {}
-    }
-  }, [isAnimated, svgaLoaded]);
+  // Compute final effective offsets and scale
+  const effectiveOffsetY = offsetY !== 0 ? offsetY : (autoShiftY !== 0 ? autoShiftY : (isGoldFrame ? Math.round(-frameDimension * 0.32) : 0));
+  const effectiveScale = scale !== 1.35 ? scale : (autoZoom !== 1.0 ? autoZoom : (isGoldFrame ? 2.35 : 1.35));
 
   // 1. If it's a real SVGA file
   if (isSvga) {
@@ -300,7 +304,7 @@ function UniversalFramePlayer({
           height: `${frameDimension}px`,
           left: '50%',
           top: '50%',
-          transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px) scale(${scale})`,
+          transform: `translate(-50%, -50%) translate(${offsetX}px, ${effectiveOffsetY}px) scale(${effectiveScale})`,
           zIndex: 10,
         }}
       >
@@ -325,7 +329,7 @@ function UniversalFramePlayer({
           height: `${frameDimension}px`,
           left: '50%',
           top: '50%',
-          transform: `translate(-50%, -50%) translate(${offsetX}px, ${offsetY}px) scale(${scale})`,
+          transform: `translate(-50%, -50%) translate(${offsetX}px, ${effectiveOffsetY}px) scale(${effectiveScale})`,
           zIndex: 10,
         }}
       >
@@ -609,9 +613,10 @@ export default function AvatarFramesModule() {
 
   const handleOpenPreview = (item: any) => {
     setSelectedPreviewItem(item);
+    const isGold = item?.slug === 'gold' || item?.name?.toLowerCase().includes('gold');
     setOffsetX(item.defaultOffsetX !== undefined ? item.defaultOffsetX : 0);
-    setOffsetY(item.defaultOffsetY !== undefined ? item.defaultOffsetY : 0);
-    setFrameScale(item.defaultScale !== undefined ? item.defaultScale : 1.35);
+    setOffsetY(item.defaultOffsetY !== undefined ? item.defaultOffsetY : (isGold ? -36 : 0));
+    setFrameScale(item.defaultScale !== undefined ? item.defaultScale : (isGold ? 2.35 : 1.35));
     setShowPreviewModal(true);
   };
 
@@ -714,7 +719,7 @@ export default function AvatarFramesModule() {
       return { ...prev, avatarFrames: updated };
     });
 
-    alert(`💾 SUCCESS! Saved default scale (${(frameScale * 100).toFixed(0)}%) & position (X:${offsetX}px, Y:${offsetY}px) for "${selectedPreviewItem.name}"!`);
+    alert(`💾 SUCCESS! Saved scale (${(frameScale * 100).toFixed(0)}%) & position (X:${offsetX}px, Y:${offsetY}px) for "${selectedPreviewItem.name}"!`);
   };
 
   // Delete Frame
@@ -742,6 +747,8 @@ export default function AvatarFramesModule() {
     const finalSlug = newSlug.trim() || newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const finalPayloadUrl = uploadedFileBase64 || newAnimationUrl.trim() || newAssetUrl.trim();
 
+    const isGold = finalSlug.includes('gold') || newName.toLowerCase().includes('gold');
+
     const newCosmeticObj = {
       id: 'CSM-' + Date.now(),
       name: newName,
@@ -759,9 +766,9 @@ export default function AvatarFramesModule() {
       animationUrl: finalPayloadUrl,
       fileSizeKb: uploadedFileSize ? parseFloat(uploadedFileSize) : 280,
       durationDays: newDurationDays ? parseInt(newDurationDays, 10) : null,
-      defaultScale: 1.35,
+      defaultScale: isGold ? 2.35 : 1.35,
       defaultOffsetX: 0,
-      defaultOffsetY: 0,
+      defaultOffsetY: isGold ? -36 : 0,
       createdAt: new Date().toISOString(),
     };
 
@@ -975,82 +982,88 @@ export default function AvatarFramesModule() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {cosmeticsData.avatarFrames?.map((f: any) => (
-              <div key={f.id} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-4 hover:border-purple-500/50 transition relative group">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/30">
-                      {f.rarity}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold border border-cyan-500/30">
-                      {f.animationType || 'SVGA'}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[10px]">
-                      {f.category || 'LUXURY'}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
-                      VIP {f.requiredVipLevel}+
-                    </span>
-                    {f.id.startsWith('CSM-') && (
-                      <button
-                        onClick={() => handleDeleteFrame(f.id, f.name)}
-                        className="text-red-400 hover:text-red-300 font-bold text-xs p-1 hover:bg-red-950/40 rounded transition cursor-pointer"
-                        title="Delete Frame"
-                      >
-                        🗑️
-                      </button>
-                    )}
-                  </div>
-                </div>
+            {cosmeticsData.avatarFrames?.map((f: any) => {
+              const isGold = f.slug === 'gold' || f.name?.toLowerCase().includes('gold') || f.name?.toLowerCase().includes('phoenix');
+              const cardScale = f.defaultScale || (isGold ? 2.35 : 1.35);
+              const cardOffsetY = f.defaultOffsetY !== undefined ? f.defaultOffsetY : (isGold ? -18 : 0);
 
-                <div className="flex items-center gap-4">
-                  {/* Live Avatar Preview Ring with Animated Frame */}
-                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
-                    <img
-                      src={previewAvatarUrl}
-                      alt="User Avatar"
-                      className="w-11 h-11 rounded-full object-cover shadow-md border border-slate-700 relative z-0"
-                    />
-                    <UniversalFramePlayer
-                      item={f}
-                      isAnimated={true}
-                      size={44}
-                      scale={f.defaultScale || 1.35}
-                      offsetX={f.defaultOffsetX || 0}
-                      offsetY={f.defaultOffsetY || 0}
-                    />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-black text-white truncate">{f.name}</h4>
-                    <p className="text-[11px] text-slate-400 mt-0.5 truncate">Slug: <code className="text-purple-300">{f.slug}</code></p>
-                    <div className="flex items-center gap-3 mt-1 text-[11px]">
-                      <span className="text-amber-400 font-bold">💎 {f.price?.toLocaleString()}</span>
-                      <span className="text-slate-400">⏱️ {f.durationDays ? `${f.durationDays}d` : 'Permanent'}</span>
-                      {f.fileSizeKb && <span className="text-cyan-400">📦 {f.fileSizeKb} KB</span>}
+              return (
+                <div key={f.id} className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl space-y-4 hover:border-purple-500/50 transition relative group">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/30">
+                        {f.rarity}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold border border-cyan-500/30">
+                        {f.animationType || 'SVGA'}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[10px]">
+                        {f.category || 'LUXURY'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
+                        VIP {f.requiredVipLevel}+
+                      </span>
+                      {f.id.startsWith('CSM-') && (
+                        <button
+                          onClick={() => handleDeleteFrame(f.id, f.name)}
+                          className="text-red-400 hover:text-red-300 font-bold text-xs p-1 hover:bg-red-950/40 rounded transition cursor-pointer"
+                          title="Delete Frame"
+                        >
+                          🗑️
+                        </button>
+                      )}
                     </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
-                  <button
-                    onClick={() => handleOpenPreview(f)}
-                    className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 font-black text-xs transition cursor-pointer border border-cyan-500/30 flex items-center justify-center gap-1"
-                  >
-                    <span>👁️ Live Preview &amp; Adjust</span>
-                  </button>
-                  <button
-                    onClick={() => handleOpenAssignModal(f)}
-                    className="py-2 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs transition cursor-pointer shadow-md flex items-center justify-center gap-1"
-                  >
-                    <span>⚡ Assign to User</span>
-                  </button>
+                  <div className="flex items-center gap-4">
+                    {/* Live Avatar Preview Ring with Animated Frame */}
+                    <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
+                      <img
+                        src={previewAvatarUrl}
+                        alt="User Avatar"
+                        className="w-11 h-11 rounded-full object-cover shadow-md border border-slate-700 relative z-0"
+                      />
+                      <UniversalFramePlayer
+                        item={f}
+                        isAnimated={true}
+                        size={44}
+                        scale={cardScale}
+                        offsetX={f.defaultOffsetX || 0}
+                        offsetY={cardOffsetY}
+                      />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-black text-white truncate">{f.name}</h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5 truncate">Slug: <code className="text-purple-300">{f.slug}</code></p>
+                      <div className="flex items-center gap-3 mt-1 text-[11px]">
+                        <span className="text-amber-400 font-bold">💎 {f.price?.toLocaleString()}</span>
+                        <span className="text-slate-400">⏱️ {f.durationDays ? `${f.durationDays}d` : 'Permanent'}</span>
+                        {f.fileSizeKb && <span className="text-cyan-400">📦 {f.fileSizeKb} KB</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800">
+                    <button
+                      onClick={() => handleOpenPreview(f)}
+                      className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 font-black text-xs transition cursor-pointer border border-cyan-500/30 flex items-center justify-center gap-1"
+                    >
+                      <span>👁️ Live Preview &amp; Adjust</span>
+                    </button>
+                    <button
+                      onClick={() => handleOpenAssignModal(f)}
+                      className="py-2 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs transition cursor-pointer shadow-md flex items-center justify-center gap-1"
+                    >
+                      <span>⚡ Assign to User</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -1460,8 +1473,8 @@ export default function AvatarFramesModule() {
                     onClick={() => {
                       setFrameScale(2.35);
                       setOffsetX(0);
-                      setOffsetY(-8);
-                      setPreviewSize(100);
+                      setOffsetY(-36);
+                      setPreviewSize(110);
                     }}
                     className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-black font-black text-[11px] cursor-pointer shadow-md"
                   >
