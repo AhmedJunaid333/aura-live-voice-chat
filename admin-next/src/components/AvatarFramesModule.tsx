@@ -4,10 +4,10 @@ import React, { useState, useEffect, useRef } from 'react';
 
 // Sample Avatars matching high-end live stream apps
 const SAMPLE_AVATARS = [
-  { id: 'av-1', name: 'Masked Anime', url: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&auto=format&fit=crop' },
-  { id: 'av-2', name: 'Glamour Girl', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop' },
-  { id: 'av-3', name: 'Cyber Neon', url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop' },
-  { id: 'av-4', name: 'Street Cap', url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop' },
+  { id: 'av-red', name: 'Red Anime Girl', url: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&auto=format&fit=crop' },
+  { id: 'av-1', name: 'Glamour Model', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop' },
+  { id: 'av-2', name: 'Cyber Neon Girl', url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop' },
+  { id: 'av-3', name: 'Street Cap Boy', url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop' },
 ];
 
 // Pre-configured Luxury Frames with rich SVG vector renderers & fallbacks
@@ -29,6 +29,9 @@ const INITIAL_FRAMES = [
     animationUrl: 'https://cdn.jsdelivr.net/gh/yyued/SVGA-Samples@master/rose.svga',
     fileSizeKb: 342,
     durationDays: 30,
+    defaultScale: 1.35,
+    defaultOffsetX: 0,
+    defaultOffsetY: 0,
     createdAt: '2026-08-14T05:00:00.000Z',
   },
   {
@@ -48,6 +51,9 @@ const INITIAL_FRAMES = [
     animationUrl: 'https://cdn.jsdelivr.net/gh/yyued/SVGA-Samples@master/heartbeat.svga',
     fileSizeKb: 188,
     durationDays: 7,
+    defaultScale: 1.35,
+    defaultOffsetX: 0,
+    defaultOffsetY: 0,
     createdAt: '2026-08-14T05:10:00.000Z',
   },
   {
@@ -67,6 +73,9 @@ const INITIAL_FRAMES = [
     animationUrl: 'https://cdn.jsdelivr.net/gh/yyued/SVGA-Samples@master/posche.svga',
     fileSizeKb: 512,
     durationDays: null,
+    defaultScale: 1.35,
+    defaultOffsetX: 0,
+    defaultOffsetY: 0,
     createdAt: '2026-08-14T05:20:00.000Z',
   },
   {
@@ -86,6 +95,9 @@ const INITIAL_FRAMES = [
     animationUrl: 'https://cdn.auralive.com/assets/frames/pakistan.svga',
     fileSizeKb: 240,
     durationDays: 30,
+    defaultScale: 1.35,
+    defaultOffsetX: 0,
+    defaultOffsetY: 0,
     createdAt: '2026-08-14T05:30:00.000Z',
   },
 ];
@@ -144,7 +156,7 @@ function base64ToBlobUrl(base64Str: string): string | null {
 function UniversalFramePlayer({
   item,
   isAnimated = true,
-  scale = 1.25,
+  scale = 1.35,
   offsetX = 0,
   offsetY = 0,
   size = 120,
@@ -178,7 +190,7 @@ function UniversalFramePlayer({
       rawUrl.includes('.svg') ||
       rawUrl.includes('.gif'));
 
-  // The outer frame dimension is 1.35x of the circular avatar
+  // Outer frame dimension
   const frameDimension = Math.round(size * 1.35);
 
   // Load and play SVGA file on Canvas using official SVGA Web Player
@@ -205,7 +217,7 @@ function UniversalFramePlayer({
           const player = new SVGA.Player(canvasRef.current);
           const parser = new SVGA.Parser();
           playerRef.current = player;
-          player.loops = 0; // Infinite loop
+          player.loops = 0;
           player.clearsAfterStop = false;
           if (player.setContentMode) {
             player.setContentMode('AspectFit');
@@ -264,7 +276,7 @@ function UniversalFramePlayer({
     };
   }, [rawUrl, isSvga]);
 
-  // Handle Play/Pause toggle on active SVGA player
+  // Handle Play/Pause toggle
   useEffect(() => {
     if (playerRef.current && svgaLoaded) {
       try {
@@ -277,11 +289,11 @@ function UniversalFramePlayer({
     }
   }, [isAnimated, svgaLoaded]);
 
-  // 1. If it's a real SVGA file and canvas is active
+  // 1. If it's a real SVGA file
   if (isSvga) {
     return (
       <div
-        className="absolute pointer-events-none flex items-center justify-center"
+        className="absolute pointer-events-none flex items-center justify-center transition-transform duration-75"
         style={{
           width: `${frameDimension}px`,
           height: `${frameDimension}px`,
@@ -306,7 +318,7 @@ function UniversalFramePlayer({
   if (isDirectImage && !imgError) {
     return (
       <div
-        className="absolute pointer-events-none flex items-center justify-center"
+        className="absolute pointer-events-none flex items-center justify-center transition-transform duration-75"
         style={{
           width: `${frameDimension}px`,
           height: `${frameDimension}px`,
@@ -331,7 +343,7 @@ function UniversalFramePlayer({
   // 3. Fallback theme
   return (
     <div
-      className="absolute pointer-events-none flex items-center justify-center"
+      className="absolute pointer-events-none flex items-center justify-center transition-transform duration-75"
       style={{
         width: `${frameDimension}px`,
         height: `${frameDimension}px`,
@@ -363,13 +375,17 @@ export default function AvatarFramesModule() {
 
   // Live interactive preview settings & Offset Fine-Tuning
   const [previewAvatarUrl, setPreviewAvatarUrl] = useState<string>(SAMPLE_AVATARS[0].url);
-  const [previewSize, setPreviewSize] = useState<number>(120);
-  const [frameScale, setFrameScale] = useState<number>(1.25);
+  const [previewSize, setPreviewSize] = useState<number>(110);
+  const [frameScale, setFrameScale] = useState<number>(1.35);
   const [offsetX, setOffsetX] = useState<number>(0);
   const [offsetY, setOffsetY] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [previewVipLevel, setPreviewVipLevel] = useState<number>(3);
   const [previewUsername, setPreviewUsername] = useState<string>('Ahmed Khokhar');
+
+  // Dragging State
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const dragStartRef = useRef<{ x: number; y: number; origX: number; origY: number }>({ x: 0, y: 0, origX: 0, origY: 0 });
 
   // Main State with LocalStorage sync
   const [cosmeticsData, setCosmeticsData] = useState<any>({
@@ -463,6 +479,29 @@ export default function AvatarFramesModule() {
     } catch {}
   };
 
+  // Handle Dragging Handlers
+  const handlePointerDown = (e: React.PointerEvent) => {
+    setIsDragging(true);
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      origX: offsetX,
+      origY: offsetY,
+    };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+    setOffsetX(Math.round(dragStartRef.current.origX + dx));
+    setOffsetY(Math.round(dragStartRef.current.origY + dy));
+  };
+
+  const handlePointerUp = () => {
+    setIsDragging(false);
+  };
+
   // Handle local SVGA / Lottie / Image file upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -474,7 +513,6 @@ export default function AvatarFramesModule() {
     setUploadedFileName(fileName);
     setUploadedFileSize(fileSize);
 
-    // Auto-detect animation type from extension
     if (fileName.toLowerCase().endsWith('.svga')) {
       setNewAnimationType('SVGA');
       setNewTheme('GOLD_CROWN');
@@ -498,10 +536,30 @@ export default function AvatarFramesModule() {
 
   const handleOpenPreview = (item: any) => {
     setSelectedPreviewItem(item);
-    setOffsetX(0);
-    setOffsetY(0);
-    setFrameScale(1.25);
+    setOffsetX(item.defaultOffsetX !== undefined ? item.defaultOffsetX : 0);
+    setOffsetY(item.defaultOffsetY !== undefined ? item.defaultOffsetY : 0);
+    setFrameScale(item.defaultScale !== undefined ? item.defaultScale : 1.35);
     setShowPreviewModal(true);
+  };
+
+  // Save adjusted alignment for current frame
+  const handleSaveAlignment = () => {
+    if (!selectedPreviewItem) return;
+
+    setCosmeticsData((prev: any) => {
+      const updated = prev.avatarFrames.map((f: any) =>
+        f.id === selectedPreviewItem.id
+          ? { ...f, defaultScale: frameScale, defaultOffsetX: offsetX, defaultOffsetY: offsetY }
+          : f
+      );
+      try {
+        const customOnly = updated.filter((f: any) => f.id.startsWith('CSM-'));
+        localStorage.setItem('aura_admin_custom_frames', JSON.stringify(customOnly));
+      } catch {}
+      return { ...prev, avatarFrames: updated };
+    });
+
+    alert(`💾 SUCCESS! Saved default scale (${(frameScale * 100).toFixed(0)}%) & position (X:${offsetX}px, Y:${offsetY}px) for "${selectedPreviewItem.name}"!`);
   };
 
   // Delete Frame
@@ -546,10 +604,12 @@ export default function AvatarFramesModule() {
       animationUrl: finalPayloadUrl,
       fileSizeKb: uploadedFileSize ? parseFloat(uploadedFileSize) : 280,
       durationDays: newDurationDays ? parseInt(newDurationDays, 10) : null,
+      defaultScale: 1.35,
+      defaultOffsetX: 0,
+      defaultOffsetY: 0,
       createdAt: new Date().toISOString(),
     };
 
-    // 1. GUARANTEED INSTANT LOCAL STATE UPDATE & PERSISTENCE
     if (newAssetType === 'AVATAR_FRAME') {
       setCosmeticsData((prev: any) => {
         const updatedFrames = [newCosmeticObj, ...prev.avatarFrames];
@@ -571,7 +631,6 @@ export default function AvatarFramesModule() {
       }));
     }
 
-    // 2. BACKGROUND SERVER SYNC (Non-blocking)
     try {
       fetch('http://localhost:3001/api/v1/admin/cosmetics/create', {
         method: 'POST',
@@ -592,10 +651,9 @@ export default function AvatarFramesModule() {
       }).catch(() => {});
     } catch {}
 
-    alert(`🎉 SUCCESS! Frame "${newName}" uploaded & published with exact SVGA payload!`);
+    alert(`🎉 SUCCESS! Frame "${newName}" uploaded & published!`);
     setShowCreateModal(false);
 
-    // Reset Form
     setNewName('');
     setNewSlug('');
     setNewAssetUrl('');
@@ -652,7 +710,7 @@ export default function AvatarFramesModule() {
               🔲 AVATAR FRAMES & ENTRANCE EFFECTS HUB
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono text-[10px] font-bold border border-cyan-500/30">
-              ● OFFICIAL SVGA WEB PLAYER
+              ● VISUAL DRAG & PRECISION ALIGNMENT
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
               ● REAL-TIME SOCKET.IO SYNC
@@ -662,7 +720,7 @@ export default function AvatarFramesModule() {
             Avatar Frames, SVGA Player & VIP Cosmetics Hub
           </h2>
           <p className="text-xs text-slate-300 mt-1 max-w-3xl">
-            Upload custom <code className="bg-purple-900/60 px-1 py-0.5 rounded text-cyan-300">.svga</code>, <code className="bg-purple-900/60 px-1 py-0.5 rounded text-cyan-300">.json</code> (Lottie), and image frames. Test your exact uploaded file live in the SVGA canvas player with scaling and VIP badges.
+            Upload custom <code className="bg-purple-900/60 px-1 py-0.5 rounded text-cyan-300">.svga</code> files, drag to visually align over profile pictures, and save alignment presets.
           </p>
         </div>
 
@@ -747,7 +805,7 @@ export default function AvatarFramesModule() {
               <h3 className="text-base font-black text-purple-400">
                 🔲 Active Avatar Frames ({cosmeticsData.avatarFrames?.length || 4} Items)
               </h3>
-              <p className="text-[11px] text-slate-400">Click &quot;👁️ Live Preview&quot; to test frame animation with custom avatars and scaling.</p>
+              <p className="text-[11px] text-slate-400">Click &quot;👁️ Live Preview &amp; Adjust&quot; to position the frame perfectly over avatars.</p>
             </div>
             <button
               onClick={() => setShowCreateModal(true)}
@@ -791,18 +849,19 @@ export default function AvatarFramesModule() {
 
                 <div className="flex items-center gap-4">
                   {/* Live Avatar Preview Ring with Universal Frame Player */}
-                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
+                  <div className="relative w-16 h-16 shrink-0 flex items-center justify-center overflow-visible">
                     <img
                       src={previewAvatarUrl}
                       alt="User Avatar"
                       className="w-12 h-12 rounded-full object-cover shadow-md border-2 border-slate-700 relative z-0"
                     />
-                    {/* Render exact uploaded asset/SVGA centered */}
                     <UniversalFramePlayer
                       item={f}
                       isAnimated={true}
                       size={48}
-                      scale={1.25}
+                      scale={f.defaultScale || 1.35}
+                      offsetX={f.defaultOffsetX || 0}
+                      offsetY={f.defaultOffsetY || 0}
                     />
                   </div>
 
@@ -822,7 +881,7 @@ export default function AvatarFramesModule() {
                     onClick={() => handleOpenPreview(f)}
                     className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 font-black text-xs transition cursor-pointer border border-cyan-500/30 flex items-center justify-center gap-1"
                   >
-                    <span>👁️ Live Preview</span>
+                    <span>👁️ Live Preview &amp; Adjust</span>
                   </button>
                   <button
                     onClick={() => handleEquipCosmetic('100001', f.id, f.assetType || 'AVATAR_FRAME')}
@@ -907,7 +966,7 @@ export default function AvatarFramesModule() {
         </div>
       )}
 
-      {/* MODAL 1: INTERACTIVE LIVE SVGA & FRAME VIEWER */}
+      {/* MODAL 1: INTERACTIVE LIVE SVGA & FRAME VIEWER WITH DIRECT DRAGGING */}
       {showPreviewModal && selectedPreviewItem && (
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-[#0B0F19] border border-cyan-500/40 p-6 rounded-3xl shadow-2xl max-w-2xl w-full font-mono text-xs space-y-5">
@@ -915,7 +974,7 @@ export default function AvatarFramesModule() {
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-cyan-400 animate-ping" />
                 <h3 className="text-base font-black text-cyan-300">
-                  👁️ Interactive SVGA & Avatar Frame Viewer
+                  👁️ Interactive SVGA &amp; Avatar Frame Position Adjuster
                 </h3>
               </div>
               <button
@@ -926,21 +985,35 @@ export default function AvatarFramesModule() {
               </button>
             </div>
 
-            {/* Live Canvas / Stage */}
-            <div className="bg-gradient-to-b from-[#111827] to-[#07090E] border border-slate-800 rounded-3xl p-10 flex flex-col items-center justify-center relative overflow-hidden min-h-[300px]">
+            {/* Live Interactive Stage with Direct Dragging */}
+            <div
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              className={`bg-gradient-to-b from-[#111827] to-[#07090E] border border-slate-800 rounded-3xl p-10 flex flex-col items-center justify-center relative overflow-hidden min-h-[320px] select-none ${
+                isDragging ? 'cursor-grabbing' : 'cursor-grab'
+              }`}
+              title="Click and drag anywhere on this box to move the frame!"
+            >
               {/* Background Ambient Glow */}
-              <div className="absolute w-56 h-56 bg-purple-600/25 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute w-64 h-64 bg-purple-600/25 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Dragging Hint Tag */}
+              <div className="absolute top-3 left-3 bg-purple-900/60 text-purple-300 px-3 py-1 rounded-full border border-purple-500/40 text-[10px] flex items-center gap-1">
+                <span>✋</span>
+                <span>Click &amp; Drag with mouse to position frame!</span>
+              </div>
 
               {/* Avatar Frame Stage */}
               <div
-                className="relative flex items-center justify-center transition-all duration-300"
+                className="relative flex items-center justify-center transition-all duration-75 overflow-visible"
                 style={{ width: `${previewSize}px`, height: `${previewSize}px` }}
               >
                 {/* Core Circular User Avatar */}
                 <img
                   src={previewAvatarUrl}
                   alt="Preview Avatar"
-                  className="rounded-full object-cover shadow-2xl border-2 border-slate-800 relative z-0"
+                  className="rounded-full object-cover shadow-2xl border-2 border-slate-800 relative z-0 pointer-events-none"
                   style={{ width: `${previewSize}px`, height: `${previewSize}px` }}
                 />
 
@@ -975,11 +1048,11 @@ export default function AvatarFramesModule() {
               {/* 4 Sample Avatars Bar */}
               <div className="mt-5 flex items-center gap-3 z-10 bg-slate-900/80 px-3 py-2 rounded-2xl border border-slate-800">
                 <span className="text-[10px] text-slate-400 font-bold">Switch Avatar:</span>
-                {SAMPLE_AVATARS.map((av, idx) => (
+                {SAMPLE_AVATARS.map((av) => (
                   <button
                     key={av.id}
                     onClick={() => setPreviewAvatarUrl(av.url)}
-                    className={`relative w-8 h-8 rounded-full overflow-hidden border-2 transition cursor-pointer ${
+                    className={`relative w-9 h-9 rounded-full overflow-hidden border-2 transition cursor-pointer ${
                       previewAvatarUrl === av.url ? 'border-cyan-400 scale-110 shadow-md shadow-cyan-400/30' : 'border-slate-700 hover:border-slate-500'
                     }`}
                     title={av.name}
@@ -992,15 +1065,16 @@ export default function AvatarFramesModule() {
 
             {/* Precision Interactive Controls Bar */}
             <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Sliders Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-slate-400 text-[10px] font-bold mb-1">
                     Frame Scale: {(frameScale * 100).toFixed(0)}%
                   </label>
                   <input
                     type="range"
-                    min="0.7"
-                    max="1.6"
+                    min="0.5"
+                    max="3.0"
                     step="0.02"
                     value={frameScale}
                     onChange={e => setFrameScale(parseFloat(e.target.value))}
@@ -1014,8 +1088,8 @@ export default function AvatarFramesModule() {
                   </label>
                   <input
                     type="range"
-                    min="-40"
-                    max="40"
+                    min="-200"
+                    max="200"
                     value={offsetX}
                     onChange={e => setOffsetX(parseInt(e.target.value, 10))}
                     className="w-full accent-purple-400 cursor-pointer"
@@ -1028,48 +1102,109 @@ export default function AvatarFramesModule() {
                   </label>
                   <input
                     type="range"
-                    min="-40"
-                    max="40"
+                    min="-200"
+                    max="200"
                     value={offsetY}
                     onChange={e => setOffsetY(parseInt(e.target.value, 10))}
                     className="w-full accent-purple-400 cursor-pointer"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-slate-400 text-[10px] font-bold mb-1">
+                    Avatar Size: {previewSize}px
+                  </label>
+                  <input
+                    type="range"
+                    min="60"
+                    max="180"
+                    value={previewSize}
+                    onChange={e => setPreviewSize(parseInt(e.target.value, 10))}
+                    className="w-full accent-amber-400 cursor-pointer"
+                  />
+                </div>
               </div>
 
-              <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
-                <div className="flex items-center gap-2">
+              {/* Nudge Arrow Buttons & Quick Presets */}
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80 flex-wrap">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {/* Quick Auto Fit for Gold ADMIN Frame */}
+                  <button
+                    onClick={() => {
+                      setFrameScale(1.85);
+                      setOffsetX(48);
+                      setOffsetY(44);
+                      setPreviewSize(100);
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-black font-black text-[11px] cursor-pointer shadow-md"
+                  >
+                    👑 Fit Gold ADMIN Frame
+                  </button>
+
                   <button
                     onClick={() => {
                       setOffsetX(0);
                       setOffsetY(0);
-                      setFrameScale(1.25);
+                      setFrameScale(1.35);
+                      setPreviewSize(110);
                     }}
-                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-[11px] cursor-pointer border border-cyan-500/30"
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] cursor-pointer"
                   >
-                    👑 Auto-Fit Ring (Perfect Fit)
+                    🎯 Center (0,0)
                   </button>
-                  <button
-                    onClick={() => {
-                      setOffsetX(0);
-                      setOffsetY(0);
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] cursor-pointer"
-                  >
-                    🎯 Center
-                  </button>
+
+                  {/* Nudge buttons */}
+                  <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
+                    <button
+                      onClick={() => setOffsetX(prev => prev - 4)}
+                      className="px-2 py-0.5 rounded hover:bg-slate-800 text-slate-300 font-bold text-xs"
+                      title="Move Left 4px"
+                    >
+                      ⬅️
+                    </button>
+                    <button
+                      onClick={() => setOffsetX(prev => prev + 4)}
+                      className="px-2 py-0.5 rounded hover:bg-slate-800 text-slate-300 font-bold text-xs"
+                      title="Move Right 4px"
+                    >
+                      ➡️
+                    </button>
+                    <button
+                      onClick={() => setOffsetY(prev => prev - 4)}
+                      className="px-2 py-0.5 rounded hover:bg-slate-800 text-slate-300 font-bold text-xs"
+                      title="Move Up 4px"
+                    >
+                      ⬆️
+                    </button>
+                    <button
+                      onClick={() => setOffsetY(prev => prev + 4)}
+                      className="px-2 py-0.5 rounded hover:bg-slate-800 text-slate-300 font-bold text-xs"
+                      title="Move Down 4px"
+                    >
+                      ⬇️
+                    </button>
+                  </div>
                 </div>
 
-                <button
-                  onClick={() => setIsPlaying(!isPlaying)}
-                  className={`py-1.5 px-4 rounded-xl font-black text-xs transition cursor-pointer border ${
-                    isPlaying
-                      ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/30'
-                      : 'bg-slate-800 text-slate-300 border-slate-700'
-                  }`}
-                >
-                  {isPlaying ? '⏸️ Pause Animation' : '▶️ Play Animation'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSaveAlignment}
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs transition cursor-pointer shadow-md flex items-center gap-1"
+                  >
+                    <span>💾 Save Alignment</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsPlaying(!isPlaying)}
+                    className={`py-1.5 px-3 rounded-xl font-black text-xs transition cursor-pointer border ${
+                      isPlaying
+                        ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/30'
+                        : 'bg-slate-800 text-slate-300 border-slate-700'
+                    }`}
+                  >
+                    {isPlaying ? '⏸️ Pause' : '▶️ Play'}
+                  </button>
+                </div>
               </div>
             </div>
 
