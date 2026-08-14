@@ -1239,4 +1239,353 @@ export class FrameService {
 
     return { processedCount: count };
   }
+
+  /**
+   * Admin: Get all frame inventory and equipped state for a specific user.
+   */
+  static async adminGetUserFrames(targetUserId: number | string) {
+    const parsedId = typeof targetUserId === 'string' ? parseInt(targetUserId, 10) : targetUserId;
+    const targetUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          ...(isNaN(parsedId) ? [] : [{ id: parsedId }, { numericId: parsedId }]),
+          { username: String(targetUserId) },
+        ],
+      },
+      include: {
+        avatarFrame: true,
+      } as any,
+    });
+
+    if (!targetUser) throw new Error('Target user not found');
+
+    const ownerships = await (prisma as any).avatarFrameOwnership.findMany({
+      where: { userId: targetUser.id },
+      include: { frame: true },
+      orderBy: { acquiredAt: 'desc' },
+    });
+
+    const grants = await (prisma as any).avatarFrameGrant.findMany({
+      where: { userId: targetUser.id },
+      include: { frame: true },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    });
+
+    return {
+      user: {
+        id: targetUser.id,
+        numericId: targetUser.numericId,
+        username: targetUser.username,
+        displayName: targetUser.displayName || targetUser.username,
+        avatar: targetUser.avatar,
+        equippedFrameId: (targetUser as any).equippedFrameId,
+        equippedFrame: (targetUser as any).avatarFrame,
+      },
+      inventory: ownerships.map((o: any) => ({
+        id: o.id,
+        frameId: o.frameId,
+        frame: o.frame,
+        source: o.source,
+        status: o.status,
+        isEquipped: (targetUser as any).equippedFrameId === o.frameId,
+        acquiredAt: o.acquiredAt,
+        expiresAt: o.expiresAt,
+        revokedAt: o.revokedAt,
+        revokedReason: o.revokedReason,
+      })),
+      grantsHistory: grants,
+    };
+  }
+
+  /**
+   * Admin: Equip an owned frame for user.
+   */
+  static async adminEquipUserFrame(
+    adminId: number,
+    targetUserId: number,
+    frameIdOrOwnershipId: string,
+    reason?: string
+  ) {
+    const targetUser = await prisma.user.findFirst({
+      where: { OR: [{ id: targetUserId }, { numericId: targetUserId }] },
+    });
+
+    if (!targetUser) throw new Error('Target user not found');
+
+    // Find ownership
+    const ownership = await (prisma as any).avatarFrameOwnership.findFirst({
+      where: {
+        userId: targetUser.id,
+        OR: [{ id: frameIdOrOwnershipId }, { frameId: frameIdOrOwnershipId }],
+        status: 'ACTIVE',
+      },
+      include: { frame: true },
+    });
+
+    if (!ownership) {
+      throw new Error('User does not own this active avatar frame. Use "Grant & Equip" instead.');
+    }
+
+    // Check expiration
+    if (ownership.expiresAt && new Date(ownership.expiresAt) < new Date()) {
+      throw new Error('This avatar frame has expired.');
+    }
+
+    await prisma.$transaction(async (tx: any) => {
+      // Unequip any previously equipped ownerships
+      await tx.avatarFrameOwnership.updateMany({
+        where: { userId: targetUser.id, isEquipped: true },
+        data: { isEquipped: false },
+      });
+
+      // Equip new ownership
+      await tx.avatarFrameOwnership.update({
+        where: { id: ownership.id },
+        data: { isEquipped: true },
+      });
+
+      // Set user's active equippedFrameId
+      await tx.user.update({
+        where: { id: targetUser.id },
+        data: { equippedFrameId: ownership.frameId } as any,
+      });
+
+      // AuditLog
+      await tx.auditLog.create({
+        data: {
+          actorId: adminId,
+          action: 'AVATAR_FRAME_EQUIPPED_BY_ADMIN',
+          entityType: 'User',
+          entityId: String(targetUser.id),
+          details: JSON.stringify({
+            targetUserId: targetUser.id,
+            targetNumericId: targetUser.numericId,
+            frameId: ownership.frameId,
+            frameName: ownership.frame.name,
+            reason: reason || 'Equipped by Admin',
+          }),
+        },
+      });
+    });
+
+    // Realtime notifications
+    emitToUser(targetUser.numericId, 'user.frame.equipped', {
+      frameId: ownership.frameId,
+      frame: ownership.frame,
+      equippedBy: 'ADMIN',
+    });
+
+    broadcastGlobal('user.frame.updated', {
+      userId: targetUser.id,
+      numericId: targetUser.numericId,
+      equippedFrameId: ownership.frameId,
+      frame: ownership.frame,
+    });
+
+    return {
+      success: true,
+      message: `Equipped frame "${ownership.frame.name}" for user @${targetUser.username}`,
+      equippedFrameId: ownership.frameId,
+      frame: ownership.frame,
+    };
+  }
+
+  /**
+   * Admin: Unequip user's current frame.
+   */
+  static async adminUnequipUserFrame(
+    adminId: number,
+    targetUserId: number,
+    reason?: string
+  ) {
+    const targetUser = await prisma.user.findFirst({
+      where: { OR: [{ id: targetUserId }, { numericId: targetUserId }] },
+      include: { avatarFrame: true } as any,
+    });
+
+    if (!targetUser) throw new Error('Target user not found');
+
+    const previousFrameId = (targetUser as any).equippedFrameId;
+    const previousFrameName = (targetUser as any).avatarFrame?.name || 'Frame';
+
+    await prisma.$transaction(async (tx: any) => {
+      await tx.avatarFrameOwnership.updateMany({
+        where: { userId: targetUser.id, isEquipped: true },
+        data: { isEquipped: false },
+      });
+
+      await tx.user.update({
+        where: { id: targetUser.id },
+        data: { equippedFrameId: null } as any,
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId: adminId,
+          action: 'AVATAR_FRAME_UNEQUIPPED_BY_ADMIN',
+          entityType: 'User',
+          entityId: String(targetUser.id),
+          details: JSON.stringify({
+            targetUserId: targetUser.id,
+            targetNumericId: targetUser.numericId,
+            previousFrameId,
+            previousFrameName,
+            reason: reason || 'Unequipped by Admin',
+          }),
+        },
+      });
+    });
+
+    emitToUser(targetUser.numericId, 'user.frame.unequipped', {
+      previousFrameId,
+      unequippedBy: 'ADMIN',
+    });
+
+    broadcastGlobal('user.frame.updated', {
+      userId: targetUser.id,
+      numericId: targetUser.numericId,
+      equippedFrameId: null,
+      frame: null,
+    });
+
+    return {
+      success: true,
+      message: `Unequipped active frame from user @${targetUser.username}`,
+    };
+  }
+
+  /**
+   * Admin: Grant frame to user's inventory AND equip as active frame atomically.
+   */
+  static async adminGrantAndEquipUserFrame(
+    adminId: number,
+    targetUserId: number,
+    frameId: string,
+    durationDays?: number,
+    reason?: string
+  ) {
+    const [targetUser, frame] = await Promise.all([
+      prisma.user.findFirst({
+        where: { OR: [{ id: targetUserId }, { numericId: targetUserId }] },
+      }),
+      (prisma as any).avatarFrame.findUnique({ where: { id: frameId } }),
+    ]);
+
+    if (!targetUser) throw new Error('Target user not found');
+    if (!frame) throw new Error('Avatar frame not found');
+
+    const now = new Date();
+    const days = durationDays !== undefined ? durationDays : frame.durationDays;
+    const expiresAt = days ? new Date(now.getTime() + days * 86400000) : null;
+
+    const result = await prisma.$transaction(async (tx: any) => {
+      // 1. Unequip any existing equipped frames
+      await tx.avatarFrameOwnership.updateMany({
+        where: { userId: targetUser.id, isEquipped: true },
+        data: { isEquipped: false },
+      });
+
+      // 2. Create or update ownership and mark equipped
+      const existing = await tx.avatarFrameOwnership.findFirst({
+        where: { userId: targetUser.id, frameId: frame.id },
+      });
+
+      let ownership;
+      if (existing) {
+        ownership = await tx.avatarFrameOwnership.update({
+          where: { id: existing.id },
+          data: {
+            status: 'ACTIVE',
+            source: 'ADMIN_GRANT',
+            isEquipped: true,
+            expiresAt,
+          },
+          include: { frame: true },
+        });
+      } else {
+        ownership = await tx.avatarFrameOwnership.create({
+          data: {
+            userId: targetUser.id,
+            frameId: frame.id,
+            source: 'ADMIN_GRANT',
+            status: 'ACTIVE',
+            isEquipped: true,
+            acquiredAt: now,
+            expiresAt,
+          },
+          include: { frame: true },
+        });
+
+        await tx.avatarFrame.update({
+          where: { id: frame.id },
+          data: { ownersCount: { increment: 1 } },
+        });
+      }
+
+      // 3. Update User's active equippedFrameId
+      await tx.user.update({
+        where: { id: targetUser.id },
+        data: { equippedFrameId: frame.id } as any,
+      });
+
+      // 4. Record Grant
+      await tx.avatarFrameGrant.create({
+        data: {
+          adminId,
+          userId: targetUser.id,
+          frameId: frame.id,
+          durationDays: days,
+          reason: reason || 'Granted & Equipped by administration',
+        },
+      });
+
+      // 5. Record AuditLog
+      await tx.auditLog.create({
+        data: {
+          actorId: adminId,
+          action: 'AVATAR_FRAME_GRANTED_AND_EQUIPPED_BY_ADMIN',
+          entityType: 'User',
+          entityId: String(targetUser.id),
+          details: JSON.stringify({
+            targetUserId: targetUser.id,
+            targetNumericId: targetUser.numericId,
+            frameId: frame.id,
+            frameName: frame.name,
+            durationDays: days,
+            reason: reason || 'Granted and equipped by admin',
+          }),
+        },
+      });
+
+      return ownership;
+    });
+
+    // Realtime Notifications
+    emitToUser(targetUser.numericId, 'frame.granted', {
+      frame,
+      ownership: result,
+      reason,
+    });
+
+    emitToUser(targetUser.numericId, 'user.frame.equipped', {
+      frameId: frame.id,
+      frame,
+      equippedBy: 'ADMIN',
+    });
+
+    broadcastGlobal('user.frame.updated', {
+      userId: targetUser.id,
+      numericId: targetUser.numericId,
+      equippedFrameId: frame.id,
+      frame,
+    });
+
+    return {
+      success: true,
+      message: `Granted and equipped frame "${frame.name}" on @${targetUser.username} (ID: ${targetUser.numericId})`,
+      ownership: result,
+      equippedFrame: frame,
+    };
+  }
 }

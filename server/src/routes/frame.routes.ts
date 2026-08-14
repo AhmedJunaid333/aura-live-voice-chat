@@ -274,4 +274,89 @@ router.post('/admin/:id/revoke', authenticateToken, requireAdmin, async (req: Re
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// USER AVATAR FRAME CONTROL (Admin Panel User Details & Cosmetics Hub)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/v1/admin/users/:userId/frames
+ * Fetch full avatar & frame inventory, equipped frame, and grants history for a user.
+ */
+router.get('/admin/users/:userId', authenticateToken, requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const targetUserId = req.params.userId as string;
+    const data = await FrameService.adminGetUserFrames(targetUserId);
+    res.status(200).json({ success: true, data });
+  } catch (error: any) {
+    res.status(404).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/v1/admin/users/:userId/equip
+ * Admin equips an existing owned frame for target user.
+ */
+router.post('/admin/users/:userId/equip', authenticateToken, requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const adminId = (req as any).user.userId;
+    const targetUserId = parseInt(req.params.userId as string, 10);
+    const { frameId, reason } = req.body;
+
+    if (!frameId) {
+      res.status(400).json({ success: false, error: 'frameId is required' });
+      return;
+    }
+
+    const result = await FrameService.adminEquipUserFrame(adminId, targetUserId, frameId, reason);
+    res.status(200).json(result);
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/v1/admin/users/:userId/unequip
+ * Admin unequips target user's currently active frame.
+ */
+router.post('/admin/users/:userId/unequip', authenticateToken, requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const adminId = (req as any).user.userId;
+    const targetUserId = parseInt(req.params.userId as string, 10);
+    const { reason } = req.body;
+
+    const result = await FrameService.adminUnequipUserFrame(adminId, targetUserId, reason);
+    res.status(200).json(result);
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/v1/admin/users/:userId/grant-and-equip
+ * Admin grants frame to user's inventory AND equips as active profile frame in one atomic action.
+ */
+router.post('/admin/users/:userId/grant-and-equip', authenticateToken, requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const adminId = (req as any).user.userId;
+    const targetUserId = parseInt(req.params.userId as string, 10);
+    const { frameId, durationDays, reason } = req.body;
+
+    if (!frameId) {
+      res.status(400).json({ success: false, error: 'frameId is required' });
+      return;
+    }
+
+    const result = await FrameService.adminGrantAndEquipUserFrame(
+      adminId,
+      targetUserId,
+      frameId,
+      durationDays !== undefined ? parseInt(durationDays, 10) : undefined,
+      reason
+    );
+    res.status(200).json(result);
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
 export const frameRouter = router;

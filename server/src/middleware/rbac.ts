@@ -30,6 +30,7 @@ export const ROLE_PERMISSIONS_MATRIX: Record<PlatformRole, string[]> = {
     'portal.users.edit',
     'portal.users.suspend',
     'portal.users.delete',
+    'users.avatar_frame.manage',
     'portal.wallet.view',
     'portal.wallet.manage',
     'portal.diamonds.view',
@@ -46,6 +47,7 @@ export const ROLE_PERMISSIONS_MATRIX: Record<PlatformRole, string[]> = {
     'portal.users.view',
     'portal.users.edit',
     'portal.users.suspend',
+    'users.avatar_frame.manage',
     'portal.wallet.view',
     'portal.withdrawals.view',
     'portal.reseller.view',
@@ -200,4 +202,5 @@ export async function verifyResourceOwnership(
 
 export const requireAdmin = requireRoles('ADMIN', 'SUPER_ADMIN', 'SUPER_ADMIN_CEO');
 export const requireReseller = requireRoles('DIAMOND_RESELLER', 'MASTER_RESELLER', 'ADMIN', 'SUPER_ADMIN', 'SUPER_ADMIN_CEO');
+export const requireAvatarFrameManage = requirePermission('users.avatar_frame.manage');
 export const requireHost = requireRoles('HOST', 'ADMIN', 'SUPER_ADMIN', 'SUPER_ADMIN_CEO');

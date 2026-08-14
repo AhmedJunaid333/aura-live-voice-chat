@@ -16,6 +16,17 @@
     - Created `FrameStoreScreen` (`frame_store_screen.dart`) with category tabs, search, live preview bottom sheet, diamond balance indicator, and one-tap purchase.
     - Created `MyFramesScreen` (`my_frames_screen.dart`) for inventory inspection, active equip/unequip toggles, and expiry countdowns.
     - Added routes `/frame-store` and `/my-frames` to `app_router.dart` and integrated into `ProfileScreen`.
+  - **👑 🔲 Admin Panel User Avatar Frame Control System (COMPLETED & 100% VERIFIED)**:
+    - **End-to-End Control Flow**: `Admin Panel -> User Directory -> User Details -> Avatar & Cosmetics -> Select Frame -> Preview -> Grant / Equip / Unequip / Revoke`.
+    - **Clear Operational Separation**:
+      - `Grant Frame`: Adds frame to user's inventory with duration (`Permanent`, `7 Days`, `30 Days`, `90 Days`, `Custom`) and mandatory admin audit reason.
+      - `Set / Equip Frame`: Activates an owned frame as the user's current profile `equippedFrameId` without mutating the base DP.
+      - `Grant & Equip Active`: Atomically executes grant to inventory + active equip in one authorized backend transaction.
+      - `Remove / Unequip Active Frame`: Resets `equippedFrameId = null` with clean profile DP fallback.
+      - `Revoke Frame`: Revokes an owned frame from user's inventory with audit reason.
+    - **RBAC Security Scope**: Protected by `users.avatar_frame.manage` permission and `requireAvatarFrameManage` middleware.
+    - **Official SVGA Web Canvas Player**: Integrated `svgaplayerweb` with Canvas parsing and base64 blob decoding for pixel-perfect frame rendering.
+    - **Realtime WebSocket Synchronization**: Broadcasts `user.frame.updated`, `user.frame.equipped`, and `user.frame.unequipped` via Socket.IO for instant updates across Flutter Profile, Live Room, Seat, Chat, Moments, and Rankings.
 - **📸 🌟 100% Functional Moments Social Ecosystem (COMPLETED & 100% VERIFIED)**:
   - **Full End-to-End Social Pipeline**:
     - **Top Tabs Discovery**: `Following` (real followed creators' posts), `Featured` (server ranking algorithm: `likes*5 + comments*8 + shares*10 + views*1 + level*10`), and `Nearby` (country/region filtering e.g. `PK`, `IN`).
