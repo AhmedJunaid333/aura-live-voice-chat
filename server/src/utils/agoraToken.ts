@@ -1,4 +1,5 @@
-import crypto from 'crypto';
+import pkg from 'agora-token';
+const { RtcTokenBuilder, RtcRole: AgoraRtcRole } = pkg;
 import { ENV } from '../config/env.js';
 
 export enum RtcRole {
@@ -18,21 +19,28 @@ export function generateAgoraRtcToken(
   const appId = ENV.AGORA_APP_ID || 'dummy_agora_app_id';
   const appCertificate = ENV.AGORA_APP_CERTIFICATE || '';
   const currentTimestamp = Math.floor(Date.now() / 1000);
-  const expiresAt = currentTimestamp + expireTimeSeconds;
+  const privilegeExpiredTs = currentTimestamp + expireTimeSeconds;
 
   let token = '';
 
-  if (appCertificate) {
+  if (appCertificate && appCertificate.length > 5) {
     try {
-      // Build Agora Token signature
-      const message = `${appId}${channelName}${uid}${expiresAt}`;
-      const signature = crypto.createHmac('sha256', appCertificate).update(message).digest('hex');
-      token = `006${appId}${signature}${channelName}${uid}${expiresAt}`;
-    } catch {
-      token = `agora_rtc_${channelName}_${uid}_${expiresAt}`;
+      const agoraRole = role === RtcRole.PUBLISHER ? AgoraRtcRole.PUBLISHER : AgoraRtcRole.SUBSCRIBER;
+      token = RtcTokenBuilder.buildTokenWithUid(
+        appId,
+        appCertificate,
+        channelName,
+        uid,
+        agoraRole,
+        expireTimeSeconds,
+        privilegeExpiredTs
+      );
+    } catch (err) {
+      console.warn('⚠️ Agora token builder fallback:', err);
+      token = `006${appId}${channelName}${uid}${privilegeExpiredTs}`;
     }
   } else {
-    token = `agora_rtc_${channelName}_${uid}_${expiresAt}`;
+    token = `006${appId}${channelName}${uid}${privilegeExpiredTs}`;
   }
 
   return {
@@ -40,6 +48,7 @@ export function generateAgoraRtcToken(
     appId,
     channel: channelName,
     uid,
-    expiresAt,
+    expiresAt: privilegeExpiredTs,
   };
 }
+

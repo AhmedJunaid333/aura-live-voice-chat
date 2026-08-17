@@ -50,25 +50,44 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
 
     console.log(`🔌 [Socket.IO] User Connected: ${user.username} (ID: ${numericId}) [Socket: ${socket.id}]`);
 
-    // Live Room Joining
-    socket.on('live.join', (data: { roomId: string }) => {
+    // 🎙️ Live Room Joining (Supports both live.join and join-room)
+    const handleRoomJoin = (data: { roomId: string; userId?: string }) => {
+      if (!data?.roomId) return;
       socket.join(`room_${data.roomId}`);
       io.to(`room_${data.roomId}`).emit('live.viewer_joined', {
         roomId: data.roomId,
         user: { numericId, username: user.username },
         timestamp: new Date().toISOString(),
       });
-    });
+      io.to(`room_${data.roomId}`).emit('room.user.joined', {
+        roomId: data.roomId,
+        userId: numericId,
+        user: { numericId, username: user.username },
+        timestamp: new Date().toISOString(),
+      });
+    };
+    socket.on('live.join', handleRoomJoin);
+    socket.on('join-room', handleRoomJoin);
+    socket.on('join_room', handleRoomJoin);
 
-    // Live Room Leaving
-    socket.on('live.leave', (data: { roomId: string }) => {
+    // 🚪 Live Room Leaving (Supports both live.leave and leave-room)
+    const handleRoomLeave = (data: { roomId: string; userId?: string }) => {
+      if (!data?.roomId) return;
       socket.leave(`room_${data.roomId}`);
       io.to(`room_${data.roomId}`).emit('live.viewer_left', {
         roomId: data.roomId,
         numericId,
         timestamp: new Date().toISOString(),
       });
-    });
+      io.to(`room_${data.roomId}`).emit('room.user.left', {
+        roomId: data.roomId,
+        userId: numericId,
+        timestamp: new Date().toISOString(),
+      });
+    };
+    socket.on('live.leave', handleRoomLeave);
+    socket.on('leave-room', handleRoomLeave);
+    socket.on('leave_room', handleRoomLeave);
 
     // 🔒 Realtime Room Lock Socket Handler
     socket.on('room.lock', (data: { roomId: string; lockMode?: string }) => {
@@ -86,6 +105,14 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
         lockedAt: new Date().toISOString(),
       });
     });
+    socket.on('room-locked', (data: { roomId: string }) => {
+      io.to(`room_${data.roomId}`).emit('room.locked', {
+        roomId: data.roomId,
+        isLocked: true,
+        lockedBy: user.userId,
+        lockedAt: new Date().toISOString(),
+      });
+    });
 
     // 🔓 Realtime Room Unlock Socket Handler
     socket.on('room.unlock', (data: { roomId: string }) => {
@@ -100,26 +127,40 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
         timestamp: new Date().toISOString(),
       });
     });
+    socket.on('room-unlocked', (data: { roomId: string }) => {
+      io.to(`room_${data.roomId}`).emit('room.unlocked', {
+        roomId: data.roomId,
+        isLocked: false,
+        timestamp: new Date().toISOString(),
+      });
+    });
 
     // 🙋 Realtime Room Join Request
-    socket.on('room.join.request', (data: { roomId: string; targetHostNumericId: number }) => {
+    const handleJoinRequest = (data: { roomId: string; targetHostNumericId?: number; userName?: string; userAvatar?: string }) => {
       io.to(`room_${data.roomId}`).emit('room.join.requested', {
+        requestId: `req_${Date.now()}`,
         roomId: data.roomId,
         userId: user.userId,
         userNumericId: numericId,
-        userName: user.username,
+        userName: data.userName || user.username,
+        userAvatar: data.userAvatar,
         timestamp: new Date().toISOString(),
       });
       if (data.targetHostNumericId) {
         io.to(`user_${data.targetHostNumericId}`).emit('room.join.requested', {
+          requestId: `req_${Date.now()}`,
           roomId: data.roomId,
           userId: user.userId,
           userNumericId: numericId,
-          userName: user.username,
+          userName: data.userName || user.username,
+          userAvatar: data.userAvatar,
           timestamp: new Date().toISOString(),
         });
       }
-    });
+    };
+    socket.on('room.join.request', handleJoinRequest);
+    socket.on('room-join-request', handleJoinRequest);
+    socket.on('seat-request', handleJoinRequest);
 
     // 👑 Realtime Host Join Request Response (Accept/Reject)
     socket.on('room.join.respond', (data: { roomId: string; targetNumericId: number; status: 'ACCEPTED' | 'REJECTED' }) => {
@@ -130,18 +171,65 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
         status: data.status,
         timestamp: new Date().toISOString(),
       });
+      io.to(`room_${data.roomId}`).emit(eventName, {
+        roomId: data.roomId,
+        targetNumericId: data.targetNumericId,
+        status: data.status,
+        timestamp: new Date().toISOString(),
+      });
+    });
+    socket.on('room-join-accept', (data: { roomId: string; targetUserId: string }) => {
+      io.to(`room_${data.roomId}`).emit('room.join.request.accepted', {
+        roomId: data.roomId,
+        targetUserId: data.targetUserId,
+        status: 'ACCEPTED',
+        timestamp: new Date().toISOString(),
+      });
+    });
+    socket.on('room-join-reject', (data: { roomId: string; targetUserId: string }) => {
+      io.to(`room_${data.roomId}`).emit('room.join.request.rejected', {
+        roomId: data.roomId,
+        targetUserId: data.targetUserId,
+        status: 'REJECTED',
+        timestamp: new Date().toISOString(),
+      });
     });
 
     // 🚫 Realtime Kick User from Room
-    socket.on('room.user.remove', (data: { roomId: string; targetNumericId: number }) => {
-      io.to(`user_${data.targetNumericId}`).emit('room.user.removed', {
-        roomId: data.roomId,
-        targetNumericId: data.targetNumericId,
-        message: 'You have been removed from the room by the host.',
-      });
+    const handleKickUser = (data: { roomId: string; targetNumericId?: number; targetUserId?: string; seatIndex?: number }) => {
+      const targetId = data.targetNumericId || data.targetUserId;
+      if (data.targetNumericId) {
+        io.to(`user_${data.targetNumericId}`).emit('room.user.removed', {
+          roomId: data.roomId,
+          targetNumericId: data.targetNumericId,
+          message: 'You have been removed from the room by the host.',
+        });
+      }
       io.to(`room_${data.roomId}`).emit('room.user.removed', {
         roomId: data.roomId,
+        targetUserId: targetId,
         targetNumericId: data.targetNumericId,
+      });
+    };
+    socket.on('room.user.remove', handleKickUser);
+    socket.on('host-kick-user', handleKickUser);
+    socket.on('room-user-removed', handleKickUser);
+
+    // 🔇 Mic Mute/Unmute Realtime Broadcast
+    socket.on('mic-muted', (data: { roomId: string; userId: string; isMuted: boolean }) => {
+      io.to(`room_${data.roomId}`).emit('room.mic.muted', {
+        roomId: data.roomId,
+        userId: data.userId,
+        isMuted: data.isMuted,
+        timestamp: new Date().toISOString(),
+      });
+    });
+    socket.on('mic-unmuted', (data: { roomId: string; userId: string; isMuted: boolean }) => {
+      io.to(`room_${data.roomId}`).emit('room.mic.muted', {
+        roomId: data.roomId,
+        userId: data.userId,
+        isMuted: false,
+        timestamp: new Date().toISOString(),
       });
     });
 

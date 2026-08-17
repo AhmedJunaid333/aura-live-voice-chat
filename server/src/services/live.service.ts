@@ -27,36 +27,24 @@ export class LiveService {
       throw new Error('HOST_NOT_FOUND: Authenticated host user not found. Please log in and try again.');
     }
 
-    // 🛡️ IDEMPOTENCY: Check if host already has an active LIVE room
-    const existingActiveRoom = await prisma.liveRoom.findFirst({
+    // 🛡️ Ensure any previous active broadcast for this host is cleanly finalized and ended
+    const previousActiveRooms = await prisma.liveRoom.findMany({
       where: {
         hostId: hostUser.id,
         status: { in: ['LIVE', 'LOCKED'] },
       },
-      include: {
-        host: {
-          select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true, countryCode: true },
-        },
-        seats: {
-          include: {
-            user: {
-              select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true },
-            },
-          },
-          orderBy: { seatNumber: 'asc' },
-        },
-      },
     });
 
-    if (existingActiveRoom) {
-      const agoraConfig = generateAgoraRtcToken(existingActiveRoom.roomId, hostUser.numericId, RtcRole.PUBLISHER);
-      return {
-        room: existingActiveRoom,
-        agora: agoraConfig,
-      };
+    for (const prevRoom of previousActiveRooms) {
+      try {
+        await this.endRoom(prevRoom.roomId, hostUser.id, {
+          endedBy: 'HOST',
+          endReason: 'Host started a new live broadcast.',
+        });
+      } catch (_) {}
     }
 
-    const roomId = `RM-${hostUser.numericId}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const roomId = `RM-${hostUser.numericId}-${Math.floor(1000 + Math.random() * 9000)}-${Date.now() % 10000}`;
     const totalSeats = data.seatCount === 20 ? 20 : (data.seatCount === 15 ? 15 : 10);
     const verifiedCountryCode = (data.countryCode || hostUser.countryCode || 'PK').toUpperCase();
     const initialRankingScore = (hostUser.level * 20) + 100;
@@ -1369,7 +1357,7 @@ export class LiveService {
         seat: updatedSeat,
         agora: agoraConfig,
       };
-    });
+    }, { timeout: 25000, maxWait: 10000 });
   }
 
   /**
@@ -1424,7 +1412,7 @@ export class LiveService {
       });
 
       return updatedSeat;
-    });
+    }, { timeout: 25000, maxWait: 10000 });
   }
 
   /**
@@ -1682,7 +1670,7 @@ export class LiveService {
         room: updatedRoom,
         seats: finalSeats,
       };
-    });
+    }, { timeout: 25000, maxWait: 10000 });
   }
 
   /**

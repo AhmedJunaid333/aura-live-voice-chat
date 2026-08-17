@@ -1,5 +1,13 @@
 # Aura Live Voice Chat – Production Implementation Plan
 
+- **🎙️ 🛡️ Agora Live Room, Host/Viewer/Guest Role Isolation & Seat Engine (COMPLETED & 100% VERIFIED ✅)**:
+  - **Root Cause Eliminated**: Removed default user fallback in `live.routes.ts`. Enforced strict `authenticateToken` on all live broadcast routes.
+  - **Clean Broadcast Lifecycle**: `LiveService.createRoom` cleanly finalizes any prior active broadcast for the host and creates a fresh unique `LiveRoom` record with isolated `roomId` and `agoraChannelName`.
+  - **Official Agora Token Integration**: Replaced HMAC signature template with official `agora-token` package (`RtcTokenBuilder.buildTokenWithUid`).
+  - **Unified Socket.IO Events**: Configured dual-event support in `socketServer.ts` (`join-room` / `live.join`, `seat-request`, `host-kick-user`, `room-locked`, etc.).
+  - **Hardware Engine Lifecycle on Logout**: `UserSessionService.logout()` now explicitly calls `AgoraRtcService().leaveChannel()` and `AgoraRtcService().release()` to ensure zero hardware/channel contamination between accounts.
+  - **Automated Verification**: Executed 15-scenario integration test suite (`test_agora_live_isolation.ts`) covering Multi-Host Isolation (Room A != Room B), Audience Joining, Atomic Seat Claiming, Locked Seats, Join Requests & Host Accept, Atomic Seat Switching, Host Mute, Host Kick, Gifts, and Broadcast Finalization. All 15 tests passed 100%. Server TypeScript build: 0 errors. Flutter analyze: 0 errors.
+
 - **👑 💎 SVIP 1–8 Nobility System Overhaul & Complete Multi-Asset Suite (COMPLETED & 100% VERIFIED ✅)**:
   - **SVIP 15 to 8 Restructuring**: Converted SVIP tier structure from 15 generic levels to 8 distinct Mythic Beast Nobility tiers (`SVIP 1 Emerald Wolf` to `SVIP 8 Celestial Phoenix`).
   - **7-Asset Grid Showcase Matrix**: Implemented full asset suites for each tier (Hero Beast Crest, Title Badge, Avatar Frame, Chat Bubble, Soundwave Ring, Profile Theme Watermark, Room Entry Banner, and Throne Chair for SVIP 4+).

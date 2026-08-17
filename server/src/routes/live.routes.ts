@@ -33,31 +33,12 @@ liveRouter.get(['/countries', '/rooms/countries'], async (req, res, next) => {
   }
 });
 
-// Create Live Room & Generate Agora Host Token
-liveRouter.post(['/', '/rooms'], async (req, res, next) => {
+// Create Live Room & Generate Agora Host Token (Strict JWT Auth)
+liveRouter.post(['/', '/rooms', '/start'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
-    let resolvedUserId: number = 1;
-
-    // 1. Try JWT Bearer Token if present
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
-    if (token) {
-      const payload = (await import('../utils/jwt.js')).verifyAccessToken(token);
-      if (payload?.userId) {
-        resolvedUserId = payload.userId;
-      }
-    }
-
-    // 2. Fallback to hostUserId / hostNumericId from request body or header
-    if (!token && (req.body.hostUserId || req.body.hostNumericId)) {
-      resolvedUserId = Number(req.body.hostUserId || req.body.hostNumericId);
-    } else if (!token && req.headers['x-user-id']) {
-      resolvedUserId = Number(req.headers['x-user-id']);
-    }
-
     const validated = createLiveRoomSchema.parse(req.body);
     const result = await LiveService.createRoom({
-      hostUserId: resolvedUserId,
+      hostUserId: req.user!.userId,
       title: validated.title,
       category: validated.category,
       seatCount: validated.seatCount,
