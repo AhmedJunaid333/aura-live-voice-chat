@@ -8,7 +8,7 @@ import { generateAgoraRtcToken, RtcRole } from '../utils/agoraToken.js';
 export const liveRouter = Router();
 
 // 🌍 Get Active Live Rooms Feed (Global & Country Discovery with Realtime Ranking)
-liveRouter.get('/rooms', async (req, res, next) => {
+liveRouter.get(['/', '/rooms'], async (req, res, next) => {
   try {
     const rooms = await LiveService.getLiveRooms({
       countryCode: req.query.countryCode as string,
@@ -24,7 +24,7 @@ liveRouter.get('/rooms', async (req, res, next) => {
 });
 
 // 🌍 Get Global Live Countries Stats (Live counts per country)
-liveRouter.get('/rooms/countries', async (req, res, next) => {
+liveRouter.get(['/countries', '/rooms/countries'], async (req, res, next) => {
   try {
     const stats = await LiveService.getLiveCountriesStats();
     res.status(200).json({ success: true, data: stats });
@@ -34,7 +34,7 @@ liveRouter.get('/rooms/countries', async (req, res, next) => {
 });
 
 // Create Live Room & Generate Agora Host Token
-liveRouter.post('/rooms', async (req, res, next) => {
+liveRouter.post(['/', '/rooms'], async (req, res, next) => {
   try {
     let resolvedUserId: number = 1;
 
@@ -69,10 +69,28 @@ liveRouter.post('/rooms', async (req, res, next) => {
   }
 });
 
-// 🛑 Host Ends Broadcast (Server-Enforced Lifecycle)
-liveRouter.post('/rooms/:roomId/end', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+// 🛑 Host Ends Broadcast (Server-Enforced Lifecycle with Finalized Statistics)
+liveRouter.post(['/:roomId/end', '/rooms/:roomId/end'], async (req, res, next) => {
   try {
-    const result = await LiveService.endRoom(req.params.roomId as string, req.user!.userId);
+    let resolvedUserId: number = 0;
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    if (token) {
+      const payload = (await import('../utils/jwt.js')).verifyAccessToken(token);
+      if (payload?.userId) {
+        resolvedUserId = payload.userId;
+      }
+    } else if (req.headers['x-user-id']) {
+      resolvedUserId = Number(req.headers['x-user-id']);
+    } else if (req.body.hostUserId || req.body.hostNumericId) {
+      resolvedUserId = Number(req.body.hostUserId || req.body.hostNumericId);
+    }
+
+    const { endReason } = req.body;
+    const result = await LiveService.endRoom(req.params.roomId as string, resolvedUserId, {
+      endedBy: 'HOST',
+      endReason,
+    });
     res.status(200).json({
       success: true,
       message: 'Broadcast ended successfully.',
@@ -87,8 +105,97 @@ liveRouter.post('/rooms/:roomId/end', authenticateToken, async (req: Authenticat
   }
 });
 
+// 💓 Host Live Heartbeat
+liveRouter.post(['/:roomId/heartbeat', '/rooms/:roomId/heartbeat'], async (req, res, next) => {
+  try {
+    let resolvedUserId: number = 0;
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    if (token) {
+      const payload = (await import('../utils/jwt.js')).verifyAccessToken(token);
+      if (payload?.userId) {
+        resolvedUserId = payload.userId;
+      }
+    } else if (req.headers['x-user-id']) {
+      resolvedUserId = Number(req.headers['x-user-id']);
+    } else if (req.body.hostUserId || req.body.hostNumericId) {
+      resolvedUserId = Number(req.body.hostUserId || req.body.hostNumericId);
+    }
+
+    const result = await LiveService.recordHeartbeat(req.params.roomId as string, resolvedUserId);
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message, code: error.code });
+      return;
+    }
+    next(error);
+  }
+});
+
+// 🚨 Admin Force-End Broadcast (Strictly Admin / Moderation Role)
+liveRouter.post(['/:roomId/admin-force-end', '/rooms/:roomId/admin-force-end'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { endReason } = req.body;
+    const result = await LiveService.endRoom(req.params.roomId as string, req.user!.userId, {
+      endedBy: 'ADMIN',
+      endReason: endReason || 'Broadcast terminated by administration.',
+    });
+    res.status(200).json({
+      success: true,
+      message: 'Broadcast terminated by administration.',
+      data: result,
+    });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// 📊 Get Finalized Broadcast Summary
+liveRouter.get(['/:roomId/summary', '/rooms/:roomId/summary'], async (req, res, next) => {
+  try {
+    const summary = await LiveService.getBroadcastSummary(req.params.roomId as string);
+    res.status(200).json({ success: true, data: summary });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// 📜 Get My Broadcast History
+liveRouter.get(['/history/me', '/rooms/history/me'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 20;
+    const history = await LiveService.getUserBroadcastHistory(req.user!.userId, page, limit);
+    res.status(200).json({ success: true, data: history });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 📜 Get User Broadcast History by User ID / Numeric ID
+liveRouter.get(['/history/user/:userId', '/rooms/history/user/:userId'], async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 20;
+    const userId = parseInt(req.params.userId as string, 10);
+    const history = await LiveService.getUserBroadcastHistory(userId, page, limit);
+    res.status(200).json({ success: true, data: history });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // 👁️ Record Viewer Presence Join
-liveRouter.post('/rooms/:roomId/viewer-join', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.post(['/:roomId/viewer-join', '/rooms/:roomId/viewer-join'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const result = await LiveService.recordViewerJoin(
       req.params.roomId as string,
@@ -102,7 +209,7 @@ liveRouter.post('/rooms/:roomId/viewer-join', authenticateToken, async (req: Aut
 });
 
 // 👁️ Record Viewer Presence Leave
-liveRouter.post('/rooms/:roomId/viewer-leave', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.post(['/:roomId/viewer-leave', '/rooms/:roomId/viewer-leave'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const result = await LiveService.recordViewerLeave(
       req.params.roomId as string,
@@ -115,7 +222,7 @@ liveRouter.post('/rooms/:roomId/viewer-leave', authenticateToken, async (req: Au
 });
 
 // 🔒 Host Locks Room (Server-Enforced)
-liveRouter.post('/rooms/:roomId/lock', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.post(['/:roomId/lock', '/rooms/:roomId/lock'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const { lockMode, password } = req.body;
     const result = await LiveService.lockRoom(req.params.roomId as string, req.user!.userId, {
@@ -137,7 +244,7 @@ liveRouter.post('/rooms/:roomId/lock', authenticateToken, async (req: Authentica
 });
 
 // 🔓 Host Unlocks Room (Server-Enforced)
-liveRouter.post('/rooms/:roomId/unlock', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.post(['/:roomId/unlock', '/rooms/:roomId/unlock'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const result = await LiveService.unlockRoom(req.params.roomId as string, req.user!.userId);
     res.status(200).json({
@@ -155,7 +262,7 @@ liveRouter.post('/rooms/:roomId/unlock', authenticateToken, async (req: Authenti
 });
 
 // Join Live Room & Generate Agora Audience Token (Enforces Room Lock)
-liveRouter.post('/rooms/:roomId/join', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.post(['/:roomId/join', '/rooms/:roomId/join'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const result = await LiveService.joinRoom(
       req.params.roomId as string,
@@ -182,7 +289,7 @@ liveRouter.post('/rooms/:roomId/join', authenticateToken, async (req: Authentica
 });
 
 // 🙋 Audience Requests to Join Locked Room
-liveRouter.post('/rooms/:roomId/join-request', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.post(['/:roomId/join-request', '/rooms/:roomId/join-request'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const currentUser = await prisma.user.findUnique({
       where: { id: req.user!.userId },
@@ -211,7 +318,7 @@ liveRouter.post('/rooms/:roomId/join-request', authenticateToken, async (req: Au
 });
 
 // 👑 Host Responds to Join Request (Accept / Reject)
-liveRouter.post('/rooms/:roomId/join-request/:requestId/respond', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.post(['/:roomId/join-request/:requestId/respond', '/rooms/:roomId/join-request/:requestId/respond'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const { status } = req.body;
     if (!status || !['ACCEPTED', 'REJECTED'].includes(status)) {
@@ -241,7 +348,7 @@ liveRouter.post('/rooms/:roomId/join-request/:requestId/respond', authenticateTo
 });
 
 // 👑 Host Fetches Pending Join Requests
-liveRouter.get('/rooms/:roomId/join-requests', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.get(['/:roomId/join-requests', '/rooms/:roomId/join-requests'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const result = await LiveService.getPendingJoinRequests(req.params.roomId as string, req.user!.userId);
     res.status(200).json({ success: true, data: result });
@@ -255,7 +362,7 @@ liveRouter.get('/rooms/:roomId/join-requests', authenticateToken, async (req: Au
 });
 
 // Send Gift in Live Room
-liveRouter.post('/rooms/:roomId/gift', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.post(['/:roomId/gift', '/rooms/:roomId/gift'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const { receiverUserId, giftId, count } = req.body;
     const result = await LiveService.sendGiftInRoom({
@@ -300,7 +407,7 @@ liveRouter.post('/token', authenticateToken, async (req: AuthenticatedRequest, r
 });
 
 // Update Room Settings
-liveRouter.patch('/rooms/:roomId/settings', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.patch(['/:roomId/settings', '/rooms/:roomId/settings'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const result = await LiveService.updateRoomSettings(
       req.user!.userId,
@@ -318,7 +425,7 @@ liveRouter.patch('/rooms/:roomId/settings', authenticateToken, async (req: Authe
 });
 
 // Get Room Admins
-liveRouter.get('/rooms/:roomId/admins', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.get(['/:roomId/admins', '/rooms/:roomId/admins'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const admins = await LiveService.getRoomAdmins(req.params.roomId as string);
     res.status(200).json({ success: true, data: admins });
@@ -328,7 +435,7 @@ liveRouter.get('/rooms/:roomId/admins', authenticateToken, async (req: Authentic
 });
 
 // Add Room Admin
-liveRouter.post('/rooms/:roomId/admins', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.post(['/:roomId/admins', '/rooms/:roomId/admins'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const result = await LiveService.addRoomAdmin(
       req.user!.userId,
@@ -346,7 +453,7 @@ liveRouter.post('/rooms/:roomId/admins', authenticateToken, async (req: Authenti
 });
 
 // Remove Room Admin
-liveRouter.delete('/rooms/:roomId/admins/:targetUserId', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.delete(['/:roomId/admins/:targetUserId', '/rooms/:roomId/admins/:targetUserId'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const result = await LiveService.removeRoomAdmin(
       req.user!.userId,
@@ -368,7 +475,7 @@ liveRouter.delete('/rooms/:roomId/admins/:targetUserId', authenticateToken, asyn
 // ==========================================
 
 // Get All Real Seats for Room
-liveRouter.get('/rooms/:roomId/seats', async (req, res, next) => {
+liveRouter.get(['/:roomId/seats', '/rooms/:roomId/seats'], async (req, res, next) => {
   try {
     const result = await LiveService.getRoomSeats(req.params.roomId as string);
     res.status(200).json({ success: true, data: result });
@@ -382,7 +489,7 @@ liveRouter.get('/rooms/:roomId/seats', async (req, res, next) => {
 });
 
 // Take a Seat (Atomic DB Claim)
-liveRouter.post('/rooms/:roomId/seats/:seatNumber/take', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.post(['/:roomId/seats/:seatNumber/take', '/rooms/:roomId/seats/:seatNumber/take'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const seatNumber = parseInt(req.params.seatNumber as string, 10);
     const result = await LiveService.takeSeat(
@@ -401,7 +508,7 @@ liveRouter.post('/rooms/:roomId/seats/:seatNumber/take', authenticateToken, asyn
 });
 
 // Leave a Seat
-liveRouter.post('/rooms/:roomId/seats/:seatNumber/leave', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.post(['/:roomId/seats/:seatNumber/leave', '/rooms/:roomId/seats/:seatNumber/leave'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const seatNumber = parseInt(req.params.seatNumber as string, 10);
     const result = await LiveService.leaveSeat(
@@ -420,7 +527,7 @@ liveRouter.post('/rooms/:roomId/seats/:seatNumber/leave', authenticateToken, asy
 });
 
 // Mute / Unmute Seat Mic
-liveRouter.patch('/rooms/:roomId/seats/:seatNumber/mute', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.patch(['/:roomId/seats/:seatNumber/mute', '/rooms/:roomId/seats/:seatNumber/mute'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const seatNumber = parseInt(req.params.seatNumber as string, 10);
     const { isMuted } = req.body;
@@ -441,7 +548,7 @@ liveRouter.patch('/rooms/:roomId/seats/:seatNumber/mute', authenticateToken, asy
 });
 
 // Lock / Unlock Seat
-liveRouter.patch('/rooms/:roomId/seats/:seatNumber/lock', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.patch(['/:roomId/seats/:seatNumber/lock', '/rooms/:roomId/seats/:seatNumber/lock'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const seatNumber = parseInt(req.params.seatNumber as string, 10);
     const { isLocked } = req.body;
@@ -462,7 +569,7 @@ liveRouter.patch('/rooms/:roomId/seats/:seatNumber/lock', authenticateToken, asy
 });
 
 // Kick Speaker off Seat
-liveRouter.post('/rooms/:roomId/seats/:seatNumber/kick', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.post(['/:roomId/seats/:seatNumber/kick', '/rooms/:roomId/seats/:seatNumber/kick'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const seatNumber = parseInt(req.params.seatNumber as string, 10);
     const result = await LiveService.kickSeat(
@@ -481,7 +588,7 @@ liveRouter.post('/rooms/:roomId/seats/:seatNumber/kick', authenticateToken, asyn
 });
 
 // Change Seat Capacity (Strictly 10, 15, or 20)
-liveRouter.patch('/rooms/:roomId/seat-capacity', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.patch(['/:roomId/seat-capacity', '/rooms/:roomId/seat-capacity'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const { seatCount } = req.body;
     const result = await LiveService.changeSeatCapacity(
@@ -489,6 +596,55 @@ liveRouter.patch('/rooms/:roomId/seat-capacity', authenticateToken, async (req: 
       parseInt(seatCount, 10),
       req.user!.userId
     );
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// 🌟 Post Official Comment to Live Room
+liveRouter.post(['/:roomId/official-comment', '/rooms/:roomId/official-comment'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { content, type, isPinned } = req.body;
+    if (!content || typeof content !== 'string') {
+      res.status(400).json({ success: false, error: 'Comment content is required.' });
+      return;
+    }
+    const result = await LiveService.postOfficialComment({
+      senderUserId: req.user!.userId,
+      roomId: req.params.roomId as string,
+      content,
+      type,
+      isPinned: isPinned === true,
+    });
+    res.status(201).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// 📋 Get Official & Pinned Comments for a Live Room
+liveRouter.get(['/:roomId/official-comments', '/rooms/:roomId/official-comments'], async (req, res, next) => {
+  try {
+    const result = LiveService.getOfficialComments(req.params.roomId as string);
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 📌 Unpin Comment from Live Room
+liveRouter.post(['/:roomId/unpin-comment', '/rooms/:roomId/unpin-comment'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const result = await LiveService.unpinOfficialComment(req.params.roomId as string, req.user!.userId);
     res.status(200).json({ success: true, data: result });
   } catch (error: any) {
     if (error.statusCode) {

@@ -284,17 +284,8 @@ export class MomentService {
     }
 
     if (!user) {
-      user = await prisma.user.create({
-        data: {
-          numericId: 100001,
-          username: 'AuraUser_100001',
-          displayName: 'Aura User',
-          email: 'user100001@auralive.app',
-          passwordHash: 'dummy_hash',
-          level: 1,
-          countryCode: 'PK',
-        },
-      });
+      // No mock fallback — the author must be a real authenticated user
+      throw new Error('USER_NOT_FOUND: Authenticated user not found. Please log in and try again.');
     }
 
     const lastMoment = await prisma.moment.findFirst({ orderBy: { numericId: 'desc' } });

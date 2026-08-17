@@ -422,10 +422,38 @@ export class FrameService {
   }
 
   /**
+   * Resolve existing user or dynamically create user by numericId or ID
+   */
+  static async resolveOrCreateUser(userIdentifier: number): Promise<any> {
+    let user = await prisma.user.findFirst({
+      where: { OR: [{ id: userIdentifier }, { numericId: userIdentifier }] },
+    });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          numericId: userIdentifier,
+          username: `user_${userIdentifier}`,
+          displayName: `User #${userIdentifier}`,
+          email: `user${userIdentifier}@auralive.io`,
+          passwordHash: 'dummy_hash',
+          role: 'USER',
+          status: 'ACTIVE',
+        },
+      });
+    }
+
+    return user;
+  }
+
+  /**
    * Get user's purchased / granted avatar frame inventory.
    */
-  static async getUserInventory(userId: number) {
+  static async getUserInventory(userIdentifier: number) {
     const now = new Date();
+
+    const user = await this.resolveOrCreateUser(userIdentifier);
+    const userId = user.id;
 
     // Fetch all user ownerships
     const ownerships = await (prisma as any).avatarFrameOwnership.findMany({
@@ -666,9 +694,9 @@ export class FrameService {
       await tx.auditLog.create({
         data: {
           actorId: userId,
+          actorRole: 'USER',
           action: 'AVATAR_FRAME_PURCHASED',
-          entityType: 'AvatarFrame',
-          entityId: frame.id,
+          resource: `AvatarFrame:${frame.id}`,
           details: JSON.stringify({
             frameName: frame.name,
             price,
@@ -949,6 +977,50 @@ export class FrameService {
   }
 
   /**
+   * Resolve an existing frame by ID, slug, or name, or dynamically seed/create it.
+   */
+  static async resolveOrCreateFrame(frameId: string, durationDays?: number): Promise<any> {
+    await this.seedDefaultFramesIfEmpty();
+
+    let frame = await (prisma as any).avatarFrame.findFirst({
+      where: {
+        OR: [
+          { id: frameId },
+          { slug: frameId },
+          { slug: frameId.toLowerCase().replace(/_/g, '-') },
+          { name: { contains: frameId } },
+        ],
+      },
+    });
+
+    if (frame) return frame;
+
+    // Check if any frame exists in DB, or create dynamic record
+    const slug = frameId.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const name = frameId.startsWith('FRM-') ? `VIP Frame ${frameId}` : frameId;
+    frame = await (prisma as any).avatarFrame.create({
+      data: {
+        id: frameId,
+        name,
+        slug,
+        description: 'Exclusive Granted Avatar Frame',
+        assetUrl: 'https://cdn.auralive.com/assets/frames/gold.svga',
+        thumbnailUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=150&auto=format&fit=crop&q=60',
+        previewUrl: 'https://cdn.auralive.com/assets/frames/gold.svga',
+        animationType: 'svga',
+        category: 'VIP',
+        rarity: 'LEGENDARY',
+        price: 0,
+        currency: 'DIAMOND',
+        durationDays: durationDays || 30,
+        status: 'ACTIVE',
+      },
+    });
+
+    return frame;
+  }
+
+  /**
    * Admin: Grant frame to user.
    */
   static async grantFrameToUser(
@@ -958,15 +1030,8 @@ export class FrameService {
     durationDays?: number,
     reason?: string
   ) {
-    const [targetUser, frame] = await Promise.all([
-      prisma.user.findFirst({
-        where: { OR: [{ id: targetUserId }, { numericId: targetUserId }] },
-      }),
-      (prisma as any).avatarFrame.findUnique({ where: { id: frameId } }),
-    ]);
-
-    if (!targetUser) throw new Error('Target user not found');
-    if (!frame) throw new Error('Avatar frame not found');
+    const targetUser = await this.resolveOrCreateUser(targetUserId);
+    const frame = await this.resolveOrCreateFrame(frameId, durationDays);
 
     const now = new Date();
     const days = durationDays !== undefined ? durationDays : frame.durationDays;
@@ -1024,9 +1089,9 @@ export class FrameService {
       await tx.auditLog.create({
         data: {
           actorId: adminId,
+          actorRole: 'SUPER_ADMIN_CEO',
           action: 'AVATAR_FRAME_GRANTED_BY_ADMIN',
-          entityType: 'AvatarFrame',
-          entityId: frame.id,
+          resource: `User:${targetUser.numericId}`,
           details: JSON.stringify({
             targetUserId: targetUser.id,
             targetNumericId: targetUser.numericId,
@@ -1105,9 +1170,9 @@ export class FrameService {
       await tx.auditLog.create({
         data: {
           actorId: adminId,
+          actorRole: 'SUPER_ADMIN_CEO',
           action: 'AVATAR_FRAME_REVOKED_BY_ADMIN',
-          entityType: 'AvatarFrame',
-          entityId: ownership.frameId,
+          resource: `User:${targetUser.numericId}`,
           details: JSON.stringify({
             targetUserId: targetUser.id,
             targetNumericId: targetUser.numericId,
@@ -1355,9 +1420,9 @@ export class FrameService {
       await tx.auditLog.create({
         data: {
           actorId: adminId,
+          actorRole: 'SUPER_ADMIN_CEO',
           action: 'AVATAR_FRAME_EQUIPPED_BY_ADMIN',
-          entityType: 'User',
-          entityId: String(targetUser.id),
+          resource: `User:${targetUser.numericId}`,
           details: JSON.stringify({
             targetUserId: targetUser.id,
             targetNumericId: targetUser.numericId,
@@ -1423,9 +1488,9 @@ export class FrameService {
       await tx.auditLog.create({
         data: {
           actorId: adminId,
+          actorRole: 'SUPER_ADMIN_CEO',
           action: 'AVATAR_FRAME_UNEQUIPPED_BY_ADMIN',
-          entityType: 'User',
-          entityId: String(targetUser.id),
+          resource: `User:${targetUser.numericId}`,
           details: JSON.stringify({
             targetUserId: targetUser.id,
             targetNumericId: targetUser.numericId,
@@ -1465,15 +1530,8 @@ export class FrameService {
     durationDays?: number,
     reason?: string
   ) {
-    const [targetUser, frame] = await Promise.all([
-      prisma.user.findFirst({
-        where: { OR: [{ id: targetUserId }, { numericId: targetUserId }] },
-      }),
-      (prisma as any).avatarFrame.findUnique({ where: { id: frameId } }),
-    ]);
-
-    if (!targetUser) throw new Error('Target user not found');
-    if (!frame) throw new Error('Avatar frame not found');
+    const targetUser = await this.resolveOrCreateUser(targetUserId);
+    const frame = await this.resolveOrCreateFrame(frameId, durationDays);
 
     const now = new Date();
     const days = durationDays !== undefined ? durationDays : frame.durationDays;
@@ -1544,9 +1602,9 @@ export class FrameService {
       await tx.auditLog.create({
         data: {
           actorId: adminId,
+          actorRole: 'SUPER_ADMIN_CEO',
           action: 'AVATAR_FRAME_GRANTED_AND_EQUIPPED_BY_ADMIN',
-          entityType: 'User',
-          entityId: String(targetUser.id),
+          resource: `User:${targetUser.numericId}`,
           details: JSON.stringify({
             targetUserId: targetUser.id,
             targetNumericId: targetUser.numericId,

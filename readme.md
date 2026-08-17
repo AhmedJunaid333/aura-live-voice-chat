@@ -3,13 +3,194 @@
 An enterprise-grade live broadcasting, multi-seat voice lounge (10, 15, 20 seats), real-time PK battle arena, VIP virtual economy, Level Progression Studio, and comprehensive Web Admin Console.
 
 ### 🛡️ Multi-Platform Build & Quality Assurance Status
-- **Native Android APK Package**: ✅ **Ready — [AuraLive-latest.apk](file:///d:/Auralive/AuraLive-latest.apk) / [AuraLiveVoiceChat.apk](file:///d:/Auralive/AuraLiveVoiceChat.apk) (317.5 MB)**
+- **Native Android APK Package**: ✅ **Ready — [app-release.apk](file:///d:/Auralive/New-Live-App/apps/mobile/build/app/outputs/flutter-apk/app-release.apk) (465.4 MB • Fresh Production Build with Server-Authoritative Identity, 1,2,3... ID Sequence, Zero Mocks, Live Hot Discovery & Neon PostgreSQL)**
 - **Backend TypeScript Compilation (`server/`)**: ✅ **0 Errors (`tsc --noEmit`)**
 - **Admin Portal Production Build (`admin-next/`)**: ✅ **0 Errors (`next build` Turbopack)**
 - **Mobile Application Analysis (`apps/mobile/`)**: ✅ **0 Compilation Errors (`flutter analyze`)**
-- **Database & Identity Integrity**: ✅ **100% Real Database Source of Truth (`server/prisma/dev.db`)**
+- **Database & Identity Integrity**: ✅ **100% Production Cloud PostgreSQL (`Neon Tech Cluster / AWS us-east-2`)**
+- **Firebase Cloud Suite**: ✅ **100% Free Tier (Auth + Storage + Push Messaging)**
+- **3D Animated Gifts Engine**: ✅ **12 Luxury 3D Gifts + Combustion Combos + VIP Top Banner**
 - **Realtime Gateway**: Socket.IO WebSockets on Port 3001
+- **Discovery Sync & Lifecycle Engine**: Real-time room addition, immediate termination card removal, host heartbeat (25s), and 30s stale room auto-reconciliation
 - **Detailed Audit Plan & Implementation Roadmap**: See [`plan.md`](file:///d:/Auralive/plan.md)
+
+## 🛡️ 🔐 Server-Only User Identity & Public Numeric ID System
+- **Single Source of Truth**: PostgreSQL Database + Backend Authentication (`/auth/register`, `/auth/login`, `/auth/google`).
+- **Eliminated Fake/Local Auth**: Completely removed `_loginFromLocalDatabase`, device `aura_user_database`, and mock `jwt_auth_...` token generation.
+- **Atomic ID Generation**: Public `numericId` is assigned on PostgreSQL user creation (autoincrement ID).
+- **Client Zero-Generation Policy**: Flutter client NEVER generates or calculates public IDs. ID display reads strictly from the authenticated server user.
+- **Zero Fallback IDs**: Removed all legacy `?? 100001` and `100000 + ...` fallback formulas.
+
+## 🛑 📡 Live Broadcast Lifecycle & Realtime Discovery Synchronization
+- **Discovery Rule**: `IF broadcast.status != 'LIVE' || broadcast.endedAt != null` THEN broadcast is NEVER discoverable on Hot/Explore/Following/Nearby.
+- **Server-Side Enforcement**:
+  - `getLiveRooms()` and `getLiveCountriesStats()` filter with `{ status: { in: ['LIVE', 'LOCKED'] }, endedAt: null }`.
+  - Stale room auto-reconciler checks for heartbeat timeouts (`updatedAt < NOW - 120s`) every 30s and automatically marks abandoned broadcasts as `ENDED`.
+  - Host heartbeat endpoint: `POST /v1/rooms/:roomId/heartbeat`.
+  - Room termination via `POST /v1/rooms/:roomId/end` marks `status: 'ENDED'`, sets `endedAt`, and broadcasts `BROADCAST_ENDED`, `broadcast.ended`, `ROOM_ENDED`, `room.ended`, `country.live.count.updated`.
+- **Flutter Mobile Client Sync**:
+  - `VoiceRoomWebSocketClient.connectGlobal()` keeps the discovery layer connected to real-time room lifecycle events globally.
+  - `LiveRoomDiscoveryService` immediately purges ended rooms from `_rooms` on receiving any broadcast-end event.
+  - `LiveRoomController` maintains a 25-second heartbeat timer during host broadcasts and cancels on teardown.
+  - `HomeScreen` and `ExploreScreen` use `WidgetsBindingObserver` to auto-reconcile with backend discovery on app resume.
+
+
+## 🛑 📊 Master Command — Aura Broadcast End Screen & Live History Engine
+- **Server-Enforced Broadcast Termination & Authoritative Finalization**:
+  - **Single Source of Truth (`LiveService.endRoom`)**: When a host ends a broadcast or an administrator force-ends a room, the backend atomicity engine triggers.
+  - **Real Broadcast Statistics (Zero Dummy Data)**:
+    - **Exact Duration**: Authoritatively computed from `startedAt` to `endedAt` in seconds and formatted as `HH:mm:ss` (`01:42:35`).
+    - **Live Metrics**: Peak Viewers, Total Unique Viewers, New Followers gained during the session, Comments count, and Guest speakers hosted with Seat Capacity.
+    - **Gifts & Revenue**: Queries `GiftTransaction` for authoritative total diamonds earned and gift count. If 0 gifts: *"No gifts received during this broadcast."*
+  - **Prisma `BroadcastHistory` Persistence**: Persists all session metrics into Neon Cloud PostgreSQL linked to the host user's profile (`broadcastHistories` relation).
+  - **Real-Time WebSockets**: Emits `broadcast.ended` and `room.ended` with the full finalized summary payload to all room participants.
+  - **API Endpoints**:
+    - `POST /api/v1/rooms/:roomId/end` — Host ends broadcast with optional reason.
+    - `POST /api/v1/rooms/:roomId/admin-force-end` — Admin force-end with reason.
+    - `GET /api/v1/rooms/:roomId/summary` — Fetch finalized broadcast summary.
+    - `GET /api/v1/rooms/history/me` — Current user's paginated live history.
+    - `GET /api/v1/rooms/history/user/:userId` — User broadcast history by numeric ID.
+- **Flutter Mobile Broadcast End Screen (`BroadcastEndScreen`)**:
+  - **Top Completed Header**: Emerald green badge `✓ BROADCAST COMPLETED`, Host avatar with glowing aurora ring & Level badge, Host name, and Duration clock banner (`⏱️ Duration 01:42:35`).
+  - **Live Performance Card**: 6-grid glass container featuring Peak Viewers, Total Viewers, New Followers, Comments, Guests Hosted, and Seat Capacity.
+  - **Gifts & Revenue Card**: Gifts Received (`🎁 X`) and Diamonds Earned (`💎 +Y`).
+  - **Action Controls & Navigation Safety**:
+    - **Done Button** (Primary Gradient CTA): Safely navigates to `/home` and clears the Live Room stack so the user cannot pop back into the ended broadcast.
+    - **View Live History Button** (Secondary CTA): Opens `BroadcastHistoryScreen`.
+    - **Share Summary Button**: Copies formatted summary text to clipboard with confirmation toast.
+    - **`PopScope` Protection**: Intercepts Android hardware back button to navigate directly to `/home` instead of reopening the room.
+- **Flutter Mobile Live Broadcast History (`BroadcastHistoryScreen`)**:
+  - Dedicated history screen listing past completed broadcasts with date/time, duration, peak viewers, gifts, diamonds, and followers gained, with pull-to-refresh.
+  - Integrated directly into `ProfileScreen` via a dedicated "Live Broadcast History" banner below the function grid.
+- **Live Room Integration**:
+  - Host tapping "Exit Broad" prompts a confirmation dialog ("End Broadcast?"). On confirm, calls `roomNotifier.endRoom()` $\rightarrow$ Leaves Agora audio channel $\rightarrow$ Navigates with `pushReplacement` to `BroadcastEndScreen`.
+  - Audience/Guest receives `broadcast.ended` event $\rightarrow$ Displays termination alert $\rightarrow$ Leaves Agora audio channel $\rightarrow$ Safely navigates back to `/home`.
+
+## 💬 🔔 Complete Chat + Notification Ecosystem & Real-Time Official Comments
+- **Full-Stack User Messaging & Real-Time Ecosystem**:
+  - **Dynamic Unread Badge**: The bottom navigation Chat tab displays a real-time unread badge tied directly to `ChatService.totalUnreadCount`. When 0 messages are unread, the badge disappears completely (zero hardcoded badges).
+  - **Real User Search & Compose Launcher**: Compose button (`+` / Edit icon) opens a live search modal querying `/v1/users/search?q=...` by name, username, and numeric ID, immediately launching real 1-to-1 chats.
+  - **1-to-1 Direct Messaging**: Features delivery status (`✓` Sent, `✓✓` Delivered / Read), live typing indicators ("Ahmed is typing..."), media attachments (Camera, Gallery, Send Gift, Live Invite), and user block/report protection.
+  - **Notification Center (`/notifications`)**: 5 segmented category filters (`All`, `Live`, `Messages`, `Social`, `System`) with 1-tap "Mark all as read" and deep navigation:
+    - `LIVE_STARTED` / `LIVE_INVITE` -> Deep links into exact live audio room (`/room/:roomId`) with "JOIN LIVE 🎙️" action.
+    - `FOLLOW` -> Deep links to `/user/:numericId`.
+    - `CHAT_MESSAGE` -> Deep links to direct chat screen.
+    - `GIFT_RECEIVED` / `RECHARGE_SUCCESS` -> Deep links to `/wallet`.
+    - `VIP_UPGRADE` -> Deep links to `/vip`.
+- **Live Room Official Comments & Pinned Announcements**:
+  - **Server-Side Validation**: Role-based verification ensures only `ADMIN`, `SUPER_ADMIN`, `BD`, or the room host can dispatch verified official comments (`isOfficial: true`).
+  - **Live Room Styling**: Verified official comments appear with gold accents and `[OFFICIAL ✓]` nobility badge.
+  - **Sticky Top Pin**: Official comments can be pinned sticky to the top of the comment feed in a gold header with unpin capability for room hosts and admins.
+  - **Admin Next.js Broadcasting Hub (`CmsBroadcastModule.tsx`)**:
+    - Interactive module to broadcast official comments to all active live rooms or specific room IDs.
+    - Pin/unpin sticky comment toggle.
+    - Global system notification dispatcher with live fan-out across Socket.IO and Push.
+
+## 🎙️ ⚡ Live Audio Broadcast, Agora Multi-Seat (10, 15, 20 Seats) & Discovery Suite
+- **Complete Go Live & Agora RTC Broadcast Lifecycle**:
+  - **Broadcast Initiation**: User clicks central `+` / `Go Live` launcher -> opens `GoLiveSheet` -> chooses suite package (**10 Seats**, **15 Seats**, or **20 Seats**).
+  - **Authoritative Neon Database Activation**: `POST /v1/rooms` activates room in Neon PostgreSQL (`status: 'LIVE'`), generates signed Agora token (`agoraToken.ts`), and broadcasts global `live.started` & `country.live.count.updated` events.
+  - **Real-Time Hot Page & Country Discovery**: Fully compatible across `/api/v1/rooms` and `/api/v1/live/rooms` routes. Active broadcasts immediately populate Hot discovery feeds, Following tab, and country selector filter pills (`All (1)`).
+  - **Agora 2-Way Audio Pipeline**:
+    - Host starts with `clientRoleBroadcaster` and live mic.
+    - Audience joins as `clientRoleAudience` (listeners).
+    - Dynamic speaking ripple animations via `onVolumeIndication` halo rings around avatars.
+  - **Dynamic Multi-Seat Layout (`10 / 15 / 20 Seats`) & Mic Promotion**:
+    - **10 Seats**: 2 rows of 5 seats.
+    - **15 Seats**: 3 rows of 5 seats.
+    - **20 Seats**: 4 rows of 5 seats.
+    - Top-Center Sovereign Host Stage with golden border, crown badge, and speaking wave halo.
+    - Tapping empty `+` seat slot calls atomic DB endpoint `POST /v1/rooms/:roomId/seats/:seatNumber/take` -> on success upgrades Agora role to `clientRoleBroadcaster`, enables mic, and broadcasts state to all room viewers.
+    - Leaving seat calls `POST /v1/rooms/:roomId/seats/:seatNumber/leave` -> demotes back to audience.
+    - Host controls: Lock/Unlock individual seats, Mute/Unmute guest mic, Kick speaker off seat, and dynamically expand capacity (10/15/20).
+  - **Single Source of Truth & Real Discovery Feeds**:
+    - Single canonical `LiveRoomCard` component used across **Hot**, **Following**, **Nearby**, **Explore**, and **Profile** screens.
+    - Zero dummy/mock cards: Only real database live rooms appear; shows elegant empty state with "Start Broadcast 🔴" when no rooms are active.
+    - Tapping any card in any tab routes to `/room/:roomId` connecting to the identical database live session.
+    - Real-time `ProfileScreen` and `OtherUserProfileScreen` display live glowing broadcast badges with 1-tap "Return to Room" / "Join Room" CTAs.
+  - **Clean Broadcast Teardown**:
+    - Host ending broadcast calls `POST /v1/rooms/:roomId/end` -> marks room `ENDED` in DB -> WebSockets broadcast `room.ended` & `broadcast.ended` -> removes room from all discovery feeds -> leaves Agora channel.
+
+## 🐘 ⚡ Neon Cloud PostgreSQL Migration & Database Architecture
+- **Enterprise Cloud PostgreSQL**:
+  - Authoritative connection string connected (`ep-odd-glade-axbcygiw.c-4.us-east-2.aws.neon.tech/neondb`).
+  - 50+ relational tables synchronized with ACID transactional consistency.
+  - Seeded Super Admin (`100000`), Primary VIP Member (`100001` - Ahmed Junaid ✨), Elite VIP Member (`100002` - Ahmed Khokhar 🌟), Audio Host (`100003` - Aura Host Star 🎙️), Diamond Reseller accounts, 12 Luxury 3D Gifts, and active Avatar Frame ownerships.
+
+## 🎁 🚀 3D & SVGA Luxury Animated Gifts, Combo Engine & VIP Banner Suite
+- **🎬 Hardware-Accelerated SVGA Gift Player Engine (`SvgaGiftPlayer`)**:
+  - Direct remote `.svga` binary decoding via `svgaplayer_flutter` for ultra-smooth 60-120 FPS gift rendering.
+  - Automatic duration discovery and single-pass playback with completed callback.
+  - Real-time Sender → Receiver banner with user avatars, name tags, and room announcement.
+  - Flame-burning combo multiplier counter with dynamic scaling.
+  - Floating golden diamond badge.
+  - Graceful fallback to 3D matrix particle system if SVGA asset is offline.
+- **Full-Screen 3D Matrix & Particle Effects (`LuxuryGift3DOverlay`)**:
+  - High-performance multi-stage 3D Matrix and custom Particle Physics animations:
+    - `🚀 GALAXY_ROCKET_3D`: Cosmic rocket ascent with dynamic particle thrusters, tilt, flame smoke, and starfield explosion.
+    - `🏎️ SUPERCAR_3D`: 3D perspective supercar drift racing across screen with neon tire flare and smoke trails.
+    - `👑 ROYAL_CROWN_3D`: Majestic 3D golden crown descent with 360° rotating gold sunburst halo and diamond sparkles.
+    - `🛥️ SUPER_YACHT_3D`: High-seas billionaire yacht cruising with animated ocean waves, golden fireworks, and champagne bubbles.
+    - `🐉 DRAGON_FIRE_3D`: Mythical fiery dragon orbiting the room with spinning flame trails and fiery sparks.
+    - `🏰 ROYAL_CASTLE_3D` / `🌌 COSMIC_PORTAL_3D`: Golden palace castle emerging with floral fireworks and particle shower.
+    - `🎰 LUCKY_CHEST_3D`: Shaking golden treasure box popping open with a shower of gold coins and multiplier badge.
+    - `🌹 ROSE_BURST` & `💖 HEART_FOUNTAIN`: Multi-directional heart and flower particle fountain.
+- **VIP Top Banner Announcement (`_buildVipTopBanner`)**:
+  - Sliding gold-bordered announcement bar with Sender and Receiver avatars, gift badge, and quantity.
+- **Dynamic Combo Multiplier Combustion Badge (`🔥 COMBO x10!`)**:
+  - Rapid-tap fire button in the gift store enabling continuous combos with animated scale & flame glow.
+- **Authoritative Backend Services & REST APIs (`server/src/services/gift.service.ts` & `gift.routes.ts`)**:
+  - `POST /api/v1/gifts/send` with atomic transactions, diamond debit, host coin credit, and real-time Socket.IO broadcasts.
+
+## 🔥 🌐 100% Free Tier Firebase Cloud Suite & Real Database Architecture
+- **Zero Cost Production Architecture**:
+  - **Prisma Relational Database**: Persistent zero-cost ACID database storing all Users, Wallet Balances, Avatar Frames, Rooms, and Audit Logs.
+  - **Firebase Authentication**: Integrated Google Sign-In with official Firebase Project (`aura-live-voice-chat-app`, Project ID: `552720302534`) and Keystore SHA-1 (`6F:ED:C3:73:AF:7C:CF:DB:90:24:7E:3A:ED:FC:80:8F:7A:46:2C:09`).
+  - **Firebase Cloud Storage**: Free 5GB storage bucket (`aura-live-voice-chat-app.firebasestorage.app`) for avatars, moments photos, and SVGA assets.
+  - **Firebase Cloud Messaging (FCM)**: Free push notifications for live streams and messages.
+
+## 👑 ⚡ VIP (1–7) & SVIP (1–15) Full-Stack Membership Engine
+- **Strict Nobility Hierarchy & Pre-Seeded Catalog**:
+  - Exactly **7 VIP levels** (Bronze Knight, Silver Baron, Gold Count, Platinum Marquis, Diamond Lord, Crown King, Sovereign Emperor) from \$10 to \$5,000 recharge.
+  - Exactly **15 SVIP levels** (Sovereign Knight to Emperor of the Cosmos) from \$1,000 to \$85,000 lifetime recharge with animated crowns and immunity shields.
+  - Fully database-driven (`VipLevelConfig` & `SvipLevelConfig`) with live runtime CRUD and seeding in Neon PostgreSQL.
+- **Authoritative XP Engine & Automatic Upgrades**:
+  - `MembershipService.awardXp()` verifies transactions, logs immutable records to `MembershipXpTransaction`, computes tier progression, upgrades `User.vipTier`, and records audit history in `MembershipHistory`.
+  - Level-up, Daily, Weekly, and Monthly rewards execute with composite idempotency keys (`USER_{id}_{type}_{level}_{reward}_{periodKey}`) preventing double claims.
+- **Admin Portal VIP/SVIP Studio (`admin-next`)**:
+  - Full-featured studio with 4 modules: VIP 1–7 Studio, SVIP 1–15 Sovereign Hub, Real-time Analytics Dashboard, and User Search & Manual Adjust with mandatory compliance reasons logged to `MembershipAuditLog`.
+- **1-Tap Direct VIP Purchase & Activation**:
+  - Direct purchase with diamonds via `POST /api/v1/membership/purchase` (e.g. VIP 1 = 1,000 Diamonds, VIP 2 = 5,000 Diamonds, etc.).
+  - Instant automatic wallet deduction, tier unlock, SVGA frame grant to backpack, 3D entrance activation, and level-up diamond bonuses.
+- **👑 ⚡ VIP Center Luxury Dark Green + Gold Theme & SVGA Showcase (`vip_screen.dart`)**:
+  - **Header & Navigation**: Circular Back button, `VIP Center` title, and More Options Menu (Give VIP, History, Rewards Station).
+  - **Segmented Switcher**: `[ VIP 1–7 ]` & `[ SVIP 1–15 ]` emerald gradient pill toggle.
+  - **Horizontal Level Selector**: Real live animated SVGA medals (`vip_1_medal.svga` to `vip_7_medal.svga`) embedded directly in level selector cards with golden highlights.
+  - **Hero Membership Card & SVGA Showcase**: Live user avatar wearing the exact real animated SVGA frame (`vip_1_frame.svga` to `vip_7_frame.svga`) with corner medal badge, EXP progress bar, and 5-asset interactive SVGA showcase ribbon (Frame, Medal, Entry Car, Room Banner, Profile Theme).
+  - **Level Privileges Grid & Live Preview**: 3-column glowing emerald circles embedding real live SVGA players inside the buttons (Frame, Medal, Entry Car, Room Banner, Profile Theme) plus live gilded chat bubbles and glowing usernames.
+  - **Interactive Privilege Preview Modal**: Live interactive showcase with user avatar in live SVGA frame, 3D medals, animated entry cars, room banners, chat bubbles, and instant view/equip in backpack.
+  - **Recharge Banner**: Dark emerald card with direct navigation to `/recharge`.
+  - **Rewards Station**: Daily (💎 20), Weekly (💎 150), and Monthly (💎 800) 1-tap claim cards + milestone level-up claims.
+  - **Tasks & Ranking Tabs**: Live daily/weekly tasks with XP & diamond rewards, and global leaderboard with nobility badges.
+  - **Give VIP Modal**: Direct friend gifting with numeric User ID search and diamond balance verification.
+  - **Robust Rendering**: Default tier fallback models, zero dead clicks, and full type safety.
+- **🎨 VIP 1–7 High-Fidelity SVGA Animated Assets Suite**:
+  - Extracted & mapped all 35 official SVGA animations from `D:\VIP 1 TO 7 SVGA\VIP 1 TO 7 SVGA` across Server (`uploads/vip_svgas/`), Admin Portal (`public/vip_svgas/`), and Mobile (`assets/vip_svgas/`).
+  - Integrated full SVGA paths for Avatar Frames (`vip_1_frame.svga` to `vip_7_frame.svga`), Nobility Medals (`vip_1_medal.svga` to `vip_7_medal.svga`), Profile Page SVGA Themes (`vip_1_profile_page.svga` to `vip_7_profile_page.svga`), and 3D Room Entrances (`vip_1_entry.svga` to `vip_7_entry.svga`).
+  - Seeded into live Neon DB and registered all 7 VIP frames into `AvatarFrame` database table.
+
+## 🔲 🏷️ ♂️ Dynamic Role Badges, Gender Icon & Admin-to-Mobile Frame Sync
+- **Dynamic Role Badges (Admin, BD, Host, Agency, Level) Under User ID**:
+  - Replaced static badge chips with strict conditional logic based on real user privileges.
+  - Replaced `Leader` with `Admin` (`Icons.admin_panel_settings`, Red `Color(0xFFD32F2F)`).
+  - Only active BDs display the `BD` tag, active hosts display the `Host` tag, active agencies display the `Agency` tag, and active admins display the `Admin` tag.
+- **Dynamic Gender Icon Correction (Male ♂️ vs Female ♀️)**:
+  - Corrected hardcoded pink female icon to dynamically render Blue ♂️ (`Icons.male`) for male accounts and Pink ♀️ (`Icons.female`) for female accounts.
+- **Multi-Key Cache & Instant Admin-to-Mobile Frame Sync**:
+  - Mounted `frameRouter` on `/api/admin/frames`, `/api/v1/admin/frames`, `/api/admin/users`, `/api/v1/admin/users` in backend Express app.
+  - `FrameService` synchronizes user inventory from multiple cache keys and backend endpoints (`/v1/frames/inventory/me` and `/v1/frames/user/:id/inventory`), resolving users by numericId or DB ID.
+  - Added `RefreshIndicator` on `MyFramesScreen` (`/my-frames`) for instant pull-to-refresh.
+  - Admin Web Portal features SVGA auto-shift and auto-zoom with direct UID user search and 1-tap assign/equip actions.
 
 ## 🔲 👑 100% Production-Grade Avatar Frame System
 - **Real Database Schema & Identity Integration**:
@@ -18,8 +199,9 @@ An enterprise-grade live broadcasting, multi-seat voice lounge (10, 15, 20 seats
 - **Atomic Wallet & Ledger Integration**:
   - `FrameService.purchaseFrame` executes inside atomic `prisma.$transaction`, verifying balance, debiting Diamonds/Coins, writing `WalletTransaction` ledger records (`COSMETIC_PURCHASE`), extending duration on repeat purchases, and recording `AvatarFramePurchase` with unique idempotency keys.
 - **Flutter Universal `AuraAvatar` & Store Suite**:
-  - `AuraAvatar` widget standardizes avatar rendering with decorative frame overlays, VIP gold rings, animated speaking glow, level badges, and online presence indicators.
-  - `FrameStoreScreen` (`/frame-store`) enables category browsing, search, live avatar preview modal, and instant purchase.
+  - `AuraAvatar` widget standardizes avatar rendering with `AuraAvatarFrameOverlay` featuring hardware-accelerated SVGA playback, transparent PNG overlays, and 360° rotating vector luxury frames (Royal Emperor Crown, Cyber Wings, Golden Dragon, VIP Diamond, Sakura, Lion Guild, National Pride), animated speaking glow, level badges, and online presence indicators.
+  - `StoreScreen` (`/store`) unifies the entire VIP Mall with `Avatar Frames` as its primary #1 tab, 2-column live animated frame catalog, subcategory filters, search, and live preview modal, alongside `Entry Effects`, `Mic Waves`, `Profile Cards`, `Vehicles`, `Room Frames`, `Chat Bubbles`, and `Special IDs`.
+  - `FrameStoreScreen` (`/frame-store`) enables dedicated category browsing, search, live avatar preview modal, auto-scaled diamond balance, and instant purchase.
   - `MyFramesScreen` (`/my-frames`) provides inventory inspection with 1-tap equip/unequip toggles and expiry countdowns.
 - **Admin Panel Next.js & Socket.IO Realtime**:
   - Connected `/api/v1/admin/cosmetics` to real database models with live asset creation, user grants/revocations, and Socket.IO broadcasts (`user.frame.equipped`, `user.frame.updated`, `cosmetic.catalog_updated`).

@@ -1,16 +1,39 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../config/database.js';
 import { hashPassword, comparePassword } from '../utils/hash.js';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt.js';
 import { broadcastGlobal } from '../websocket/socketServer.js';
 
+/**
+ * Atomically allocates the next sequential public numeric ID starting from 1.
+ * Uses a dedicated PostgreSQL sequence "public_user_numeric_id_seq".
+ * Automatically detects and skips any numbers already occupied in the User table.
+ */
+export async function allocateNextPublicNumericId(tx: Prisma.TransactionClient): Promise<number> {
+  await tx.$executeRawUnsafe(`CREATE SEQUENCE IF NOT EXISTS "public_user_numeric_id_seq" START WITH 1 INCREMENT BY 1;`);
+
+  while (true) {
+    const [res] = await tx.$queryRaw<{ nextval: bigint }[]>`SELECT nextval('"public_user_numeric_id_seq"') AS nextval`;
+    const candidate = Number(res.nextval);
+    if (candidate <= 0) continue;
+
+    const exists = await tx.user.findUnique({
+      where: { numericId: candidate },
+      select: { id: true },
+    });
+    if (!exists) {
+      return candidate;
+    }
+  }
+}
 
 export class AuthService {
   /**
-   * Register a new user with permanent sequential User ID.
+   * Register a new user with permanent sequential Public Numeric ID (1, 2, 3...).
    *
    * ID generation strategy:
-   *   1. The database autoincrement `id` column generates 1, 2, 3… atomically.
-   *   2. After creation, `numericId` is set to equal `id` inside a transaction.
+   *   1. Dedicated PostgreSQL sequence "public_user_numeric_id_seq" generates 1, 2, 3...
+   *   2. Number is checked atomically inside the database transaction to prevent duplicates.
    *   3. Email & username uniqueness is strictly enforced.
    *   4. If an account already exists with the given email/username, throws ACCOUNT_ALREADY_EXISTS.
    */
@@ -42,11 +65,12 @@ export class AuthService {
 
     const passwordHash = await hashPassword(data.password);
 
-    // Atomic transaction: create user → set numericId = id (sequential 1, 2, 3…)
+    // Atomic transaction: allocate sequential public numericId (1, 2, 3...) → create user
     const user = await prisma.$transaction(async (tx) => {
-      const created = await tx.user.create({
+      const nextNumericId = await allocateNextPublicNumericId(tx);
+      return await tx.user.create({
         data: {
-          numericId: -(Math.floor(Math.random() * 2000000000) + 1),  // temporary unique placeholder
+          numericId: nextNumericId,
           username: normalizedUsername,
           displayName: normalizedUsername,
           email: normalizedEmail || null,
@@ -59,11 +83,6 @@ export class AuthService {
           role: 'USER',
           status: 'ACTIVE',
         },
-      });
-      // Permanently set numericId = the database-generated autoincrement id
-      return await tx.user.update({
-        where: { id: created.id },
-        data: { numericId: created.id },
       });
     });
 
@@ -337,11 +356,12 @@ export class AuthService {
       const passwordHash = await hashPassword(`sso_google_${Date.now()}`);
 
       try {
-        // Atomic transaction: create user → set numericId = id → create AuthAccount
+        // Atomic transaction: allocate sequential public numericId (1, 2, 3...) → create user → create AuthAccount
         user = await prisma.$transaction(async (tx) => {
+          const nextNumericId = await allocateNextPublicNumericId(tx);
           const created = await tx.user.create({
             data: {
-              numericId: -(Math.floor(Math.random() * 2000000000) + 1),  // temporary unique placeholder
+              numericId: nextNumericId,
               username,
               displayName: data.displayName || username,
               email: normalizedEmail || null,
@@ -356,22 +376,16 @@ export class AuthService {
             },
           });
 
-          // Permanently set numericId = the database-generated autoincrement id
-          const updatedUser = await tx.user.update({
-            where: { id: created.id },
-            data: { numericId: created.id },
-          });
-
           // Create AuthAccount mapping in same transaction
           await (tx as any).authAccount.create({
             data: {
-              userId: updatedUser.id,
+              userId: created.id,
               provider: 'GOOGLE',
               providerAccountId,
             },
           });
 
-          return updatedUser;
+          return created;
         });
 
         broadcastGlobal('user.created', {

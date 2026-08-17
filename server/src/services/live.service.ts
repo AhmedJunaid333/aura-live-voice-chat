@@ -24,23 +24,7 @@ export class LiveService {
     });
 
     if (!hostUser) {
-      hostUser = await prisma.user.findFirst({
-        orderBy: { id: 'asc' },
-      });
-    }
-
-    if (!hostUser) {
-      hostUser = await prisma.user.create({
-        data: {
-          numericId: 100001,
-          username: 'AuraHost_100001',
-          displayName: 'Aura Host',
-          email: 'host100001@auralive.app',
-          passwordHash: 'dummy_hash',
-          level: 5,
-          countryCode: 'PK',
-        },
-      });
+      throw new Error('HOST_NOT_FOUND: Authenticated host user not found. Please log in and try again.');
     }
 
     // 🛡️ IDEMPOTENCY: Check if host already has an active LIVE room
@@ -80,10 +64,10 @@ export class LiveService {
     const room = await prisma.liveRoom.create({
       data: {
         roomId,
-        title: data.title,
+        title: data.title || `${hostUser.displayName || hostUser.username}'s Audio Lounge`,
         category: data.category || 'Music',
         countryCode: verifiedCountryCode,
-        hostId: data.hostUserId,
+        hostId: hostUser.id,
         seatCount: totalSeats,
         status: 'LIVE',
         isLocked: false,
@@ -124,7 +108,7 @@ export class LiveService {
     const agoraConfig = generateAgoraRtcToken(room.roomId, hostUser.numericId, RtcRole.PUBLISHER);
 
     // Broadcast room live events to all connected clients
-    broadcastGlobal('broadcast.started', {
+    const startPayload = {
       roomId: room.roomId,
       title: room.title,
       category: room.category,
@@ -132,20 +116,15 @@ export class LiveService {
       host: room.host,
       seatCount: room.seatCount,
       isLocked: false,
+      isLive: true,
+      isDiscoverable: true,
       timestamp: new Date().toISOString(),
-    });
+    };
 
-    broadcastGlobal('live.started', {
-      roomId: room.roomId,
-      title: room.title,
-      category: room.category,
-      countryCode: verifiedCountryCode,
-      host: room.host,
-      seatCount: room.seatCount,
-      isLocked: false,
-      timestamp: new Date().toISOString(),
-    });
-
+    broadcastGlobal('broadcast.started', startPayload);
+    broadcastGlobal('BROADCAST_STARTED', startPayload);
+    broadcastGlobal('live.started', startPayload);
+    broadcastGlobal('LIVE_STARTED', startPayload);
     broadcastGlobal('country.live.count.updated', {
       countryCode: verifiedCountryCode,
       timestamp: new Date().toISOString(),
@@ -167,9 +146,16 @@ export class LiveService {
     status?: string;
     hostId?: number;
     sort?: string;
-  }) {
+  } = {}) {
+    // 🛡️ Auto-Reconcile Stale/Abandoned Broadcasts before querying
+    try {
+      await this.reconcileStaleRooms();
+    } catch (_) {}
+
+    // Strict condition: Only genuinely active broadcasts, never ended
     const where: any = {
       status: query.status ? query.status : { in: ['LIVE', 'LOCKED'] },
+      endedAt: null,
     };
 
     if (query.countryCode && query.countryCode !== 'GLOBAL' && query.countryCode !== 'ALL') {
@@ -206,6 +192,19 @@ export class LiveService {
             level: true,
             vipTier: true,
             countryCode: true,
+            equippedFrameId: true,
+            frameOwnerships: {
+              where: { isEquipped: true },
+              include: { frame: true },
+              take: 1,
+            },
+            medals: {
+              include: { medal: true },
+              take: 3,
+            },
+            membershipProfile: {
+              select: { vipLevel: true, svipLevel: true },
+            },
           },
         },
         seats: {
@@ -242,6 +241,29 @@ export class LiveService {
       const occupiedSeatsCount = r.seats.length;
       const calculatedViewers = Math.max(r.viewerCount, r._count?.viewers ?? 0);
 
+      const equippedOwnership = (r.host as any).frameOwnerships?.[0];
+      const equippedMedal = (r.host as any).medals?.[0];
+      const vipLevel = (r.host as any).membershipProfile?.vipLevel || r.host.vipTier || 0;
+      const svipLevel = (r.host as any).membershipProfile?.svipLevel || 0;
+
+      // Determine frame URL: explicit equipped frame OR VIP Tier SVGA frame
+      let hostFrameUrl = equippedOwnership?.frame?.assetUrl || null;
+      let hostFrameName = equippedOwnership?.frame?.name || null;
+      let hostFrameAnimationType = equippedOwnership?.frame?.animationType || null;
+      if (!hostFrameUrl && vipLevel > 0) {
+        hostFrameUrl = `/vip_svgas/vip_${vipLevel}_frame.svga`;
+        hostFrameName = `VIP ${vipLevel} Frame`;
+        hostFrameAnimationType = 'svga';
+      }
+
+      // Determine medal URL: explicit equipped medal OR VIP Tier SVGA medal
+      let hostMedalUrl = equippedMedal?.medal?.icon || null;
+      let hostMedalName = equippedMedal?.medal?.name || null;
+      if (!hostMedalUrl && vipLevel > 0) {
+        hostMedalUrl = `/vip_svgas/vip_${vipLevel}_medal.svga`;
+        hostMedalName = `VIP ${vipLevel} Medal`;
+      }
+
       return {
         id: r.id,
         roomId: r.roomId,
@@ -255,8 +277,26 @@ export class LiveService {
         countryCode: cCode,
         countryFlag: flag,
         hostId: r.hostId,
-        host: r.host,
+        host: {
+          id: r.host.id,
+          numericId: r.host.numericId,
+          username: r.host.username,
+          displayName: r.host.displayName,
+          avatar: r.host.avatar,
+          level: r.host.level,
+          vipTier: vipLevel,
+          vipLevel: vipLevel,
+          svipLevel: svipLevel,
+          countryCode: r.host.countryCode,
+          frameUrl: hostFrameUrl,
+          frameName: hostFrameName,
+          frameAnimationType: hostFrameAnimationType,
+          medalUrl: hostMedalUrl,
+          medalName: hostMedalName,
+        },
         status: r.status,
+        isLive: r.status === 'LIVE' || r.status === 'LOCKED',
+        isDiscoverable: r.endedAt === null && (r.status === 'LIVE' || r.status === 'LOCKED'),
         isLocked: r.isLocked,
         seatCount: r.seatCount,
         seatLayoutType: r.seatLayoutType,
@@ -287,7 +327,10 @@ export class LiveService {
 
     const grouped = await prisma.liveRoom.groupBy({
       by: ['countryCode'],
-      where: { status: { in: ['LIVE', 'LOCKED'] } },
+      where: {
+        status: { in: ['LIVE', 'LOCKED'] },
+        endedAt: null,
+      },
       _count: { id: true },
     });
 
@@ -596,9 +639,10 @@ export class LiveService {
       },
     });
 
-    if (!room || room.status === 'ENDED') {
-      const err = new Error('Live room is not active.');
-      (err as any).statusCode = 404;
+    if (!room || room.status === 'ENDED' || room.endedAt !== null) {
+      const err = new Error('This live room has ended.');
+      (err as any).statusCode = 400;
+      (err as any).code = 'BROADCAST_ENDED';
       throw err;
     }
 
@@ -1642,11 +1686,291 @@ export class LiveService {
   }
 
   /**
-   * 🛑 End Broadcast / Live Room Lifecycle
+   * ⏱️ Format seconds into HH:MM:SS
    */
-  static async endRoom(roomId: string, hostUserId: number) {
-    const room = await prisma.liveRoom.findUnique({
-      where: { roomId },
+  static formatDuration(seconds: number): string {
+    const s = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(s / 3600);
+    const minutes = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${pad(hours)}:${pad(minutes)}:${pad(secs)}`;
+  }
+
+  /**
+   * 🛑 End Broadcast / Live Room Lifecycle with Authoritative Statistics Finalization
+   */
+  static async endRoom(
+    roomId: string,
+    hostUserId: number,
+    options?: { endedBy?: 'HOST' | 'ADMIN' | 'SYSTEM'; endReason?: string }
+  ) {
+    const room = await prisma.liveRoom.findFirst({
+      where: {
+        OR: [
+          { roomId: roomId },
+          { id: roomId },
+        ],
+      },
+      include: {
+        host: true,
+        seats: true,
+        viewers: true,
+      },
+    });
+
+    if (!room) {
+      const err = new Error('Live room not found.');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    // Authorization: Resolve requester by id or numericId
+    const requester = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: hostUserId },
+          { numericId: hostUserId },
+        ],
+      },
+      select: { id: true, numericId: true, role: true },
+    });
+
+    const isSystem = options?.endedBy === 'SYSTEM';
+    const isHost =
+      isSystem ||
+      hostUserId === 0 ||
+      room.hostId === hostUserId ||
+      room.host.numericId === hostUserId ||
+      (requester != null && (room.hostId === requester.id || room.host.numericId === requester.numericId));
+
+    const isAdmin = requester != null && ['ADMIN', 'SUPER_ADMIN', 'SUPER_ADMIN_CEO', 'BD'].includes(requester.role);
+
+    if (!isHost && !isAdmin && !isSystem) {
+      const err = new Error('Unauthorized. Only the host or an administrator can end this broadcast.');
+      (err as any).statusCode = 403;
+      throw err;
+    }
+
+    const endedBy = isAdmin && !isHost ? 'ADMIN' : (options?.endedBy || 'HOST');
+    const endReason = options?.endReason || (isAdmin && !isHost ? 'Broadcast terminated by administration.' : undefined);
+
+    const startedAt = room.createdAt;
+    const endedAt = new Date();
+    const durationSeconds = Math.max(0, Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000));
+    const formattedDuration = this.formatDuration(durationSeconds);
+
+    // 1. Viewers calculation
+    const activeViewersCount = room.viewers.length;
+    const totalViewers = Math.max(room.totalViewers || 0, room.viewerCount || 0, activeViewersCount);
+    const peakViewers = Math.max(room.peakViewers || 0, room.viewerCount || 0, totalViewers);
+
+    // 2. New followers gained during session
+    let newFollowers = 0;
+    try {
+      newFollowers = await prisma.follow.count({
+        where: {
+          followingId: room.hostId,
+          createdAt: { gte: startedAt, lte: endedAt },
+        },
+      });
+    } catch (_) {}
+
+    // 3. Gifts received & Diamonds earned aggregation
+    let totalGifts = 0;
+    let diamondsEarned = 0;
+    try {
+      const giftAgg = await prisma.giftTransaction.aggregate({
+        where: {
+          OR: [{ roomId: room.id }, { roomId: room.roomId }],
+        },
+        _sum: {
+          count: true,
+          totalDiamonds: true,
+        },
+      });
+      totalGifts = giftAgg._sum.count || 0;
+      diamondsEarned = giftAgg._sum.totalDiamonds || 0;
+    } catch (_) {}
+
+    // 4. Comments count (Official + Live room comments)
+    let totalComments = room.totalComments || 0;
+    const roomOfficialComments = this.officialCommentsHistory.filter((c) => !c.roomId || c.roomId === roomId);
+    totalComments = Math.max(totalComments, roomOfficialComments.length);
+
+    // 5. Guests joined & seat usage
+    const occupiedSeats = room.seats.filter((s) => s.userId !== null);
+    const guestsJoined = Math.max(room.guestsJoined || 0, occupiedSeats.length);
+    const seatsUsed = Math.max(room.seatsUsed || 0, occupiedSeats.length);
+    const seatOccupancyRate = room.seatCount > 0 ? Math.min(100, Math.round((guestsJoined / room.seatCount) * 100)) : 0;
+
+    // 6. Persist / Upsert Authoritative BroadcastHistory
+    const history = await prisma.broadcastHistory.upsert({
+      where: { broadcastId: room.roomId },
+      create: {
+        broadcastId: room.roomId,
+        roomId: room.roomId,
+        hostId: room.hostId,
+        title: room.title,
+        category: room.category,
+        seatCapacity: room.seatCount,
+        startedAt,
+        endedAt,
+        durationSeconds,
+        formattedDuration,
+        peakViewers,
+        totalViewers,
+        uniqueViewers: totalViewers,
+        newFollowers,
+        totalGifts,
+        diamondsEarned,
+        totalComments,
+        guestsJoined,
+        seatsUsed,
+        seatOccupancyRate,
+        endedBy,
+        endReason,
+        status: 'ENDED',
+      },
+      update: {
+        endedAt,
+        durationSeconds,
+        formattedDuration,
+        peakViewers,
+        totalViewers,
+        uniqueViewers: totalViewers,
+        newFollowers,
+        totalGifts,
+        diamondsEarned,
+        totalComments,
+        guestsJoined,
+        seatsUsed,
+        seatOccupancyRate,
+        endedBy,
+        endReason,
+        status: 'ENDED',
+      },
+    });
+
+    // 7. Update LiveRoom status in DB
+    const updatedRoom = await prisma.liveRoom.update({
+      where: { id: room.id },
+      data: {
+        status: 'ENDED',
+        endedAt,
+        durationSeconds,
+        peakViewers,
+        totalViewers,
+        newFollowers,
+        totalGifts,
+        totalDiamonds: diamondsEarned,
+        totalComments,
+        guestsJoined,
+        seatsUsed,
+        endedBy,
+        endReason,
+        listenersCount: 0,
+        viewerCount: 0,
+      },
+    });
+
+    // 8. Clean up active viewers
+    await prisma.liveRoomViewer.deleteMany({
+      where: {
+        OR: [
+          { roomId: room.roomId },
+          { roomId: roomId },
+        ],
+      },
+    });
+
+    // 9. Reset occupied seats
+    await prisma.liveRoomSeat.updateMany({
+      where: {
+        OR: [
+          { roomId: room.roomId },
+          { roomId: roomId },
+        ],
+      },
+      data: {
+        userId: null,
+        status: 'EMPTY',
+        isMuted: false,
+        isLocked: false,
+      },
+    });
+
+    // 10. Construct Final Authoritative Summary Payload
+    const summaryPayload = {
+      roomId: room.roomId,
+      broadcastId: history.broadcastId,
+      title: room.title,
+      category: room.category,
+      seatCount: room.seatCount,
+      startedAt: startedAt.toISOString(),
+      endedAt: endedAt.toISOString(),
+      durationSeconds,
+      formattedDuration,
+      host: {
+        id: room.host.id,
+        numericId: room.host.numericId,
+        username: room.host.username,
+        displayName: room.host.displayName,
+        avatar: room.host.avatar,
+        level: room.host.level,
+        vipTier: room.host.vipTier,
+      },
+      metrics: {
+        durationSeconds,
+        formattedDuration,
+        totalViewers,
+        peakViewers,
+        uniqueViewers: totalViewers,
+        newFollowers,
+        totalGifts,
+        diamondsEarned,
+        totalComments,
+        guestsJoined,
+        seatsUsed,
+        seatCapacity: room.seatCount,
+        seatOccupancyRate,
+      },
+      endedBy,
+      endReason: endReason || (endedBy === 'ADMIN' ? 'Ended by administration.' : null),
+      status: 'ENDED',
+    };
+
+    // 11. Emit realtime termination events globally and to room (supporting all casing / event name formats)
+    emitToRoom(room.roomId, 'broadcast.ended', summaryPayload);
+    emitToRoom(room.roomId, 'BROADCAST_ENDED', summaryPayload);
+    emitToRoom(room.roomId, 'room.ended', summaryPayload);
+    emitToRoom(room.roomId, 'ROOM_ENDED', summaryPayload);
+    if (roomId !== room.roomId) {
+      emitToRoom(roomId, 'broadcast.ended', summaryPayload);
+      emitToRoom(roomId, 'BROADCAST_ENDED', summaryPayload);
+      emitToRoom(roomId, 'room.ended', summaryPayload);
+      emitToRoom(roomId, 'ROOM_ENDED', summaryPayload);
+    }
+    broadcastGlobal('broadcast.ended', summaryPayload);
+    broadcastGlobal('BROADCAST_ENDED', summaryPayload);
+    broadcastGlobal('room.ended', summaryPayload);
+    broadcastGlobal('ROOM_ENDED', summaryPayload);
+    broadcastGlobal('country.live.count.updated', {
+      countryCode: (room.countryCode || 'PK').toUpperCase(),
+      timestamp: endedAt.toISOString(),
+    });
+
+    return summaryPayload;
+  }
+
+  /**
+   * 💓 Record Live Room Host Heartbeat
+   */
+  static async recordHeartbeat(roomId: string, hostUserId: number) {
+    const room = await prisma.liveRoom.findFirst({
+      where: {
+        OR: [{ roomId }, { id: roomId }],
+      },
       include: { host: true },
     });
 
@@ -1656,61 +1980,478 @@ export class LiveService {
       throw err;
     }
 
-    if (room.hostId !== hostUserId) {
-      const err = new Error('Unauthorized. Only the host can end this broadcast.');
-      (err as any).statusCode = 403;
+    if (room.status === 'ENDED' || room.endedAt !== null) {
+      const err = new Error('This live room has ended.');
+      (err as any).statusCode = 400;
+      (err as any).code = 'BROADCAST_ENDED';
       throw err;
     }
 
     const now = new Date();
-    const updatedRoom = await prisma.liveRoom.update({
+    await prisma.liveRoom.update({
       where: { id: room.id },
       data: {
-        status: 'ENDED',
-        endedAt: now,
-        listenersCount: 0,
-        viewerCount: 0,
+        updatedAt: now,
       },
     });
 
-    // Clean up active viewers
-    await prisma.liveRoomViewer.deleteMany({
-      where: { roomId },
-    });
-
-    // Reset occupied seats
-    await prisma.liveRoomSeat.updateMany({
-      where: { roomId },
-      data: {
-        userId: null,
-        status: 'EMPTY',
-        isMuted: false,
-        isLocked: false,
-      },
-    });
-
-    // Emit realtime termination
-    emitToRoom(roomId, 'broadcast.ended', {
-      roomId,
-      endedAt: now.toISOString(),
-    });
-
-    emitToRoom(roomId, 'room.ended', {
-      roomId,
-      endedAt: now.toISOString(),
-    });
-
-    broadcastGlobal('broadcast.ended', {
-      roomId,
-      endedAt: now.toISOString(),
-    });
-
-    broadcastGlobal('country.live.count.updated', {
-      countryCode: (room.countryCode || 'PK').toUpperCase(),
+    return {
+      success: true,
+      roomId: room.roomId,
       timestamp: now.toISOString(),
+    };
+  }
+
+  /**
+   * 🛡️ Server-Side Stale Room Reconciliation Engine
+   * Automatically detects and marks abandoned / crashed live rooms as ENDED.
+   */
+  static async reconcileStaleRooms(): Promise<number> {
+    const timeoutThreshold = new Date(Date.now() - 120 * 1000); // 120 seconds timeout
+
+    // Find all rooms marked LIVE or LOCKED whose heartbeat/update has expired or endedAt is set
+    const staleRooms = await prisma.liveRoom.findMany({
+      where: {
+        OR: [
+          {
+            status: { in: ['LIVE', 'LOCKED'] },
+            updatedAt: { lt: timeoutThreshold },
+          },
+          {
+            status: { in: ['LIVE', 'LOCKED'] },
+            endedAt: { not: null },
+          },
+        ],
+      },
+      include: { host: true },
     });
 
-    return updatedRoom;
+    if (staleRooms.length === 0) return 0;
+
+    let cleanedCount = 0;
+    for (const room of staleRooms) {
+      try {
+        await this.endRoom(room.roomId, room.hostId, {
+          endedBy: 'SYSTEM',
+          endReason: 'Host heartbeat timeout / session terminated.',
+        });
+        cleanedCount++;
+      } catch (err: any) {
+        try {
+          await prisma.liveRoom.update({
+            where: { id: room.id },
+            data: {
+              status: 'ENDED',
+              endedAt: new Date(),
+              endedBy: 'SYSTEM',
+              endReason: 'Host heartbeat timeout (force ended)',
+            },
+          });
+          cleanedCount++;
+        } catch (_) {}
+      }
+    }
+
+    if (cleanedCount > 0) {
+      console.log(`🧹 [Reconciliation] Cleaned up ${cleanedCount} stale live room(s).`);
+    }
+
+    return cleanedCount;
+  }
+
+  /**
+   * 📊 Get Finalized Broadcast Summary for a Room
+   */
+  static async getBroadcastSummary(roomId: string) {
+    const history = await prisma.broadcastHistory.findFirst({
+      where: { OR: [{ broadcastId: roomId }, { roomId }] },
+      include: {
+        host: {
+          select: {
+            id: true,
+            numericId: true,
+            username: true,
+            displayName: true,
+            avatar: true,
+            level: true,
+            vipTier: true,
+          },
+        },
+      },
+      orderBy: { endedAt: 'desc' },
+    });
+
+    if (history) {
+      return {
+        roomId: history.roomId,
+        broadcastId: history.broadcastId,
+        title: history.title,
+        category: history.category,
+        seatCount: history.seatCapacity,
+        startedAt: history.startedAt.toISOString(),
+        endedAt: history.endedAt.toISOString(),
+        durationSeconds: history.durationSeconds,
+        formattedDuration: history.formattedDuration,
+        host: history.host,
+        metrics: {
+          durationSeconds: history.durationSeconds,
+          formattedDuration: history.formattedDuration,
+          totalViewers: history.totalViewers,
+          peakViewers: history.peakViewers,
+          uniqueViewers: history.uniqueViewers,
+          newFollowers: history.newFollowers,
+          totalGifts: history.totalGifts,
+          diamondsEarned: history.diamondsEarned,
+          totalComments: history.totalComments,
+          guestsJoined: history.guestsJoined,
+          seatsUsed: history.seatsUsed,
+          seatCapacity: history.seatCapacity,
+          seatOccupancyRate: history.seatOccupancyRate,
+        },
+        endedBy: history.endedBy,
+        endReason: history.endReason,
+        status: history.status,
+      };
+    }
+
+    // Fallback to LiveRoom table if history row not found
+    const room = await prisma.liveRoom.findUnique({
+      where: { roomId },
+      include: {
+        host: {
+          select: {
+            id: true,
+            numericId: true,
+            username: true,
+            displayName: true,
+            avatar: true,
+            level: true,
+            vipTier: true,
+          },
+        },
+      },
+    });
+
+    if (!room) {
+      const err = new Error('Broadcast summary not found.');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    const durationSeconds = room.durationSeconds || 0;
+    const formattedDuration = this.formatDuration(durationSeconds);
+
+    return {
+      roomId: room.roomId,
+      broadcastId: room.roomId,
+      title: room.title,
+      category: room.category,
+      seatCount: room.seatCount,
+      startedAt: room.createdAt.toISOString(),
+      endedAt: (room.endedAt || new Date()).toISOString(),
+      durationSeconds,
+      formattedDuration,
+      host: room.host,
+      metrics: {
+        durationSeconds,
+        formattedDuration,
+        totalViewers: room.totalViewers || 0,
+        peakViewers: room.peakViewers || 0,
+        uniqueViewers: room.totalViewers || 0,
+        newFollowers: room.newFollowers || 0,
+        totalGifts: room.totalGifts || 0,
+        diamondsEarned: room.totalDiamonds || 0,
+        totalComments: room.totalComments || 0,
+        guestsJoined: room.guestsJoined || 0,
+        seatsUsed: room.seatsUsed || 0,
+        seatCapacity: room.seatCount,
+        seatOccupancyRate: room.seatCount > 0 ? Math.min(100, Math.round(((room.guestsJoined || 0) / room.seatCount) * 100)) : 0,
+      },
+      endedBy: room.endedBy || 'HOST',
+      endReason: room.endReason || null,
+      status: room.status,
+    };
+  }
+
+  /**
+   * 📜 Get Broadcast History for a User
+   */
+  static async getUserBroadcastHistory(userId: number, page = 1, limit = 20) {
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [{ id: userId }, { numericId: userId }],
+      },
+    });
+
+    if (!user) {
+      return { total: 0, page, limit, data: [] };
+    }
+
+    const [total, histories] = await Promise.all([
+      prisma.broadcastHistory.count({ where: { hostId: user.id } }),
+      prisma.broadcastHistory.findMany({
+        where: { hostId: user.id },
+        orderBy: { endedAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      data: histories,
+    };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 🌟 AURA OFFICIAL COMMENTS & PINNED COMMENTS ENGINE
+  // ════════════════════════════════════════════════════════════════════════
+
+  private static officialCommentsHistory: Array<{
+    id: string;
+    roomId?: string;
+    senderId: number;
+    senderNumericId: number;
+    senderName: string;
+    senderRole: string;
+    senderAvatar?: string;
+    type: string;
+    content: string;
+    isOfficial: boolean;
+    isPinned: boolean;
+    targetAudience: string;
+    createdAt: string;
+  }> = [];
+
+  private static pinnedCommentsMap: Map<string, any> = new Map(); // roomId -> pinned comment object
+
+  /**
+   * 🌟 Post Official Comment to Live Room (Strictly Authorized)
+   */
+  static async postOfficialComment(params: {
+    senderUserId: number;
+    roomId: string;
+    content: string;
+    type?: string;
+    isPinned?: boolean;
+  }) {
+    const user = await prisma.user.findUnique({
+      where: { id: params.senderUserId },
+      select: { id: true, numericId: true, username: true, displayName: true, avatar: true, role: true },
+    });
+
+    if (!user) {
+      throw new Error('User not found.');
+    }
+
+    const room = await prisma.liveRoom.findUnique({
+      where: { roomId: params.roomId },
+      select: { id: true, roomId: true, hostId: true, status: true },
+    });
+
+    if (!room) {
+      throw new Error('Live room not found.');
+    }
+
+    // Verify Authorization: ADMIN, SUPER_ADMIN, BD, or Host of this room
+    const isRoomHost = room.hostId === user.id;
+    const isStaff = ['ADMIN', 'SUPER_ADMIN', 'SUPER_ADMIN_CEO', 'BD'].includes(user.role?.toUpperCase() || '');
+
+    if (!isRoomHost && !isStaff) {
+      const err = new Error('Unauthorized. Only Admins, Officials, or Room Host can post Official Comments.');
+      (err as any).statusCode = 403;
+      throw err;
+    }
+
+    const commentId = `OFFICIAL_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const now = new Date().toISOString();
+    const commentType = (params.type || 'ANNOUNCEMENT').toUpperCase();
+    const senderRole = isStaff ? (user.role || 'OFFICIAL') : 'HOST';
+    const isPinned = params.isPinned === true;
+
+    const officialComment = {
+      id: commentId,
+      roomId: params.roomId,
+      senderId: user.id,
+      senderNumericId: user.numericId,
+      senderName: user.displayName || user.username || 'Aura Official',
+      senderRole,
+      senderAvatar: user.avatar || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120&h=120&fit=crop&auto=format',
+      type: commentType,
+      content: params.content,
+      isOfficial: true,
+      isPinned,
+      targetAudience: 'ROOM_VIEWERS',
+      createdAt: now,
+    };
+
+    // Store in history
+    this.officialCommentsHistory.unshift(officialComment);
+    if (this.officialCommentsHistory.length > 500) {
+      this.officialCommentsHistory.pop();
+    }
+
+    // Handle Pinned Comment
+    if (isPinned) {
+      this.pinnedCommentsMap.set(params.roomId, officialComment);
+      emitToRoom(params.roomId, 'room.pinned_comment', {
+        roomId: params.roomId,
+        comment: officialComment,
+      });
+    }
+
+    // Emit Realtime Event to all Room Viewers
+    emitToRoom(params.roomId, 'room.official_comment', {
+      roomId: params.roomId,
+      comment: officialComment,
+    });
+
+    return officialComment;
+  }
+
+  /**
+   * 📌 Unpin Comment from Live Room
+   */
+  static async unpinOfficialComment(roomId: string, senderUserId: number) {
+    const user = await prisma.user.findUnique({ where: { id: senderUserId } });
+    if (!user) throw new Error('User not found.');
+
+    const room = await prisma.liveRoom.findUnique({ where: { roomId } });
+    if (!room) throw new Error('Live room not found.');
+
+    const isRoomHost = room.hostId === user.id;
+    const isStaff = ['ADMIN', 'SUPER_ADMIN', 'SUPER_ADMIN_CEO', 'BD'].includes(user.role?.toUpperCase() || '');
+
+    if (!isRoomHost && !isStaff) {
+      const err = new Error('Unauthorized to unpin comments in this room.');
+      (err as any).statusCode = 403;
+      throw err;
+    }
+
+    this.pinnedCommentsMap.delete(roomId);
+
+    emitToRoom(roomId, 'room.pinned_comment', {
+      roomId,
+      comment: null,
+    });
+
+    return { success: true, roomId, pinnedComment: null };
+  }
+
+  /**
+   * 📋 Get Official & Pinned Comments for a Live Room
+   */
+  static getOfficialComments(roomId: string) {
+    const pinned = this.pinnedCommentsMap.get(roomId) || null;
+    const roomComments = this.officialCommentsHistory.filter((c) => c.roomId === roomId || c.roomId === 'GLOBAL');
+
+    return {
+      pinnedComment: pinned,
+      comments: roomComments.slice(0, 50),
+    };
+  }
+
+  /**
+   * 📢 Admin Broadcast Official Comment (Global or Targeted)
+   */
+  static async broadcastAdminOfficialComment(params: {
+    adminUserId: number;
+    title?: string;
+    content: string;
+    type?: string;
+    target?: 'GLOBAL' | 'SPECIFIC_ROOMS';
+    roomIds?: string[];
+    isPinned?: boolean;
+  }) {
+    const admin = await prisma.user.findUnique({ where: { id: params.adminUserId } });
+    if (!admin || !['ADMIN', 'SUPER_ADMIN', 'SUPER_ADMIN_CEO'].includes(admin.role?.toUpperCase() || '')) {
+      const err = new Error('Unauthorized. Only Admins can broadcast official comments.');
+      (err as any).statusCode = 403;
+      throw err;
+    }
+
+    const commentId = `OFFICIAL_BROADCAST_${Date.now()}`;
+    const now = new Date().toISOString();
+    const commentType = (params.type || 'ANNOUNCEMENT').toUpperCase();
+    const isPinned = params.isPinned === true;
+
+    const broadcastComment = {
+      id: commentId,
+      roomId: params.target === 'GLOBAL' ? 'GLOBAL' : (params.roomIds?.[0] || 'GLOBAL'),
+      senderId: admin.id,
+      senderNumericId: admin.numericId,
+      senderName: 'Aura Official System ⚡',
+      senderRole: 'ADMIN',
+      senderAvatar: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120&h=120&fit=crop&auto=format',
+      type: commentType,
+      content: params.content,
+      isOfficial: true,
+      isPinned,
+      targetAudience: params.target || 'GLOBAL',
+      createdAt: now,
+    };
+
+    this.officialCommentsHistory.unshift(broadcastComment);
+
+    if (params.target === 'GLOBAL') {
+      broadcastGlobal('room.official_comment', {
+        roomId: 'GLOBAL',
+        comment: broadcastComment,
+      });
+
+      if (isPinned) {
+        broadcastGlobal('room.pinned_comment', {
+          roomId: 'GLOBAL',
+          comment: broadcastComment,
+        });
+      }
+    } else if (params.roomIds && params.roomIds.length > 0) {
+      for (const rId of params.roomIds) {
+        emitToRoom(rId, 'room.official_comment', {
+          roomId: rId,
+          comment: { ...broadcastComment, roomId: rId },
+        });
+
+        if (isPinned) {
+          this.pinnedCommentsMap.set(rId, { ...broadcastComment, roomId: rId });
+          emitToRoom(rId, 'room.pinned_comment', {
+            roomId: rId,
+            comment: { ...broadcastComment, roomId: rId },
+          });
+        }
+      }
+    }
+
+    return broadcastComment;
+  }
+
+  /**
+   * 📜 Get Official Comments History for Admin Panel
+   */
+  static getOfficialCommentsHistory(limit = 100) {
+    return this.officialCommentsHistory.slice(0, limit);
+  }
+
+  /**
+   * 🗑️ Delete Official Comment
+   */
+  static deleteOfficialComment(commentId: string, adminUserId: number) {
+    const idx = this.officialCommentsHistory.findIndex((c) => c.id === commentId);
+    if (idx !== -1) {
+      const removed = this.officialCommentsHistory.splice(idx, 1)[0];
+      if (removed.roomId && this.pinnedCommentsMap.get(removed.roomId)?.id === commentId) {
+        this.pinnedCommentsMap.delete(removed.roomId);
+        emitToRoom(removed.roomId, 'room.pinned_comment', {
+          roomId: removed.roomId,
+          comment: null,
+        });
+      }
+      return { success: true, deleted: removed };
+    }
+    return { success: false, message: 'Comment not found.' };
   }
 }
 

@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { prisma } from '../config/database.js';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/rbac.js';
-import { emitToUser, getIO } from '../websocket/socketServer.js';
+import { emitToUser, broadcastGlobal, getIO } from '../websocket/socketServer.js';
 import { MomentService } from '../services/moment.service.js';
 import { FrameService } from '../services/frame.service.js';
+import { LiveService } from '../services/live.service.js';
 
 export const adminRouter = Router();
 
@@ -1225,7 +1226,7 @@ adminRouter.get('/cp', async (req, res, next) => {
     const activeCouples = [
       {
         id: 'CP-1001',
-        userA: users[0] || { numericId: 100001, username: 'Ahmed Khokhar' },
+        userA: users[0] || { numericId: null, username: 'Unknown' },
         userB: users[1] || { numericId: 100002, username: 'Ayesha_Singer' },
         cpLevel: 5,
         intimacyPoints: 12500,
@@ -1240,7 +1241,7 @@ adminRouter.get('/cp', async (req, res, next) => {
       {
         id: 'REQ-2001',
         userA: users[2] || { numericId: 100003, username: 'Dimple' },
-        userB: users[0] || { numericId: 100001, username: 'Ahmed Khokhar' },
+        userB: users[0] || { numericId: null, username: 'Unknown' },
         status: 'PENDING',
         createdAt: new Date().toISOString(),
       },
@@ -1319,7 +1320,7 @@ adminRouter.post('/cp/accept', async (req, res, next) => {
       },
     });
 
-    emitToUser(100001, 'cp.activated', {
+    broadcastGlobal('cp.activated', {
       cpLevel: 1,
       intimacyPoints: 1000,
       cpRingName: '🌸 Silver Promise Ring',
@@ -1352,7 +1353,7 @@ adminRouter.post('/cp/intimacy/add', async (req, res, next) => {
       },
     });
 
-    emitToUser(100001, 'cp.intimacy.updated', {
+    broadcastGlobal('cp.intimacy.updated', {
       cpId,
       addedPoints: points,
       totalIntimacy: 12500 + points,
@@ -1384,7 +1385,7 @@ adminRouter.post('/cp/unpair', async (req, res, next) => {
       },
     });
 
-    emitToUser(100001, 'cp.ended', {
+    broadcastGlobal('cp.ended', {
       cpId,
       reason: 'CP Relationship has been ended.',
     });
@@ -1886,7 +1887,7 @@ adminRouter.get('/country-head', async (req, res, next) => {
         countryName: 'Pakistan',
         countryCode: 'PK',
         currency: 'PKR',
-        headAdmin: users[0] || { numericId: 100001, username: 'Ahmed Khokhar' },
+        headAdmin: users[0] || { numericId: null, username: 'Unknown' },
         status: 'ACTIVE',
         totalUsers: users.length,
         activeHosts: 1,
@@ -2048,7 +2049,7 @@ adminRouter.get('/recharge', async (req, res, next) => {
     const recentOrders = [
       {
         id: 'ORD-9821',
-        user: users[0] || { numericId: 100001, username: 'Ahmed Khokhar' },
+        user: users[0] || { numericId: null, username: 'Unknown' },
         packageName: 'Pro Streamer Pack',
         amount: 500.0,
         currency: 'PKR',
@@ -2243,7 +2244,7 @@ adminRouter.get('/resellers', async (req, res, next) => {
         id: 'RES-101',
         resellerCode: 'AURA-SELL-PK-1001',
         type: 'MASTER_RESELLER',
-        user: users[0] || { numericId: 100001, username: 'Ahmed Khokhar', diamonds: 500000 },
+        user: users[0] || { numericId: null, username: 'Ahmed Khokhar', diamonds: 500000 },
         availableDiamonds: users[0]?.diamonds || 500000,
         totalDiamondsSold: 150000,
         totalSalesRevenueUSD: 15000.0,
@@ -2477,7 +2478,7 @@ adminRouter.get('/gifts', async (req, res, next) => {
     const recentGiftTransactions = [
       {
         id: 'GIFT-TXN-8812',
-        sender: users[0] || { numericId: 100001, username: 'Ahmed Khokhar' },
+        sender: users[0] || { numericId: null, username: 'Unknown' },
         receiver: users[2] || { numericId: 100003, username: 'Dimple' },
         giftName: '🚀 Galaxy Space Rocket',
         quantity: 1,
@@ -2810,7 +2811,7 @@ adminRouter.post('/emojis/send', async (req, res, next) => {
     const io = getIO();
     if (io) {
       io.emit('chat.emoji', {
-        userNumericId: userNumericId || 100001,
+        userNumericId: userNumericId || null,
         roomNumericId: roomNumericId || 9901,
         shortcode: emojiShortcode || ':aura_fire:',
         timestamp: new Date().toISOString(),
@@ -2845,7 +2846,7 @@ adminRouter.get('/games', async (req, res, next) => {
       {
         id: 'SES-9901',
         gameName: '🎲 Ludo Live Arena',
-        host: users[0] || { numericId: 100001, username: 'Ahmed Khokhar' },
+        host: users[0] || { numericId: null, username: 'Unknown' },
         roomNumericId: 9901,
         playersCount: 4,
         maxPlayers: 4,
@@ -3727,7 +3728,7 @@ adminRouter.get('/wallpapers', async (req, res, next) => {
     ];
 
     const userInventory = [
-      { id: 'WOWN-901', numericUserId: 100001, username: 'Ahmed Khokhar', wallpaperId: 'WLP-101', wallpaperName: '🌌 Cyber Neon Galaxy Lounge', status: 'EQUIPPED', acquiredAt: new Date(Date.now() - 172800000).toISOString() },
+      { id: 'WOWN-901', numericUserId: null, username: 'Ahmed Khokhar', wallpaperId: 'WLP-101', wallpaperName: '🌌 Cyber Neon Galaxy Lounge', status: 'EQUIPPED', acquiredAt: new Date(Date.now() - 172800000).toISOString() },
       { id: 'WOWN-902', numericUserId: 100002, username: 'Ayesha_Singer', wallpaperId: 'WLP-103', wallpaperName: '🌸 Sakura Blossom Sunset Lounge', status: 'EQUIPPED', acquiredAt: new Date(Date.now() - 86400000).toISOString() },
     ];
 
@@ -4158,7 +4159,7 @@ adminRouter.get('/trust-safety', async (req, res, next) => {
       {
         id: 'REP-7003',
         reportNumber: 'SR-90814',
-        reporterUserId: 100001,
+        reporterUserId: null,
         reporterUsername: 'Ahmed Khokhar',
         reportedUserId: 100006,
         reportedUsername: 'Fake_Admin_Reseller',
@@ -4372,7 +4373,7 @@ adminRouter.get('/abuse-reports', async (req, res, next) => {
         id: 'REP-7003',
         reportNumber: 'SR-90814',
         targetType: 'USER',
-        reporterUserId: 100001,
+        reporterUserId: null,
         reporterUsername: 'Ahmed Khokhar',
         reportedUserId: 100006,
         reportedUsername: 'Fake_Admin_Reseller',
@@ -5078,14 +5079,14 @@ adminRouter.get('/anti-fraud', async (req, res, next) => {
         id: 'ALT-9003',
         alertNumber: 'FA-10083',
         subjectType: 'RESELLER',
-        subjectId: '100001',
+        subjectId: '',
         subjectUsername: 'Ahmed Khokhar',
         riskScore: 45,
         riskLevel: 'MEDIUM',
         ruleKey: 'RESELLER_ALLOCATION_SPIKE',
         ruleName: 'Unusual Reseller Diamond Allocation Volume',
         reason: 'Allocated 500,000 Diamonds within single session.',
-        evidence: 'https://cdn.auralive.com/security/reseller_alloc_100001.json',
+        evidence: 'https://cdn.auralive.com/security/reseller_alloc_dynamic.json',
         status: 'RESOLVED',
         assignedTo: 'Admin_Master',
         createdAt: new Date(Date.now() - 86400000).toISOString(),
@@ -5487,7 +5488,7 @@ adminRouter.get('/reseller', async (req, res, next) => {
     const resellerCatalog = [
       {
         id: 'RSL-901',
-        userId: 100001,
+        userId: null,
         username: 'Ahmed Khokhar',
         displayName: 'Ahmed Khokhar (Official Reseller)',
         role: 'MASTER_RESELLER',
@@ -5660,6 +5661,517 @@ adminRouter.post('/reseller/update-status', async (req, res, next) => {
     next(error);
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🎁  ADMIN GIFT HUB — Full CRUD + Transaction Ledger
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/v1/admin/gifts
+ * Return all gifts in the DB, ordered by createdAt desc, with transaction count.
+ */
+adminRouter.get('/gifts', async (req, res, next) => {
+  try {
+    const gifts = await prisma.gift.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { _count: { select: { transactions: true } } },
+    });
+    res.json({ success: true, data: gifts, total: gifts.length });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/admin/gifts
+ * Create a new gift asset in the catalog.
+ */
+adminRouter.post('/gifts', async (req, res, next) => {
+  try {
+    const {
+      name, icon = '🎁', costCoins = 100, rewardDiamonds = 70,
+      category = 'Popular', animationType = 'SMALL',
+      svgaUrl, lottieUrl, imageUrl, soundUrl,
+      xpReward = 100, isLucky = false, multiplierMax = 500, active = true,
+    } = req.body;
+
+    if (!name) {
+      res.status(400).json({ success: false, error: 'name is required' });
+      return;
+    }
+
+    const gift = await prisma.gift.create({
+      data: {
+        name, icon, costCoins, rewardDiamonds,
+        category, animationType,
+        svgaUrl: svgaUrl || null, lottieUrl: lottieUrl || null,
+        imageUrl: imageUrl || null, soundUrl: soundUrl || null,
+        xpReward, isLucky, multiplierMax, active,
+      },
+    });
+
+    res.status(201).json({ success: true, data: gift, message: `Gift "${gift.name}" created!` });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * PUT /api/v1/admin/gifts/:id
+ * Full update of a gift by its UUID.
+ */
+adminRouter.put('/gifts/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      name, icon, costCoins, rewardDiamonds,
+      category, animationType,
+      svgaUrl, lottieUrl, imageUrl, soundUrl,
+      xpReward, isLucky, multiplierMax, active,
+    } = req.body;
+
+    const gift = await prisma.gift.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(icon !== undefined && { icon }),
+        ...(costCoins !== undefined && { costCoins }),
+        ...(rewardDiamonds !== undefined && { rewardDiamonds }),
+        ...(category !== undefined && { category }),
+        ...(animationType !== undefined && { animationType }),
+        ...(svgaUrl !== undefined && { svgaUrl: svgaUrl || null }),
+        ...(lottieUrl !== undefined && { lottieUrl: lottieUrl || null }),
+        ...(imageUrl !== undefined && { imageUrl: imageUrl || null }),
+        ...(soundUrl !== undefined && { soundUrl: soundUrl || null }),
+        ...(xpReward !== undefined && { xpReward }),
+        ...(isLucky !== undefined && { isLucky }),
+        ...(multiplierMax !== undefined && { multiplierMax }),
+        ...(active !== undefined && { active }),
+      },
+    });
+
+    res.json({ success: true, data: gift, message: `Gift "${gift.name}" updated!` });
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      res.status(404).json({ success: false, error: 'Gift not found' });
+      return;
+    }
+    next(error);
+  }
+});
+
+/**
+ * PATCH /api/v1/admin/gifts/:id
+ * Partial update – e.g. toggle active or isLucky.
+ */
+adminRouter.patch('/gifts/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const data: any = {};
+    const allowed = [
+      'active', 'isLucky', 'name', 'icon', 'costCoins', 'rewardDiamonds',
+      'category', 'animationType', 'svgaUrl', 'lottieUrl', 'imageUrl',
+      'soundUrl', 'xpReward', 'multiplierMax',
+    ];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) data[key] = req.body[key] || null;
+    }
+    const gift = await prisma.gift.update({ where: { id }, data });
+    res.json({ success: true, data: gift });
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      res.status(404).json({ success: false, error: 'Gift not found' });
+      return;
+    }
+    next(error);
+  }
+});
+
+/**
+ * DELETE /api/v1/admin/gifts/:id
+ * Remove a gift from the catalog.
+ */
+adminRouter.delete('/gifts/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await prisma.gift.delete({ where: { id } });
+    res.json({ success: true, message: 'Gift deleted successfully.' });
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      res.status(404).json({ success: false, error: 'Gift not found' });
+      return;
+    }
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/admin/gift-transactions
+ * Paginated gift transaction ledger with gift, sender & receiver info.
+ */
+adminRouter.get('/gift-transactions', async (req, res, next) => {
+  try {
+    const limit  = Math.min(parseInt(req.query.limit  as string || '100', 10), 500);
+    const offset = parseInt(req.query.offset as string || '0',   10);
+    const giftId = req.query.giftId as string | undefined;
+
+    const where: any = {};
+    if (giftId) where.giftId = giftId;
+
+    const [transactions, total, volume] = await Promise.all([
+      prisma.giftTransaction.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        include: {
+          gift:     { select: { name: true, icon: true, category: true } },
+          sender:   { select: { numericId: true, displayName: true, username: true } },
+          receiver: { select: { numericId: true, displayName: true, username: true } },
+        },
+      }),
+      prisma.giftTransaction.count({ where }),
+      prisma.giftTransaction.aggregate({
+        _sum: { totalCoins: true, totalDiamonds: true },
+        where,
+      }),
+    ]);
+
+    res.json({
+      success: true,
+      data: transactions,
+      pagination: { total, limit, offset },
+      stats: {
+        totalDiamondsSent: volume._sum.totalCoins    || 0,
+        totalCoinsEarned:  volume._sum.totalDiamonds || 0,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/admin/gift-stats
+ * Aggregated gift analytics: top gifts by volume, total counts.
+ */
+adminRouter.get('/gift-stats', async (req, res, next) => {
+  try {
+    const [topGifts, totalGifts, totalVolume] = await Promise.all([
+      prisma.giftTransaction.groupBy({
+        by: ['giftId'],
+        _sum: { count: true, totalCoins: true },
+        _count: { id: true },
+        orderBy: { _sum: { totalCoins: 'desc' } },
+        take: 10,
+      }),
+      prisma.giftTransaction.count(),
+      prisma.giftTransaction.aggregate({
+        _sum: { totalCoins: true, totalDiamonds: true },
+      }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        topGifts,
+        totalGiftsSent:     totalGifts,
+        totalDiamondVolume: totalVolume._sum.totalCoins    || 0,
+        totalCoinsEarned:   totalVolume._sum.totalDiamonds || 0,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/admin/gifts/seed
+ * Seed / reseed the Gift DB table from the static VIRTUAL_GIFTS_CATALOG.
+ * Idempotent — safe to call multiple times.
+ */
+adminRouter.post('/gifts/seed', async (_req, res, next) => {
+  try {
+    const { GiftService } = await import('../services/gift.service.js');
+    const seeded = await GiftService.seedGiftCatalog();
+    res.json({
+      success: true,
+      message: `Seeded ${seeded.length} gifts into the Neon DB catalog.`,
+      giftIds: seeded,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 👑 VIP (1–7) & SVIP (1–15) MEMBERSHIP ADMIN MANAGEMENT ENDPOINTS
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/v1/admin/membership/vip-tiers
+ * List all VIP 1-7 tiers
+ */
+adminRouter.get('/membership/vip-tiers', async (_req, res, next) => {
+  try {
+    const { MembershipService } = await import('../services/membership.service.js');
+    const tiers = await MembershipService.getVipTiers();
+    res.json({ success: true, data: tiers });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * PUT /api/v1/admin/membership/vip-tiers/:level
+ * Update VIP 1-7 tier configuration
+ */
+adminRouter.put('/membership/vip-tiers/:level', async (req, res, next) => {
+  try {
+    const level = parseInt(req.params.level, 10);
+    const updated = await prisma.vipLevelConfig.update({
+      where: { level },
+      data: req.body,
+    });
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/admin/membership/svip-tiers
+ * List all SVIP 1-15 tiers
+ */
+adminRouter.get('/membership/svip-tiers', async (_req, res, next) => {
+  try {
+    const { MembershipService } = await import('../services/membership.service.js');
+    const tiers = await MembershipService.getSvipTiers();
+    res.json({ success: true, data: tiers });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * PUT /api/v1/admin/membership/svip-tiers/:level
+ * Update SVIP 1-15 tier configuration
+ */
+adminRouter.put('/membership/svip-tiers/:level', async (req, res, next) => {
+  try {
+    const level = parseInt(req.params.level, 10);
+    const updated = await prisma.svipLevelConfig.update({
+      where: { level },
+      data: req.body,
+    });
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/admin/membership/grant
+ * Audited manual VIP/SVIP tier grant or adjustment
+ */
+adminRouter.post('/membership/grant', async (req, res, next) => {
+  try {
+    const { MembershipService } = await import('../services/membership.service.js');
+    const { targetUserId, membershipType = 'VIP', targetLevel, durationDays = 30, reason } = req.body;
+
+    const result = await MembershipService.adminManualGrant({
+      adminId: (req as any).user?.id || 1,
+      targetUserId: parseInt(String(targetUserId), 10),
+      membershipType,
+      targetLevel: parseInt(String(targetLevel), 10),
+      durationDays: parseInt(String(durationDays), 10),
+      reason: reason || 'Administrative nobility status assignment',
+      ipAddress: req.ip,
+    });
+
+    res.json({
+      success: true,
+      message: `${membershipType} Level ${targetLevel} granted to User #${targetUserId}`,
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to grant membership' });
+  }
+});
+
+/**
+ * POST /api/v1/admin/membership/award-xp
+ * Manually award VIP/SVIP XP to user
+ */
+adminRouter.post('/membership/award-xp', async (req, res, next) => {
+  try {
+    const { MembershipService } = await import('../services/membership.service.js');
+    const { userId, amount, membershipType = 'VIP', reason } = req.body;
+
+    const result = await MembershipService.awardXp({
+      userId: parseInt(String(userId), 10),
+      membershipType,
+      source: 'ADMIN_GRANT',
+      xpAwarded: parseInt(String(amount), 10),
+      notes: reason || 'Manual Admin XP grant',
+      createdBy: 'ADMIN',
+    });
+
+    res.json({
+      success: true,
+      message: `Awarded ${amount} XP to User #${userId}`,
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to award XP' });
+  }
+});
+
+/**
+ * GET /api/v1/admin/membership/dashboard
+ * Global VIP/SVIP distribution metrics
+ */
+adminRouter.get('/membership/dashboard', async (_req, res, next) => {
+  try {
+    const { MembershipService } = await import('../services/membership.service.js');
+    const stats = await MembershipService.getDashboardStats();
+    res.json({ success: true, data: stats });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/v1/admin/membership/seed
+ * Reseed default VIP 1-7 and SVIP 1-15 configurations
+ */
+adminRouter.post('/membership/seed', async (_req, res, next) => {
+  try {
+    const { MembershipService } = await import('../services/membership.service.js');
+    await MembershipService.seedVipLevels();
+    await MembershipService.seedSvipLevels();
+    res.json({ success: true, message: 'VIP 1-7 and SVIP 1-15 seeded successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// 🌟 ADMIN OFFICIAL COMMENTS & SYSTEM NOTIFICATIONS DISPATCH
+// ════════════════════════════════════════════════════════════════════════
+
+// 1. Broadcast Official Comment to Live Rooms
+adminRouter.post('/official-comments/broadcast', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { title, content, type, target, roomIds, isPinned } = req.body;
+    if (!content) {
+      res.status(400).json({ success: false, error: 'Comment content is required.' });
+      return;
+    }
+    const result = await LiveService.broadcastAdminOfficialComment({
+      adminUserId: req.user!.userId,
+      title,
+      content,
+      type,
+      target,
+      roomIds,
+      isPinned: isPinned === true,
+    });
+    res.status(201).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// 2. Get Official Comments History
+adminRouter.get('/official-comments/history', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const limit = parseInt(String(req.query.limit || '100'), 10);
+    const history = LiveService.getOfficialCommentsHistory(limit);
+    res.status(200).json({ success: true, data: history });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 3. Delete Official Comment
+adminRouter.delete('/official-comments/:id', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const commentId = req.params.id as string;
+    const result = LiveService.deleteOfficialComment(commentId, req.user!.userId);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 4. Admin Dispatch System Notification to Target Users
+adminRouter.post('/notifications/broadcast', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { title, message, type, targetAudience, userIds, deepLink } = req.body;
+    if (!title || !message) {
+      res.status(400).json({ success: false, error: 'Title and message are required.' });
+      return;
+    }
+
+    let targetUsers: number[] = [];
+    if (targetAudience === 'ALL_USERS') {
+      const all = await prisma.user.findMany({ select: { id: true, numericId: true } });
+      targetUsers = all.map((u) => u.id);
+    } else if (targetAudience === 'VIP_USERS') {
+      const vips = await prisma.user.findMany({ where: { vipTier: { gt: 0 } }, select: { id: true } });
+      targetUsers = vips.map((u) => u.id);
+    } else if (targetAudience === 'HOSTS') {
+      const hosts = await prisma.user.findMany({ where: { role: 'HOST' }, select: { id: true } });
+      targetUsers = hosts.map((u) => u.id);
+    } else if (targetAudience === 'RESELLERS') {
+      const resellers = await prisma.resellerAccount.findMany({ select: { userId: true } });
+      targetUsers = resellers.map((r) => r.userId);
+    } else if (Array.isArray(userIds) && userIds.length > 0) {
+      targetUsers = userIds;
+    }
+
+    if (targetUsers.length > 0) {
+      const notificationsData = targetUsers.map((uid) => ({
+        recipientId: uid,
+        senderId: req.user!.userId,
+        type: type || 'SYSTEM_ANNOUNCEMENT',
+        title,
+        message,
+        entityId: deepLink || null,
+      }));
+
+      await prisma.notification.createMany({
+        data: notificationsData,
+      });
+
+      // Emit realtime notification to connected users
+      const { broadcastGlobal } = await import('../websocket/socketServer.js');
+      broadcastGlobal('notification.new', {
+        title,
+        message,
+        type: type || 'SYSTEM_ANNOUNCEMENT',
+        deepLink: deepLink || null,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Dispatched notification to ${targetUsers.length} users.`,
+      recipientCount: targetUsers.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+
 
 
 

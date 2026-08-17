@@ -65,7 +65,8 @@ export class UserService {
       prisma.liveRoom.findFirst({
         where: {
           hostId: user.id,
-          status: 'LIVE',
+          status: { in: ['LIVE', 'LOCKED'] },
+          endedAt: null,
         },
         select: {
           id: true,

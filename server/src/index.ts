@@ -1,3 +1,6 @@
+import dns from 'node:dns';
+dns.setDefaultResultOrder('ipv4first');
+
 import express from 'express';
 import http from 'http';
 import helmet from 'helmet';
@@ -11,6 +14,7 @@ import { initSocketServer } from './websocket/socketServer.js';
 import { authRouter } from './routes/auth.routes.js';
 import { usersRouter } from './routes/users.routes.js';
 import { liveRouter } from './routes/live.routes.js';
+import { LiveService } from './services/live.service.js';
 import { resellerRouter } from './routes/reseller.routes.js';
 import { adminRouter } from './routes/admin.routes.js';
 import { walletRouter } from './routes/wallet.routes.js';
@@ -23,6 +27,8 @@ import { storeRouter } from './routes/store.routes.js';
 import { familyRouter } from './routes/family.routes.js';
 import { momentRouter } from './routes/moment.routes.js';
 import { frameRouter } from './routes/frame.routes.js';
+import { giftRouter } from './routes/gift.routes.js';
+import { membershipRouter } from './routes/membership.routes.js';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -78,6 +84,16 @@ app.use('/api/moments', momentRouter);
 app.use('/api/v1/moments', momentRouter);
 app.use('/api/frames', frameRouter);
 app.use('/api/v1/frames', frameRouter);
+app.use('/api/admin/frames', frameRouter);
+app.use('/api/v1/admin/frames', frameRouter);
+app.use('/api/admin/users', frameRouter);
+app.use('/api/v1/admin/users', frameRouter);
+app.use('/api/gifts', giftRouter);
+app.use('/api/v1/gifts', giftRouter);
+app.use('/api/live', giftRouter);
+app.use('/api/v1/live', giftRouter);
+app.use('/api/membership', membershipRouter);
+app.use('/api/v1/membership', membershipRouter);
 
 
 // Global Error Handler
@@ -85,11 +101,18 @@ app.use(errorHandler);
 
 // Start Server
 const PORT = ENV.PORT;
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`====================================================`);
-  console.log(`🚀 AURA LIVE PRODUCTION BACKEND RUNNING ON PORT ${PORT}`);
+  console.log(`🚀 AURA LIVE PRODUCTION BACKEND RUNNING ON 0.0.0.0:${PORT}`);
   console.log(`📡 WebSocket Realtime Gateway (Socket.IO) Active`);
   console.log(`🎙️ Agora RTC Engine Configured (App ID: ${ENV.AGORA_APP_ID})`);
-  console.log(`🌐 Health Check: http://localhost:${PORT}/health`);
+  console.log(`🌐 Health Check: http://0.0.0.0:${PORT}/health`);
   console.log(`====================================================`);
+
+  // 🛡️ Initial Stale Room Reconciliation & Periodic 30-Second Sweeper
+  LiveService.reconcileStaleRooms().catch(() => {});
+  setInterval(() => {
+    LiveService.reconcileStaleRooms().catch(() => {});
+  }, 30000);
 });
+
