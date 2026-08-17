@@ -3,14 +3,15 @@
 An enterprise-grade live broadcasting, multi-seat voice lounge (10, 15, 20 seats), real-time PK battle arena, VIP virtual economy, Level Progression Studio, and comprehensive Web Admin Console.
 
 ### 🛡️ Multi-Platform Build & Quality Assurance Status
-- **Native Android APK Package**: ✅ **Ready — [app-release.apk](file:///d:/Auralive/New-Live-App/apps/mobile/build/app/outputs/flutter-apk/app-release.apk) (465.4 MB • Fresh Production Build with Server-Authoritative Identity, 1,2,3... ID Sequence, Zero Mocks, Live Hot Discovery & Neon PostgreSQL)**
+- **Public Cloud Backend (`server/`)**: ✅ **LIVE on Render — `https://aura-live-voice-chat-1.onrender.com`**
+- **Native Android APK Package**: ✅ **Ready — [app-release.apk](file:///d:/Auralive/New-Live-App/apps/mobile/build/app/outputs/flutter-apk/app-release.apk) (465.4 MB • Fresh Production Build with Live Render Cloud URL, Server-Authoritative Identity, 1,2,3... ID Sequence, Zero Mocks & Neon PostgreSQL)**
 - **Backend TypeScript Compilation (`server/`)**: ✅ **0 Errors (`tsc --noEmit`)**
 - **Admin Portal Production Build (`admin-next/`)**: ✅ **0 Errors (`next build` Turbopack)**
 - **Mobile Application Analysis (`apps/mobile/`)**: ✅ **0 Compilation Errors (`flutter analyze`)**
 - **Database & Identity Integrity**: ✅ **100% Production Cloud PostgreSQL (`Neon Tech Cluster / AWS us-east-2`)**
 - **Firebase Cloud Suite**: ✅ **100% Free Tier (Auth + Storage + Push Messaging)**
 - **3D Animated Gifts Engine**: ✅ **12 Luxury 3D Gifts + Combustion Combos + VIP Top Banner**
-- **Realtime Gateway**: Socket.IO WebSockets on Port 3001
+- **Realtime Gateway**: Socket.IO WebSockets on Render (`https://aura-live-voice-chat-1.onrender.com`)
 - **Discovery Sync & Lifecycle Engine**: Real-time room addition, immediate termination card removal, host heartbeat (25s), and 30s stale room auto-reconciliation
 - **Detailed Audit Plan & Implementation Roadmap**: See [`plan.md`](file:///d:/Auralive/plan.md)
 
