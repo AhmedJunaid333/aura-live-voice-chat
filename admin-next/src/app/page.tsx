@@ -6,6 +6,7 @@ import UserManagementModule from '@/components/UserManagementModule';
 import WalletModule from '@/components/WalletModule';
 import VipSvipModule from '@/components/VipSvipModule';
 import LuckyGiftModule from '@/components/LuckyGiftModule';
+import GiftHubModule from '@/components/GiftHubModule';
 import AgencyModule from '@/components/AgencyModule';
 import ResellerPortalModule from '@/components/ResellerPortalModule';
 import CpModule from '@/components/CpModule';
@@ -295,7 +296,7 @@ export default function AdminPage() {
           {activeTab === 'finance_hub' && <FinanceHubModule />}
           {activeTab === 'wallet_payouts' && <WalletModule />}
           {activeTab === 'direct_credit' && <DirectDiamondCreditModule />}
-          {activeTab === 'gifts_hub' && <LuckyGiftModule />}
+          {activeTab === 'gifts_hub' && <GiftHubModule />}
           {activeTab === 'audio_rooms' && <AudioRoomsModule />}
           {activeTab === 'trust_safety' && <TrustSafetyModule />}
           {activeTab === 'reports_center' && <ReportsCenterModule />}

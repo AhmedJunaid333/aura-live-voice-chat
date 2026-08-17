@@ -5,7 +5,7 @@ import { prisma } from '../config/database.js';
 
 export const membershipRouter = Router();
 
-// ─── 1. Get All Active VIP 1–7 and SVIP 1–15 Tiers ───
+// ─── 1. Get All Active VIP 1–7 and SVIP 1–8 Tiers ───
 membershipRouter.get('/tiers', async (_req, res: Response, next: NextFunction) => {
   try {
     const vipTiers = await MembershipService.getVipTiers();

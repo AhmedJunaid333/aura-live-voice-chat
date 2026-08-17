@@ -22,7 +22,7 @@ export interface ClaimRewardInput {
 
 export class MembershipService {
   // ════════════════════════════════════════════════════════════════════════════
-  // 1. SEEDING & CATALOGS (VIP 1–7 & SVIP 1–15)
+  // 1. SEEDING & CATALOGS (VIP 1–7 & SVIP 1–8)
   // ════════════════════════════════════════════════════════════════════════════
 
   static async getVipTiers() {
@@ -41,21 +41,6 @@ export class MembershipService {
     return tiers;
   }
 
-  static async getSvipTiers() {
-    let tiers = await prisma.svipLevelConfig.findMany({
-      where: { active: true },
-      orderBy: { level: 'asc' },
-    });
-
-    if (tiers.length === 0) {
-      await this.seedSvipLevels();
-      tiers = await prisma.svipLevelConfig.findMany({
-        where: { active: true },
-        orderBy: { level: 'asc' },
-      });
-    }
-    return tiers;
-  }
 
   static async seedVipLevels() {
     const defaultVipLevels = [
@@ -294,73 +279,307 @@ export class MembershipService {
     }
   }
 
+  static async getSvipTiers() {
+    let tiers = await prisma.svipLevelConfig.findMany({
+      where: { active: true },
+      orderBy: { level: 'asc' },
+    });
+
+    if (tiers.length !== 8) {
+      await this.seedSvipLevels();
+      tiers = await prisma.svipLevelConfig.findMany({
+        where: { active: true },
+        orderBy: { level: 'asc' },
+      });
+    }
+    return tiers;
+  }
+
   static async seedSvipLevels() {
-    const defaultSvipLevels = [];
-    const titles = [
-      'Sovereign Knight ⚡',
-      'Sovereign Vanguard ⚔️',
-      'Sovereign Commander 🛡️',
-      'Sovereign Warlord 🔱',
-      'Sovereign Archon 🔮',
-      'Sovereign Overlord 🌌',
-      'Sovereign Grand Duke 👑',
-      'Sovereign High Monarch ⚜️',
-      'Imperial Sovereign 🐉',
-      'Celestial Sovereign 🌠',
-      'Celestial Grand Archon 💫',
-      'Cosmic Sovereign Overlord 🪐',
-      'Cosmic Titan Sovereign ⚡',
-      'Eternal Celestial God 🌌',
-      'Sovereign Emperor of the Cosmos 👑✨',
-    ];
+    // 1. Clean up any obsolete SVIP tiers > 8
+    await prisma.svipLevelConfig.deleteMany({
+      where: { level: { gt: 8 } },
+    });
 
-    const xpRequirements = [
-      100000, 200000, 350000, 550000, 800000,
-      1100000, 1500000, 2000000, 2600000, 3300000,
-      4100000, 5000000, 6000000, 7200000, 8500000,
-    ];
-
-    for (let i = 1; i <= 15; i++) {
-      const minVip = i >= 10 ? 7 : (i >= 6 ? 6 : 5);
-      const minRecharge = xpRequirements[i - 1] / 100;
-      defaultSvipLevels.push({
-        level: i,
-        name: `SVIP ${i} ${titles[i - 1]}`,
-        title: titles[i - 1],
-        xpRequired: xpRequirements[i - 1],
-        minVipLevel: minVip,
-        minLifetimeRecharge: minRecharge,
+    const defaultSvipLevels = [
+      {
+        level: 1,
+        name: 'SVIP 1 Emerald Wolf Lord',
+        title: 'Emerald Wolf Lord 🐺',
+        xpRequired: 100000,
+        minVipLevel: 5,
+        minLifetimeRecharge: 1000.0,
         durationDays: 30,
-        badgeIcon: `svip_${i}`,
-        crownIcon: `crown_${i}`,
-        colorHex: i > 10 ? '#FF5E00' : (i > 5 ? '#EC4899' : '#9333EA'),
-        entryEffect: `SVIP ${i} Imperial Galactic Supercar 🚀`,
-        nameEffect: `SVIP ${i} Cosmic Particle Glow ✨`,
-        chatBubble: `SVIP ${i} Imperial Diamond Bubble 💬`,
+        badgeIcon: 'svip_1_badge',
+        crownIcon: 'svip_1_wolf_crest',
+        colorHex: '#059669',
+        entryEffect: 'SVIP 1 Emerald Wolf Pack Entry Banner 🐺✨',
+        nameEffect: 'Emerald Wolf Glowing Soundwave Ring 🎙️',
+        chatBubble: 'Emerald Wolf Crest Bubble 💬',
+        frameId: 'svip-1-frame',
         exclusiveRoomAccess: true,
         prioritySeat: true,
         antiKickImmunity: true,
-        invisibleEntry: i >= 5,
+        invisibleEntry: false,
         perksJson: JSON.stringify([
-          `SVIP ${i} Supreme Animated Crown Badge 👑`,
-          `${(2.5 + i * 0.2).toFixed(1)}x Level EXP Boost 📈`,
-          `SVIP ${i} 3D Matrix Hologram Frame 🌟`,
-          `Priority Mic Seat & Invisible Room Entry 🎙️`,
-          `SVIP ${i} Exclusive Luxury Gift Collection 🎁`,
-          `Global Room Takeover Broadcast on Join 📢`,
-          `Personal Account Manager & 24/7 Concierge 🎖️`,
+          'SVIP 1 Emerald Wolf Crest Title Badge 🐺',
+          'Hexagonal Emerald & Gold Avatar Frame 💎',
+          'Emerald Crowned Chat Bubble 💬',
+          'Glowing Emerald Soundwave Speaking Ring 🎙️',
+          'Illuminated Wolf Nobility Profile Card ✨',
+          'Emerald & Gold Room Entry Announcement 📢',
+          '2.5x EXP Boost & Anti-Kick Immunity 🛡️',
         ]),
-        levelUpRewardJson: JSON.stringify({
-          diamonds: 5000 * i,
-          coins: 50000 * i,
-          xp: 10000 * i,
-        }),
-        dailyRewardJson: JSON.stringify({ diamonds: 500 * i, coins: 5000 * i }),
-        weeklyRewardJson: JSON.stringify({ diamonds: 3000 * i, coins: 30000 * i }),
-        monthlyRewardJson: JSON.stringify({ diamonds: 15000 * i, coins: 150000 * i }),
-        sortOrder: i,
-      });
-    }
+        levelUpRewardJson: JSON.stringify({ diamonds: 10000, coins: 100000, xp: 20000 }),
+        dailyRewardJson: JSON.stringify({ diamonds: 1000, coins: 10000 }),
+        weeklyRewardJson: JSON.stringify({ diamonds: 6000, coins: 60000 }),
+        monthlyRewardJson: JSON.stringify({ diamonds: 30000, coins: 300000 }),
+        sortOrder: 1,
+      },
+      {
+        level: 2,
+        name: 'SVIP 2 Sapphire Starlight Stag',
+        title: 'Sapphire Starlight Stag 🦌',
+        xpRequired: 250000,
+        minVipLevel: 5,
+        minLifetimeRecharge: 2500.0,
+        durationDays: 30,
+        badgeIcon: 'svip_2_badge',
+        crownIcon: 'svip_2_stag_crest',
+        colorHex: '#1D4ED8',
+        entryEffect: 'SVIP 2 Sapphire Starlight Entry Banner 🦌✨',
+        nameEffect: 'Sapphire Dotted Starlight Orbit Ring 🎙️',
+        chatBubble: 'Sapphire Starlight Stag Bubble 💬',
+        frameId: 'svip-2-frame',
+        exclusiveRoomAccess: true,
+        prioritySeat: true,
+        antiKickImmunity: true,
+        invisibleEntry: false,
+        perksJson: JSON.stringify([
+          'SVIP 2 Starlight Stag Title Badge 🦌',
+          'Sapphire Hexagonal Golden Avatar Frame 💎',
+          'Sapphire Starlight Stag Chat Bubble 💬',
+          'Dotted Starlight Orbital Speaking Wave 🎙️',
+          'Illuminated White Stag Profile Card ✨',
+          'Sapphire & Gold Room Entry Announcement 📢',
+          '3.0x EXP Boost & Priority Seat Access 👑',
+        ]),
+        levelUpRewardJson: JSON.stringify({ diamonds: 25000, coins: 250000, xp: 50000 }),
+        dailyRewardJson: JSON.stringify({ diamonds: 2500, coins: 25000 }),
+        weeklyRewardJson: JSON.stringify({ diamonds: 15000, coins: 150000 }),
+        monthlyRewardJson: JSON.stringify({ diamonds: 75000, coins: 750000 }),
+        sortOrder: 2,
+      },
+      {
+        level: 3,
+        name: 'SVIP 3 Imperial Purple Leopard',
+        title: 'Imperial Purple Leopard 🐆',
+        xpRequired: 500000,
+        minVipLevel: 6,
+        minLifetimeRecharge: 5000.0,
+        durationDays: 30,
+        badgeIcon: 'svip_3_badge',
+        crownIcon: 'svip_3_leopard_crest',
+        colorHex: '#7E22CE',
+        entryEffect: 'SVIP 3 Imperial Purple Leopard Entry Banner 🐆✨',
+        nameEffect: 'Imperial Purple Sonic Star Rings 🎙️',
+        chatBubble: 'Imperial Purple Leopard Bubble 💬',
+        frameId: 'svip-3-frame',
+        exclusiveRoomAccess: true,
+        prioritySeat: true,
+        antiKickImmunity: true,
+        invisibleEntry: true,
+        perksJson: JSON.stringify([
+          'SVIP 3 Purple Leopard Crest Title Badge 🐆',
+          'Faceted Imperial Purple & Gold Avatar Frame 💎',
+          'Vivid Purple Leopard Chat Bubble 💬',
+          'Concentric Purple Sonic Star Speaking Rings 🎙️',
+          'Imperial Leopard Nobility Profile Card ✨',
+          'Royal Purple & Gold Room Entry Announcement 📢',
+          '3.5x EXP Boost & Invisible Room Entry 🔮',
+        ]),
+        levelUpRewardJson: JSON.stringify({ diamonds: 50000, coins: 500000, xp: 100000 }),
+        dailyRewardJson: JSON.stringify({ diamonds: 5000, coins: 50000 }),
+        weeklyRewardJson: JSON.stringify({ diamonds: 30000, coins: 300000 }),
+        monthlyRewardJson: JSON.stringify({ diamonds: 150000, coins: 1500000 }),
+        sortOrder: 3,
+      },
+      {
+        level: 4,
+        name: 'SVIP 4 Crimson Ruby Royal Elephant',
+        title: 'Crimson Ruby Royal Elephant 🐘',
+        xpRequired: 1000000,
+        minVipLevel: 6,
+        minLifetimeRecharge: 10000.0,
+        durationDays: 30,
+        badgeIcon: 'svip_4_badge',
+        crownIcon: 'svip_4_elephant_crest',
+        colorHex: '#BE123C',
+        entryEffect: 'SVIP 4 Crimson Royal Elephant Entry Banner 🐘✨',
+        nameEffect: 'Multi-Ring Neon Acoustic Ripple 🎙️',
+        chatBubble: 'Crimson Ruby Elephant Bubble 💬',
+        frameId: 'svip-4-frame',
+        exclusiveRoomAccess: true,
+        prioritySeat: true,
+        antiKickImmunity: true,
+        invisibleEntry: true,
+        perksJson: JSON.stringify([
+          'SVIP 4 Ruby Winged Elephant Title Badge 🐘',
+          'Ruby Crown Golden Avatar Frame 💎',
+          'Deep Crimson Ruby Chat Bubble 💬',
+          'Multi-Ring Neon Acoustic Speaking Ripple 🎙️',
+          'Golden Royal Elephant Profile Theme Card ✨',
+          'Crimson & Gold Room Entry Announcement 📢',
+          'Golden Royal Throne Priority Seat Privilege 🪑',
+          '4.0x EXP Boost & Full Kick/Mute Shield 🛡️',
+        ]),
+        levelUpRewardJson: JSON.stringify({ diamonds: 100000, coins: 1000000, xp: 200000 }),
+        dailyRewardJson: JSON.stringify({ diamonds: 10000, coins: 100000 }),
+        weeklyRewardJson: JSON.stringify({ diamonds: 60000, coins: 600000 }),
+        monthlyRewardJson: JSON.stringify({ diamonds: 300000, coins: 3000000 }),
+        sortOrder: 4,
+      },
+      {
+        level: 5,
+        name: 'SVIP 5 Celestial Emerald Horned Owl',
+        title: 'Celestial Emerald Horned Owl 🦉',
+        xpRequired: 1800000,
+        minVipLevel: 7,
+        minLifetimeRecharge: 18000.0,
+        durationDays: 30,
+        badgeIcon: 'svip_5_badge',
+        crownIcon: 'svip_5_owl_crest',
+        colorHex: '#15803D',
+        entryEffect: 'SVIP 5 Celestial Emerald Owl Entry Banner 🦉✨',
+        nameEffect: 'Concentric Neon Shockwave Rings 🎙️',
+        chatBubble: 'Celestial Emerald Owl Bubble 💬',
+        frameId: 'svip-5-frame',
+        exclusiveRoomAccess: true,
+        prioritySeat: true,
+        antiKickImmunity: true,
+        invisibleEntry: true,
+        perksJson: JSON.stringify([
+          'SVIP 5 Emerald Horned Owl Title Badge 🦉',
+          'Ornate Emerald Crown Golden Avatar Frame 💎',
+          'Vibrant Lime & Emerald Chat Bubble 💬',
+          'Concentric Neon Green Shockwave Speaking Rings 🎙️',
+          'Illuminated Golden Owl Profile Theme Card ✨',
+          'Emerald & Gold Ornate Room Entry Announcement 📢',
+          'Royal Purple Velvet Throne Seat Privilege 🪑',
+          '4.5x EXP Boost & 24/7 VIP Concierge 🎖️',
+        ]),
+        levelUpRewardJson: JSON.stringify({ diamonds: 180000, coins: 1800000, xp: 360000 }),
+        dailyRewardJson: JSON.stringify({ diamonds: 18000, coins: 180000 }),
+        weeklyRewardJson: JSON.stringify({ diamonds: 108000, coins: 1080000 }),
+        monthlyRewardJson: JSON.stringify({ diamonds: 540000, coins: 5400000 }),
+        sortOrder: 5,
+      },
+      {
+        level: 6,
+        name: 'SVIP 6 Solar Sunburst Crowned Lion',
+        title: 'Solar Sunburst Crowned Lion 🦁',
+        xpRequired: 3000000,
+        minVipLevel: 7,
+        minLifetimeRecharge: 30000.0,
+        durationDays: 30,
+        badgeIcon: 'svip_6_badge',
+        crownIcon: 'svip_6_lion_crest',
+        colorHex: '#D97706',
+        entryEffect: 'SVIP 6 Solar Sunburst Lion Entry Banner 🦁✨',
+        nameEffect: 'Solar Flare Radiant Speaking Wave 🎙️',
+        chatBubble: 'Solar Sunburst Lion Bubble 💬',
+        frameId: 'svip-6-frame',
+        exclusiveRoomAccess: true,
+        prioritySeat: true,
+        antiKickImmunity: true,
+        invisibleEntry: true,
+        perksJson: JSON.stringify([
+          'SVIP 6 Sunburst Crowned Lion Title Badge 🦁',
+          'Sunburst Imperial Gold Avatar Frame 💎',
+          'Radiant Solar Gold Chat Bubble 💬',
+          'Solar Flare Radiant Speaking Soundwave 🎙️',
+          'Deep Amber Lion Silhouette Profile Card ✨',
+          'Radiant Gold Room Entry Announcement 📢',
+          'Imperial Sovereign Gold Throne Privilege 🪑',
+          '5.0x EXP Boost & Global Screen Takeover 🚀',
+        ]),
+        levelUpRewardJson: JSON.stringify({ diamonds: 300000, coins: 3000000, xp: 600000 }),
+        dailyRewardJson: JSON.stringify({ diamonds: 30000, coins: 300000 }),
+        weeklyRewardJson: JSON.stringify({ diamonds: 180000, coins: 1800000 }),
+        monthlyRewardJson: JSON.stringify({ diamonds: 900000, coins: 9000000 }),
+        sortOrder: 6,
+      },
+      {
+        level: 7,
+        name: 'SVIP 7 Mythic Celestial Golden Dragon',
+        title: 'Mythic Celestial Golden Dragon 🐉',
+        xpRequired: 5000000,
+        minVipLevel: 7,
+        minLifetimeRecharge: 50000.0,
+        durationDays: 30,
+        badgeIcon: 'svip_7_badge',
+        crownIcon: 'svip_7_dragon_crest',
+        colorHex: '#4338CA',
+        entryEffect: 'SVIP 7 Mythic Celestial Dragon Entry Banner 🐉✨',
+        nameEffect: 'Cosmic Nebula Particle Speaking Wave 🎙️',
+        chatBubble: 'Cosmic Golden Dragon Bubble 💬',
+        frameId: 'svip-7-frame',
+        exclusiveRoomAccess: true,
+        prioritySeat: true,
+        antiKickImmunity: true,
+        invisibleEntry: true,
+        perksJson: JSON.stringify([
+          'SVIP 7 Mythic Celestial Dragon Title Badge 🐉',
+          'Dragon Scale Mythic Gold Avatar Frame 💎',
+          'Deep Indigo Cosmic Dragon Chat Bubble 💬',
+          'Cosmic Nebula Particle Speaking Wave 🎙️',
+          'Midnight Indigo Dragon Profile Theme Card ✨',
+          'Celestial Indigo Room Entry Announcement 📢',
+          'Cosmic Dragon Emperor Throne Privilege 🪑',
+          '6.0x EXP Boost & Full Server Authority Badging 👑',
+        ]),
+        levelUpRewardJson: JSON.stringify({ diamonds: 500000, coins: 5000000, xp: 1000000 }),
+        dailyRewardJson: JSON.stringify({ diamonds: 50000, coins: 500000 }),
+        weeklyRewardJson: JSON.stringify({ diamonds: 300000, coins: 3000000 }),
+        monthlyRewardJson: JSON.stringify({ diamonds: 1500000, coins: 15000000 }),
+        sortOrder: 7,
+      },
+      {
+        level: 8,
+        name: 'SVIP 8 Divine Supreme Celestial Phoenix',
+        title: 'Divine Supreme Celestial Phoenix 🦅',
+        xpRequired: 8000000,
+        minVipLevel: 7,
+        minLifetimeRecharge: 80000.0,
+        durationDays: 30,
+        badgeIcon: 'svip_8_badge',
+        crownIcon: 'svip_8_phoenix_crest',
+        colorHex: '#991B1B',
+        entryEffect: 'SVIP 8 Supreme Celestial Phoenix Entry Banner 🦅✨',
+        nameEffect: 'Eternal Nova Starburst Speaking Wave 🎙️',
+        chatBubble: 'Divine Supreme Phoenix Bubble 💬',
+        frameId: 'svip-8-frame',
+        exclusiveRoomAccess: true,
+        prioritySeat: true,
+        antiKickImmunity: true,
+        invisibleEntry: true,
+        perksJson: JSON.stringify([
+          'SVIP 8 Supreme Celestial Phoenix Title Badge 🦅',
+          'Grand Imperial 360° Rotating Halo Frame 💎',
+          'Imperial Ruby & Gold Celestial Chat Bubble 💬',
+          'Eternal Nova Starburst Speaking Wave 🎙️',
+          'Imperial Celestial Phoenix Profile Theme Card ✨',
+          'Supreme Gold Full-Screen Entry Broadcast 📢',
+          'Celestial Supreme Emperor Throne Privilege 🪑',
+          '8.0x EXP Boost & Supreme Sovereign Aura Immunity 🌌',
+        ]),
+        levelUpRewardJson: JSON.stringify({ diamonds: 800000, coins: 8000000, xp: 1600000 }),
+        dailyRewardJson: JSON.stringify({ diamonds: 80000, coins: 800000 }),
+        weeklyRewardJson: JSON.stringify({ diamonds: 480000, coins: 4800000 }),
+        monthlyRewardJson: JSON.stringify({ diamonds: 2400000, coins: 24000000 }),
+        sortOrder: 8,
+      },
+    ];
 
     for (const lvl of defaultSvipLevels) {
       await prisma.svipLevelConfig.upsert({
@@ -368,6 +587,44 @@ export class MembershipService {
         update: lvl,
         create: lvl,
       });
+
+      // Also upsert the corresponding AvatarFrame in avatarFrame catalog
+      try {
+        await (prisma as any).avatarFrame.upsert({
+          where: { slug: `svip-${lvl.level}-frame` },
+          update: {
+            name: `${lvl.name} Frame`,
+            description: `Exclusive SVGA animated avatar frame for ${lvl.title} nobility.`,
+            assetUrl: `/uploads/vip_svgas/vip_${lvl.level <= 7 ? lvl.level : 7}_frame.svga`,
+            thumbnailUrl: `/uploads/vip_svgas/vip_${lvl.level <= 7 ? lvl.level : 7}_frame.svga`,
+            previewUrl: `/uploads/vip_svgas/vip_${lvl.level <= 7 ? lvl.level : 7}_frame.svga`,
+            animationType: 'svga',
+            category: 'VIP',
+            requiredVipLevel: lvl.level,
+            status: 'ACTIVE',
+          },
+          create: {
+            name: `${lvl.name} Frame`,
+            description: `Exclusive SVGA animated avatar frame for ${lvl.title} nobility.`,
+            slug: `svip-${lvl.level}-frame`,
+            assetUrl: `/uploads/vip_svgas/vip_${lvl.level <= 7 ? lvl.level : 7}_frame.svga`,
+            thumbnailUrl: `/uploads/vip_svgas/vip_${lvl.level <= 7 ? lvl.level : 7}_frame.svga`,
+            previewUrl: `/uploads/vip_svgas/vip_${lvl.level <= 7 ? lvl.level : 7}_frame.svga`,
+            animationType: 'svga',
+            category: 'VIP',
+            price: lvl.minLifetimeRecharge * 100,
+            currency: 'DIAMOND',
+            durationDays: 30,
+            isPermanent: false,
+            requiredVipLevel: lvl.level,
+            requiredUserLevel: 1,
+            rarity: 'MYTHIC',
+            status: 'ACTIVE',
+            isFeatured: true,
+            sortOrder: lvl.level + 10,
+          },
+        });
+      } catch (_) {}
     }
   }
 
@@ -556,7 +813,7 @@ export class MembershipService {
         }
       }
 
-      // 4. Evaluate SVIP Progression (SVIP 1 to 15)
+      // 4. Evaluate SVIP Progression (SVIP 1 to 8)
       const svipTiers = await tx.svipLevelConfig.findMany({
         where: { active: true },
         orderBy: { level: 'asc' },
@@ -564,7 +821,7 @@ export class MembershipService {
 
       let newSvipLevel = 0;
       for (const tier of svipTiers) {
-        if (tier.level > 15) break; // Strict SVIP 1-15 ceiling
+        if (tier.level > 8) break; // Strict SVIP 1-8 ceiling
         if (
           newVipLevel >= tier.minVipLevel &&
           updatedRecharge >= tier.minLifetimeRecharge &&
@@ -1243,7 +1500,7 @@ export class MembershipService {
 
     const vipDist: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 };
     const svipDist: Record<number, number> = {};
-    for (let i = 1; i <= 15; i++) svipDist[i] = 0;
+    for (let i = 1; i <= 8; i++) svipDist[i] = 0;
 
     let activeVips = 0;
     let activeSvips = 0;
@@ -1253,7 +1510,7 @@ export class MembershipService {
         vipDist[p.vipLevel] = (vipDist[p.vipLevel] || 0) + 1;
         if (p.vipStatus === 'ACTIVE') activeVips++;
       }
-      if (p.svipLevel >= 1 && p.svipLevel <= 15) {
+      if (p.svipLevel >= 1 && p.svipLevel <= 8) {
         svipDist[p.svipLevel] = (svipDist[p.svipLevel] || 0) + 1;
         if (p.svipStatus === 'ACTIVE') activeSvips++;
       }
