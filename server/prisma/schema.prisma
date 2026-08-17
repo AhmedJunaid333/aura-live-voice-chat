@@ -1,5 +1,5 @@
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -92,6 +92,11 @@ model User {
   equippedFrameId       String?
   frameOwnerships       AvatarFrameOwnership[]  @relation("UserFrameOwnerships")
   framePurchases        AvatarFramePurchase[]   @relation("UserFramePurchases")
+  membershipProfile     MembershipProfile?
+  membershipXpTransactions MembershipXpTransaction[]
+  membershipHistories   MembershipHistory[]
+  membershipRewardClaims MembershipRewardClaim[]
+  broadcastHistories    BroadcastHistory[]      @relation("UserBroadcastHistories")
 
   @@index([numericId])
   @@index([username])
@@ -295,7 +300,18 @@ model LiveRoom {
   slowMode          Boolean           @default(false)
   slowModeSeconds   Int               @default(3)
   chatMuted         Boolean           @default(false)
-  muteAllMics        Boolean           @default(false)
+  muteAllMics       Boolean           @default(false)
+  peakViewers       Int               @default(0)
+  totalViewers      Int               @default(0)
+  newFollowers      Int               @default(0)
+  totalGifts        Int               @default(0)
+  totalDiamonds     Int               @default(0)
+  totalComments     Int               @default(0)
+  guestsJoined      Int               @default(0)
+  seatsUsed         Int               @default(0)
+  durationSeconds   Int               @default(0)
+  endedBy           String?           @default("HOST") // HOST, ADMIN, SYSTEM
+  endReason         String?
   endedAt           DateTime?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -307,6 +323,41 @@ model LiveRoom {
   roomAdmins        LiveRoomAdmin[]
   seats             LiveRoomSeat[]
   viewers           LiveRoomViewer[]
+}
+
+model BroadcastHistory {
+  id                String    @id @default(uuid())
+  broadcastId       String    @unique
+  roomId            String
+  hostId            Int
+  title             String
+  category          String    @default("Music")
+  seatCapacity      Int       @default(10)
+  startedAt         DateTime  @default(now())
+  endedAt           DateTime  @default(now())
+  durationSeconds   Int       @default(0)
+  formattedDuration String    @default("00:00:00")
+  peakViewers       Int       @default(0)
+  totalViewers      Int       @default(0)
+  uniqueViewers     Int       @default(0)
+  newFollowers      Int       @default(0)
+  totalGifts        Int       @default(0)
+  diamondsEarned    Int       @default(0)
+  totalComments     Int       @default(0)
+  guestsJoined      Int       @default(0)
+  seatsUsed         Int       @default(0)
+  seatOccupancyRate Float     @default(0)
+  endedBy           String    @default("HOST") // HOST, ADMIN, SYSTEM
+  endReason         String?
+  status            String    @default("ENDED")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  host              User      @relation("UserBroadcastHistories", fields: [hostId], references: [id], onDelete: Cascade)
+
+  @@index([hostId])
+  @@index([roomId])
+  @@index([startedAt])
 }
 
 model LiveRoomViewer {
@@ -391,7 +442,14 @@ model Gift {
   costCoins       Int
   rewardDiamonds  Int
   category        String          @default("Popular")
-  animationType   String          @default("SVG")
+  animationType   String          @default("SVG") // SVG, SVGA, LOTTIE, 3D_OVERLAY, FULL_SCREEN, SMALL
+  svgaUrl         String?
+  lottieUrl       String?
+  imageUrl        String?
+  soundUrl        String?
+  xpReward        Int             @default(100)
+  isLucky         Boolean         @default(false)
+  multiplierMax   Int             @default(500)
   active          Boolean         @default(true)
   createdAt       DateTime        @default(now())
 
@@ -1005,4 +1063,196 @@ model AvatarFrameGrant {
   @@index([userId])
   @@index([frameId])
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// 👑 AURA VIP (1–7) & SVIP (1–15) MEMBERSHIP ENGINE SCHEMA
+// ════════════════════════════════════════════════════════════════════════════
+
+model VipLevelConfig {
+  id                  String   @id @default(uuid())
+  level               Int      @unique // 1 to 7
+  name                String
+  title               String   // e.g. "Bronze Knight", "Silver Baron", "Gold Count", "Platinum Marquis", "Diamond Lord", "Crown King", "Sovereign Emperor"
+  xpRequired          Int
+  rechargeRequiredUsd Float    @default(0)
+  durationDays        Int      @default(30)
+  badgeIcon           String   @default("vip_1")
+  colorHex            String   @default("#CD7F32")
+  frameId             String?
+  entryEffect         String?
+  nameEffect          String?
+  chatBubble          String?
+  exclusiveGiftsJson  String   @default("[]")
+  roomPrivilegesJson  String   @default("[]")
+  perksJson           String   @default("[]")
+  levelUpRewardJson   String   @default("{\"diamonds\": 500, \"coins\": 5000, \"xp\": 1000}")
+  dailyRewardJson     String   @default("{\"diamonds\": 50, \"coins\": 500}")
+  weeklyRewardJson    String   @default("{\"diamonds\": 300, \"coins\": 3000}")
+  monthlyRewardJson   String   @default("{\"diamonds\": 1500, \"coins\": 15000}")
+  active              Boolean  @default(true)
+  sortOrder           Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model SvipLevelConfig {
+  id                  String   @id @default(uuid())
+  level               Int      @unique // 1 to 15
+  name                String
+  title               String   // e.g. "SVIP 1 Sovereign Knight", ..., "SVIP 15 Imperial Celestial Monarch"
+  xpRequired          Int
+  minVipLevel         Int      @default(5)
+  minLifetimeRecharge Float    @default(500.0)
+  durationDays        Int      @default(30)
+  badgeIcon           String   @default("svip_1")
+  crownIcon           String   @default("crown_1")
+  colorHex            String   @default("#9333EA")
+  frameId             String?
+  entryEffect         String?
+  nameEffect          String?
+  chatBubble          String?
+  exclusiveGiftsJson  String   @default("[]")
+  exclusiveRoomAccess Boolean  @default(true)
+  prioritySeat        Boolean  @default(true)
+  antiKickImmunity    Boolean  @default(true)
+  invisibleEntry      Boolean  @default(false)
+  perksJson           String   @default("[]")
+  levelUpRewardJson   String   @default("{\"diamonds\": 5000, \"coins\": 50000, \"xp\": 10000}")
+  dailyRewardJson     String   @default("{\"diamonds\": 500, \"coins\": 5000}")
+  weeklyRewardJson    String   @default("{\"diamonds\": 3000, \"coins\": 30000}")
+  monthlyRewardJson   String   @default("{\"diamonds\": 15000, \"coins\": 150000}")
+  active              Boolean  @default(true)
+  sortOrder           Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model MembershipProfile {
+  id                  String    @id @default(uuid())
+  userId              Int       @unique
+  vipLevel            Int       @default(0) // 0 means no VIP, 1-7
+  svipLevel           Int       @default(0) // 0 means no SVIP, 1-15
+  vipXp               Int       @default(0)
+  svipXp              Int       @default(0)
+  lifetimeRechargeUsd Float     @default(0.0)
+  vipStatus           String    @default("ACTIVE") // ACTIVE, EXPIRING_SOON, EXPIRED, SUSPENDED, CANCELLED
+  svipStatus          String    @default("INACTIVE") // INACTIVE, ACTIVE, EXPIRING_SOON, EXPIRED, SUSPENDED
+  vipStartedAt        DateTime?
+  vipExpiresAt        DateTime?
+  svipStartedAt       DateTime?
+  svipExpiresAt       DateTime?
+  lastRenewalAt       DateTime?
+  autoRenew           Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([vipLevel])
+  @@index([svipLevel])
+  @@index([vipStatus])
+  @@index([svipStatus])
+}
+
+model MembershipXpTransaction {
+  id                  String   @id @default(uuid())
+  transactionId       String   @unique @default(uuid())
+  userId              Int
+  membershipType      String   @default("VIP") // VIP, SVIP
+  source              String   // RECHARGE, PURCHASE, ACTIVITY, ADMIN_GRANT, EVENT, CAMPAIGN
+  amount              Float    @default(0)
+  xpAwarded           Int
+  referenceId         String?
+  status              String   @default("CONFIRMED") // CONFIRMED, PENDING, REVERSED
+  notes               String?
+  createdBy           String   @default("SYSTEM")
+  createdAt           DateTime @default(now())
+
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([membershipType])
+  @@index([source])
+  @@index([createdAt])
+}
+
+model MembershipHistory {
+  id                  String   @id @default(uuid())
+  userId              Int
+  membershipType      String   // VIP, SVIP
+  previousLevel       Int
+  newLevel            Int
+  xpAtTransition      Int      @default(0)
+  eventType           String   // UPGRADE, DOWNGRADE, RENEWAL, EXPIRY, ADMIN_OVERRIDE, REWARD_CLAIM
+  rewardGrantedJson   String?
+  reason              String?
+  adminId             Int?
+  createdAt           DateTime @default(now())
+
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([membershipType])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model MembershipRewardClaim {
+  id                  String   @id @default(uuid())
+  idempotencyKey      String   @unique // e.g. "USER_1_VIP_3_LEVEL_UP" or "USER_1_VIP_3_DAILY_2026-08-15"
+  userId              Int
+  membershipType      String   // VIP, SVIP
+  level               Int
+  rewardType          String   // LEVEL_UP, DAILY, WEEKLY, MONTHLY
+  periodKey           String?  // e.g. "2026-08-15" for daily, "2026-W33" for weekly, "2026-08" for monthly
+  diamondsAwarded     Int      @default(0)
+  coinsAwarded        Int      @default(0)
+  xpAwarded           Int      @default(0)
+  itemsAwardedJson    String?
+  claimedAt           DateTime @default(now())
+
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([membershipType, level])
+  @@index([rewardType])
+}
+
+model MembershipEvent {
+  id                  String   @id @default(uuid())
+  name                String
+  description         String?
+  eventType           String   // DOUBLE_XP, RECHARGE_BONUS, VIP_UPGRADE, SEASONAL
+  multiplier          Float    @default(2.0)
+  bonusXp             Int      @default(0)
+  bonusRewardJson     String?
+  eligibleVipMin      Int      @default(0)
+  eligibleSvipMin     Int      @default(0)
+  startsAt            DateTime
+  endsAt              DateTime
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([active])
+  @@index([startsAt, endsAt])
+}
+
+model MembershipAuditLog {
+  id                  String   @id @default(uuid())
+  adminId             Int
+  targetUserId        Int
+  action              String   // GRANT_VIP, REVOKE_VIP, GRANT_SVIP, REVOKE_SVIP, ADJUST_XP, OVERRIDE_EXPIRY
+  previousStateJson   String?
+  newStateJson        String?
+  reason              String   // Mandatory explanation for audit compliance
+  ipAddress           String?
+  createdAt           DateTime @default(now())
+
+  @@index([adminId])
+  @@index([targetUserId])
+  @@index([createdAt])
+}
+
 
