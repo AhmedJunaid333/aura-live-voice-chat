@@ -1,5 +1,25 @@
 # Aura Live Voice Chat – Production Implementation Plan
 
+- **📋 💼 Profile Applications Module: Apply for Agency & Apply for Hosting (IN PROGRESS 🚀)**:
+  - **Prisma Database Model (`Application`)**: Universal application model tracking `id`, `applicationId`, `userId`, `type` (`AGENCY` / `HOSTING`), `status` (`PENDING`, `UNDER_REVIEW`, `APPROVED`, `REJECTED`, `CANCELLED`), personal & agency/hosting specific fields, `adminNotes`, `rejectionReason`, `reviewedBy`, `reviewedAt`, `submittedAt`.
+  - **Production Backend APIs (`application.routes.ts` & `application.service.ts`)**:
+    - `GET /api/v1/applications/my`: Current user applications with duplicate prevention info.
+    - `POST /api/v1/applications`: Validated submission for Agency or Hosting with unique `applicationId` generation and duplicate active application protection.
+    - `GET /api/v1/applications/:id`: Application detail.
+    - `GET /api/v1/admin/applications`: Admin filtering by status/type and search.
+    - `PATCH /api/v1/admin/applications/:id/status`: Admin review/approval/rejection with automatic role promotion (`AGENCY_OWNER` or `HOST`), user notification, and rejection reasons.
+  - **Admin Next Portal (`ApplicationsModule.tsx`)**:
+    - Full telemetry (Total, Agency, Hosting, Pending, Under Review, Approved, Rejected).
+    - Status tabs & live search.
+    - Comprehensive application detail modal with review, approval, rejection with reason, and request info actions.
+  - **Flutter Mobile Application (`New-Live-App/apps/mobile/lib`)**:
+    - **Profile Screen Integration**: Added "Applications" icon (`Icons.assignment_rounded`) in the function menu grid.
+    - **Applications Home Screen (`applications_screen.dart`)**: Two cards for "Apply for Agency" and "Apply for Hosting" showing live status badges, Application ID, submission date, and action buttons.
+    - **Apply for Agency Screen (`apply_agency_screen.dart`)**: Auto-populated user profile data + comprehensive validated form.
+    - **Apply for Hosting Screen (`apply_hosting_screen.dart`)**: Auto-populated user profile data + host experience and schedule form.
+    - **Application Detail Screen (`application_detail_screen.dart`)**: Full status tracking and post-approval actions ("Open Agency Portal", "Start Hosting").
+
+
 - **🎁 🎬 Complete Production Gift Hub Asset Management & Live Distribution System (COMPLETED & 100% DEPLOYED ✅)**:
   - **10 Exclusive Pure SVGA Gift Assets Only (All Non-SVGA Gifts Purged ✅)**:
     1. `Autumn Windmill` (1200 💎, SVGA: `Autumn_Windmill_.svga`)
