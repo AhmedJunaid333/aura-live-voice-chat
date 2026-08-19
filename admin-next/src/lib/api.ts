@@ -238,6 +238,182 @@ export const adminApi = {
     }
   },
 
+  // BD Management & Operations
+  async getBds(params?: { status?: string; search?: string }) {
+    try {
+      const q = new URLSearchParams();
+      if (params?.status) q.append('status', params.status);
+      if (params?.search) q.append('search', params.search);
+      const res = await fetch(`${BASE_URL}/admin/bds?${q.toString()}`, { cache: 'no-store' });
+      const json = await res.json();
+      return json.data || [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getBdDetail(id: string) {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/bds/${id}`, { cache: 'no-store' });
+      const json = await res.json();
+      return json.data || null;
+    } catch {
+      return null;
+    }
+  },
+
+  async createBd(data: {
+    userId: number;
+    name: string;
+    bdCode?: string;
+    phone: string;
+    email?: string;
+    country?: string;
+    city: string;
+    commissionRate?: number;
+    status?: string;
+    notes?: string;
+  }) {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/bds`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return await res.json();
+    } catch {
+      return { success: false, error: 'Network error creating BD.' };
+    }
+  },
+
+  async updateBd(id: string, data: any) {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/bds/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return await res.json();
+    } catch {
+      return { success: false, error: 'Network error updating BD.' };
+    }
+  },
+
+  async assignAgencyToBd(id: string, agencyName: string, agencyOwnerId?: number) {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/bds/${id}/assign-agency`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agencyName, agencyOwnerId }),
+      });
+      return await res.json();
+    } catch {
+      return { success: false, error: 'Network error assigning agency.' };
+    }
+  },
+
+  async assignApplicationToBd(applicationId: string, bdId: string | null) {
+    try {
+      const res = await fetch(`${BASE_URL}/admin/bds/assign-application`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicationId, bdId }),
+      });
+      return await res.json();
+    } catch {
+      return { success: false, error: 'Network error assigning application.' };
+    }
+  },
+
+  // BD Portal Endpoints (for logged-in BD)
+  async getBdDashboard(token?: string) {
+    try {
+      const headers: any = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${BASE_URL}/bd/dashboard`, { headers, cache: 'no-store' });
+      const json = await res.json();
+      return json;
+    } catch {
+      return { success: false, error: 'Network error connecting to BD Portal.' };
+    }
+  },
+
+  async getBdAgencies(token?: string) {
+    try {
+      const headers: any = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${BASE_URL}/bd/agencies`, { headers, cache: 'no-store' });
+      const json = await res.json();
+      return json.data || [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getBdHosts(token?: string) {
+    try {
+      const headers: any = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${BASE_URL}/bd/hosts`, { headers, cache: 'no-store' });
+      const json = await res.json();
+      return json.data || [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getBdApplications(type?: string, token?: string) {
+    try {
+      const headers: any = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const q = type ? `?type=${type}` : '';
+      const res = await fetch(`${BASE_URL}/bd/applications${q}`, { headers, cache: 'no-store' });
+      const json = await res.json();
+      return json.data || [];
+    } catch {
+      return [];
+    }
+  },
+
+  async submitBdReview(applicationId: string, recommendation: string, notes: string, token?: string) {
+    try {
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${BASE_URL}/bd/applications/${applicationId}/review`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ recommendation, notes }),
+      });
+      return await res.json();
+    } catch {
+      return { success: false, error: 'Network error submitting BD review.' };
+    }
+  },
+
+  async getBdPerformance(token?: string) {
+    try {
+      const headers: any = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${BASE_URL}/bd/performance`, { headers, cache: 'no-store' });
+      const json = await res.json();
+      return json.data || null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getBdCommission(token?: string) {
+    try {
+      const headers: any = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${BASE_URL}/bd/commission`, { headers, cache: 'no-store' });
+      const json = await res.json();
+      return json.data || { commissionRate: 15, commissions: [] };
+    } catch {
+      return { commissionRate: 15, commissions: [] };
+    }
+  },
+
   async deleteUser(id: number) {
     try {
       const res = await fetch(`${BASE_URL}/admin/users/${id}`, {
@@ -277,8 +453,60 @@ export interface ApplicationRecord {
   rejectionReason?: string | null;
   reviewedBy?: number | null;
   reviewedAt?: string | null;
+  assignedBdId?: string | null;
+  bdReviewNotes?: string | null;
+  bdRecommendation?: string | null;
+  bdReviewedAt?: string | null;
   submittedAt: string;
   updatedAt: string;
   user?: UserRecord;
+  assignedBd?: BDRecord;
 }
+
+export interface BDRecord {
+  id: string;
+  bdCode: string;
+  userId: number;
+  name: string;
+  phone: string;
+  email?: string | null;
+  country: string;
+  city: string;
+  commissionRate: number;
+  status: 'ACTIVE' | 'PENDING' | 'SUSPENDED' | 'INACTIVE';
+  joiningDate: string;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user?: UserRecord;
+  agencyAssignments?: BDAgencyAssignmentRecord[];
+  applications?: ApplicationRecord[];
+  _count?: {
+    agencyAssignments: number;
+    applications: number;
+  };
+}
+
+export interface BDAgencyAssignmentRecord {
+  id: string;
+  bdId: string;
+  agencyName: string;
+  agencyOwnerId?: number | null;
+  assignedAt: string;
+  status: 'ACTIVE' | 'INACTIVE';
+}
+
+export interface BDCommissionRecord {
+  id: string;
+  bdId: string;
+  period: string;
+  eligibleVolume: number;
+  commissionRate: number;
+  commissionAmount: number;
+  status: 'PENDING' | 'APPROVED' | 'PAID';
+  paidAt?: string | null;
+  notes?: string | null;
+  createdAt: string;
+}
+
 

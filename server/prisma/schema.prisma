@@ -98,6 +98,7 @@ model User {
   membershipRewardClaims MembershipRewardClaim[]
   broadcastHistories    BroadcastHistory[]      @relation("UserBroadcastHistories")
   profileApplications   Application[]           @relation("UserProfileApplications")
+  bdProfile             BD?
 
   @@index([numericId])
   @@index([username])
@@ -1298,15 +1299,88 @@ model Application {
   reviewedBy        Int?
   reviewedAt        DateTime?
   
+  // BD Assignment & Recommendation
+  assignedBdId      String?
+  bdReviewNotes     String?
+  bdRecommendation  String?   // RECOMMEND_APPROVE, RECOMMEND_REJECT, REQUEST_INFO
+  bdReviewedAt      DateTime?
+  
   submittedAt       DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
   user              User      @relation("UserProfileApplications", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBd        BD?       @relation("BDAssignedApplications", fields: [assignedBdId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([type])
   @@index([status])
+  @@index([assignedBdId])
   @@index([submittedAt])
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 🏢 BUSINESS DEVELOPMENT (BD) ECOSYSTEM
+// ════════════════════════════════════════════════════════════════════════════
+
+model BD {
+  id                 String                 @id @default(uuid())
+  bdCode             String                 @unique // e.g. "BD-PK-1001"
+  userId             Int                    @unique
+  name               String
+  phone              String
+  email              String?
+  country            String                 @default("Pakistan")
+  city               String
+  commissionRate     Float                  @default(15.0) // Percentage cut (e.g. 15.0%)
+  status             String                 @default("ACTIVE") // ACTIVE, PENDING, SUSPENDED, INACTIVE
+  joiningDate        DateTime               @default(now())
+  notes              String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  user               User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agencyAssignments  BDAgencyAssignment[]
+  applications       Application[]          @relation("BDAssignedApplications")
+  commissions        BDCommission[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([bdCode])
+}
+
+model BDAgencyAssignment {
+  id                 String                 @id @default(uuid())
+  bdId               String
+  agencyName         String
+  agencyOwnerId      Int?
+  assignedAt         DateTime               @default(now())
+  status             String                 @default("ACTIVE") // ACTIVE, INACTIVE
+
+  bd                 BD                     @relation(fields: [bdId], references: [id], onDelete: Cascade)
+
+  @@unique([bdId, agencyName])
+  @@index([bdId])
+  @@index([agencyName])
+}
+
+model BDCommission {
+  id                 String                 @id @default(uuid())
+  bdId               String
+  period             String                 // e.g. "2026-08"
+  eligibleVolume     Float                  @default(0.0) // Diamonds or currency volume
+  commissionRate     Float                  @default(15.0)
+  commissionAmount   Float                  @default(0.0)
+  status             String                 @default("PENDING") // PENDING, APPROVED, PAID
+  paidAt             DateTime?
+  notes              String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  bd                 BD                     @relation(fields: [bdId], references: [id], onDelete: Cascade)
+
+  @@index([bdId])
+  @@index([period])
+  @@index([status])
 }
 
 

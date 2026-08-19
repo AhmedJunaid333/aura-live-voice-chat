@@ -32,6 +32,8 @@ import { membershipRouter } from './routes/membership.routes.js';
 import { uploadRouter } from './routes/upload.routes.js';
 import { UploadService } from './services/upload.service.js';
 import { applicationRouter } from './routes/application.routes.js';
+import { bdRouter } from './routes/bd.routes.js';
+import { adminBdRouter } from './routes/admin-bd.routes.js';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -106,6 +108,10 @@ app.use('/api/upload', uploadRouter);
 app.use('/api/v1/upload', uploadRouter);
 app.use('/api/applications', applicationRouter);
 app.use('/api/v1/applications', applicationRouter);
+app.use('/api/bd', bdRouter);
+app.use('/api/v1/bd', bdRouter);
+app.use('/api/admin/bds', adminBdRouter);
+app.use('/api/v1/admin/bds', adminBdRouter);
 
 
 // Global Error Handler

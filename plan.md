@@ -1,5 +1,26 @@
 # Aura Live Voice Chat – Production Implementation Plan
 
+- **🏢 💼 Business Development (BD) System: Admin Panel BD Form & Separate BD Portal Application (COMPLETED & 100% DEPLOYED ✅)**:
+  - **Prisma Database Models (`BD`, `BDAgencyAssignment`, `BDCommission`)**:
+    - `BD`: Linked 1:1 with `User` (`userId`), `bdCode` (e.g. `BD-PK-1001`), `name`, `phone`, `email`, `country`, `city`, `commissionRate`, `status` (`ACTIVE`, `PENDING`, `SUSPENDED`), `joiningDate`, `notes`. Database schema pushed and in sync with Neon PostgreSQL.
+    - `BDAgencyAssignment`: Assigns specific agencies to a BD (`bdId`, `agencyName`, `assignedAt`, `status`).
+    - `Application` relation: Added `assignedBdId`, `bdReviewNotes`, `bdRecommendation`, `bdReviewedAt` to enable BD review flow while retaining final Admin approval.
+    - `BDCommission`: Real-time commission ledger based on assigned agency/host gift transactions.
+  - **Backend API Suite (`/api/v1/bd` & `/api/v1/admin/bds`)**:
+    - BD Endpoints: `/dashboard`, `/profile`, `/agencies`, `/hosts`, `/applications`, `/applications/:id/review`, `/performance`, `/commission`.
+    - Admin BD Endpoints: `/admin/bds` (list/create), `/admin/bds/:id` (update/status), `/admin/bds/:id/assign-agency`, `/admin/bds/assign-application`.
+  - **Admin Panel BD Management (`admin-next/src/components/BdManagementModule.tsx`)**:
+    - Create BD from real existing database users.
+    - Set commission rates, activate/suspend BDs, assign agencies & applications.
+    - Review BD notes & recommendations when making final application decisions in `ApplicationsModule.tsx`.
+  - **Separate BD Portal Application (`admin-next/src/app/bd/` / `https://aura-live-voice-chat-app.web.app/bd`)**:
+    - BD Authentication guard (validates `userId`, `role === 'BD'`, `BD.status === 'ACTIVE'`).
+    - Dedicated BD Dashboard (Assigned Agencies, Assigned Hosts, Live Hosts, Applications, Diamonds, Commission).
+    - BD Agency Roster & Host Roster (filtered strictly to assigned network).
+    - BD Application Review Center (Review, Add Notes, Recommend Approve/Reject/Request Info).
+    - BD Performance & Commission ledger.
+    - Deployed live to Firebase Hosting.
+
 - **📋 💼 Profile Applications Module: Apply for Agency & Apply for Hosting (COMPLETED & 100% DEPLOYED ✅)**:
   - **Prisma Database Model (`Application`)**: Universal application model tracking `id`, `applicationId`, `userId`, `type` (`AGENCY` / `HOSTING`), `status` (`PENDING`, `UNDER_REVIEW`, `APPROVED`, `REJECTED`, `CANCELLED`), personal & agency/hosting specific fields, `adminNotes`, `rejectionReason`, `reviewedBy`, `reviewedAt`, `submittedAt`. Database schema pushed and in sync with Neon PostgreSQL.
   - **Production Backend APIs (`application.routes.ts` & `application.service.ts`)**:

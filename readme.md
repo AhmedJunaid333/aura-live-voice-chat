@@ -16,7 +16,22 @@ An enterprise-grade live broadcasting, multi-seat voice lounge (10, 15, 20 seats
 - **Detailed Audit Plan & Implementation Roadmap**: See [`plan.md`](file:///d:/Auralive/plan.md)
 
 ## 🎙️ 💎 Core Live Audio Production Features & Architecture
-0. **📋 💼 Profile Applications Module: Apply for Agency & Apply for Hosting (Production Ready & Live)**:
+0. **🏢 💼 Business Development (BD) System: Admin Management & Separate BD Portal (Production Ready & Live)**:
+   - **Prisma Database Architecture (`BD`, `BDAgencyAssignment`, `BDCommission`)**:
+     - `BD` model mapped 1:1 with real `User` records (`userId`), tracking `bdCode` (e.g. `BD-PK-1001`), `commissionRate`, `status` (`ACTIVE`, `PENDING`, `SUSPENDED`), and personal details.
+     - `BDAgencyAssignment`: Strict assignment of talent agencies to BD managers.
+     - `Application` integration: `assignedBdId`, `bdReviewNotes`, `bdRecommendation` (`RECOMMEND_APPROVE`, `RECOMMEND_REJECT`, `REQUEST_INFO`), and `bdReviewedAt`.
+   - **Backend API Suite (`/api/v1/bd` & `/api/v1/admin/bds`)**:
+     - BD Portal Endpoints: `/dashboard`, `/agencies`, `/hosts`, `/applications`, `/applications/:id/review`, `/performance`, `/commission`.
+     - Admin BD Endpoints: `/admin/bds` (list/create), `/admin/bds/:id` (update/status), `/admin/bds/:id/assign-agency`, `/admin/bds/assign-application`.
+   - **Admin Panel BD Management (`admin-next/src/components/BdManagementModule.tsx`)**:
+     - Create BD accounts from real database users, configure commission rates, activate/suspend BDs, assign agencies and applications.
+     - Review BD recommendations directly in `ApplicationsModule.tsx` before making final administrative decisions.
+   - **Dedicated BD Web Portal (`/bd` / `https://aura-live-voice-chat-app.web.app/bd`)**:
+     - Dedicated authentication guard verifying `role === 'BD'` and `BD.status === 'ACTIVE'`.
+     - Real-time BD Dashboard, assigned agencies and hosts rosters, application review & recommendation center, performance charts, and commission ledger.
+
+0.1. **📋 💼 Profile Applications Module: Apply for Agency & Apply for Hosting (Production Ready & Live)**:
    - **Prisma Database Model (`Application`)**: Universal model tracking application details, applicant information, status (`PENDING`, `UNDER_REVIEW`, `APPROVED`, `REJECTED`, `CANCELLED`), admin review notes, rejection reasons, and reviewer timestamps.
    - **Backend API Suite (`/api/v1/applications`)**:
      - `GET /my`: Fetch current user's submitted applications & eligibility flags.

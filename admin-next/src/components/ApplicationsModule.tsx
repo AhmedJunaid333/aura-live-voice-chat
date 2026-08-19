@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { adminApi, ApplicationRecord } from '@/lib/api';
+import { adminApi, ApplicationRecord, BDRecord } from '@/lib/api';
 
 export default function ApplicationsModule() {
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
+  const [bds, setBds] = useState<BDRecord[]>([]);
+  const [selectedBdToAssign, setSelectedBdToAssign] = useState<string>('');
   const [stats, setStats] = useState<any>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<string>('ALL');
@@ -27,17 +29,21 @@ export default function ApplicationsModule() {
       statusParam = activeTab;
     }
 
-    const data = await adminApi.getApplications({
-      type: typeParam,
-      status: statusParam,
-      search: searchTerm,
-      limit: 50,
-    });
+    const [data, bdsList] = await Promise.all([
+      adminApi.getApplications({
+        type: typeParam,
+        status: statusParam,
+        search: searchTerm,
+        limit: 50,
+      }),
+      adminApi.getBds(),
+    ]);
 
     if (data.applications) {
       setApplications(data.applications);
       setStats(data.stats || {});
     }
+    setBds(bdsList || []);
     setLoading(false);
   };
 
@@ -80,6 +86,21 @@ export default function ApplicationsModule() {
         type: 'error',
         text: res.error || 'Failed to update application status.',
       });
+    }
+  };
+
+  const handleAssignBd = async (bdId: string) => {
+    if (!selectedApp) return;
+    setActionLoading(true);
+    const res = await adminApi.assignApplicationToBd(selectedApp.id, bdId || null);
+    setActionLoading(false);
+    if (res.success) {
+      setFeedbackMsg({ type: 'success', text: res.message || 'Application assigned to BD successfully.' });
+      const updated = await adminApi.getApplicationDetail(selectedApp.id);
+      setSelectedApp(updated);
+      fetchApplications();
+    } else {
+      setFeedbackMsg({ type: 'error', text: res.error || 'Failed to assign application to BD.' });
     }
   };
 
@@ -415,6 +436,88 @@ export default function ApplicationsModule() {
                     <p className="text-slate-300 mt-0.5">{selectedApp.additionalInfo}</p>
                   </div>
                 )}
+              </div>
+
+              {/* BD Assignment & Review Section */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-indigo-900/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-indigo-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                    <span>🏢</span> Business Development (BD) Assignment & Review
+                  </h4>
+                  {selectedApp.assignedBd && (
+                    <span className="px-2 py-0.5 rounded-lg text-[11px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      Assigned: {selectedApp.assignedBd.bdCode} ({selectedApp.assignedBd.name})
+                    </span>
+                  )}
+                </div>
+
+                {/* BD Recommendation if reviewed */}
+                {selectedApp.bdRecommendation && (
+                  <div className="bg-indigo-950/40 border border-indigo-800/40 p-3 rounded-xl space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-indigo-400 font-bold">BD Recommendation:</span>
+                      {selectedApp.bdRecommendation === 'RECOMMEND_APPROVE' && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          ✓ RECOMMEND APPROVAL
+                        </span>
+                      )}
+                      {selectedApp.bdRecommendation === 'RECOMMEND_REJECT' && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                          ✕ RECOMMEND REJECTION
+                        </span>
+                      )}
+                      {selectedApp.bdRecommendation === 'REQUEST_INFO' && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          ⚠️ REQUEST MORE INFO
+                        </span>
+                      )}
+                    </div>
+                    {selectedApp.bdReviewNotes && (
+                      <p className="text-slate-200 text-xs mt-1 bg-slate-900/60 p-2 rounded-lg border border-slate-800">
+                        &quot;{selectedApp.bdReviewNotes}&quot;
+                      </p>
+                    )}
+                    {selectedApp.bdReviewedAt && (
+                      <p className="text-[10px] text-slate-500">
+                        Reviewed by BD on {new Date(selectedApp.bdReviewedAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Assign / Reassign to BD Dropdown */}
+                <div className="flex items-center gap-2 pt-1">
+                  <select
+                    value={selectedBdToAssign}
+                    onChange={(e) => setSelectedBdToAssign(e.target.value)}
+                    className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="">-- Assign Application to BD Manager --</option>
+                    {bds.filter(b => b.status === 'ACTIVE').map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.bdCode} — {b.name} ({b.city})
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!selectedBdToAssign || actionLoading}
+                    onClick={() => handleAssignBd(selectedBdToAssign)}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition disabled:opacity-50"
+                  >
+                    Assign BD
+                  </button>
+                  {selectedApp.assignedBdId && (
+                    <button
+                      type="button"
+                      disabled={actionLoading}
+                      onClick={() => handleAssignBd('')}
+                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl text-xs font-semibold transition"
+                    >
+                      Unassign
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Admin Notes / Rejection Reason if any */}
