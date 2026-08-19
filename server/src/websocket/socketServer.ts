@@ -216,6 +216,19 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
           timestamp: new Date().toISOString(),
         };
 
+        // 3. Confirm room join to the connecting socket
+        const confirmPayload = {
+          roomId,
+          userId: user.userId,
+          numericId,
+          socketId: socket.id,
+          timestamp: new Date().toISOString(),
+        };
+        socket.emit('room.join.confirmed', confirmPayload);
+        socket.emit('ROOM_JOIN_CONFIRMED', confirmPayload);
+
+        console.log(`✅ [ROOM_JOIN_CONFIRMED] Room: ${roomId} | User: ${user.username} (numericId: ${numericId}) | Socket: ${socket.id} at ${confirmPayload.timestamp}`);
+
         io.to(roomChannel).emit('live.viewer_joined', joinPayload);
         io.to(roomChannel).emit('room.user.joined', joinPayload);
         io.to(roomChannel).emit('ROOM_USER_JOINED', joinPayload);
@@ -505,10 +518,17 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       const senderUsername = dbUser?.username || user.username;
       const senderDisplayName = dbUser?.displayName || data.senderName || dbUser?.username || user.username;
 
+      // Ensure socket is joined to room channel
+      socket.join(`room_${data.roomId}`);
+      socketToRooms.get(socket.id)?.add(data.roomId);
+
       const payload = {
         id: commentId,
+        messageId: commentId,
         clientMsgId: data.clientMsgId || commentId,
         roomId: data.roomId,
+        senderId: dbUser?.id || user.userId,
+        numericId: dbUser?.numericId || numericId,
         sender: {
           id: dbUser?.id || user.userId,
           numericId: dbUser?.numericId || numericId,
@@ -527,7 +547,9 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
         role: senderRole,
         badge: senderRole,
         comment: content,
+        message: content,
         text: content,
+        type: 'USER',
         timestamp: new Date().toISOString(),
       };
 
@@ -539,6 +561,7 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
 
       // 4. Broadcast EXACTLY ONCE to participants in this room only
       io.to(`room_${data.roomId}`).emit('live.comment', payload);
+      console.log(`💬 [COMMENT_RENDERED] Room: ${data.roomId} | Message: ${commentId} | From: ${senderUsername} (UID: ${numericId}) | Text: "${content}"`);
     };
 
     socket.on('live.comment', handleComment);
@@ -690,5 +713,12 @@ export function broadcastGlobal(event: string, payload: any): void {
   if (ioInstance) {
     ioInstance.emit(event, payload);
   }
+}
+
+export function getRoomActiveMembers(roomId: string): ActiveMemberData[] {
+  if (roomActiveMembers.has(roomId)) {
+    return Array.from(roomActiveMembers.get(roomId)!.values());
+  }
+  return [];
 }
 

@@ -1,5 +1,26 @@
 # Aura Live Voice Chat – Production Implementation Plan
 
+- **⚡ 🎙️ Deep Real-Time Live Room Sync: Authoritative State, Guaranteed Seat Sync & Canonical Comments (COMPLETED & VERIFIED ✅)**:
+  - **Room State Authority (`GET /api/v1/rooms/:roomId/state`)**:
+    - Implemented unified authoritative room state endpoint returning `{ room, host, seats, viewers, activeMembers, totalViewers, isLocked, roomAdmins, seatCount, timestamp }`.
+    - Initial UI, socket reconnect, and app resumption fetch this single source of truth instead of relying solely on transient socket events.
+  - **Standardized Socket Lifecycle & Handshake Confirmation**:
+    - Added `room.join.confirmed` / `ROOM_JOIN_CONFIRMED` event emitted to joining socket upon completing DB checks and room channel join.
+    - Explicit structured logging on backend and client: `SOCKET_CONNECTED`, `SOCKET_DISCONNECTED`, `SOCKET_RECONNECTED`, `ROOM_JOIN_REQUESTED`, `ROOM_JOINED`, `ROOM_JOIN_CONFIRMED`, `ROOM_LEFT`, `COMMENT_RENDERED`.
+  - **Full Seat Payload & Convergence**:
+    - `takeSeat` and `leaveSeat` broadcast complete seat payload (`roomId`, `seatIndex`, `seatNumber`, `userId`, `numericId`, `username`, `displayName`, `avatar`, `status`, `isLocked`, `isMuted`, `isHost`, `timestamp`, `seat`, `seats`, `action`).
+    - Both `room.seat.updated` and `room.seats.updated` are emitted.
+    - Flutter `LiveRoomController` updates state immediately and synchronizes with authoritative DB state.
+    - Removed incorrect local seat vacancy on viewer leaves (`live.viewer_left`), preserving seated speakers across network hops.
+  - **Canonical Comment Engine & Strict Deduplication**:
+    - Backend generates unique `messageId` (`comment_${Date.now()}_${numericId}_${rand}`) and broadcasts canonical payload with `type: 'USER'`, `senderId`, `numericId`, `sender`, `comment`, `message`, `text`.
+    - Client `_LiveRoomScreenState` deduplicates strictly by unique `id` / `clientMsgId` using `_seenCommentIds`, preventing repeated valid comments (e.g. "hi", "nice", emojis) from being accidentally dropped.
+  - **App Lifecycle & Background Resilience**:
+    - Implemented `WidgetsBindingObserver` on `LiveRoomScreen` to detect `AppLifecycleState.resumed` and automatically trigger `syncRoomState(roomId)`.
+  - **Verification**:
+    - Server TypeScript: `npx tsc --noEmit` -> 0 errors.
+    - Flutter Analyzer: `flutter analyze lib/features/` -> 0 errors.
+
 - **🫘 💸 Complete Beans + Withdrawal System: Reseller Withdraw & Official Withdraw (COMPLETED & 100% DEPLOYED ✅)**:
   - **Prisma Database Architecture (`User`, `WithdrawalRequest`, `WithdrawalConfig`)**:
     - `User`: Add `beans Int @default(0)` and `beansHeld Int @default(0)` to support atomic **Beans HOLD** without duplicating wallet structure.

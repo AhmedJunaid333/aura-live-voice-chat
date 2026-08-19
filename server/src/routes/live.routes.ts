@@ -260,6 +260,20 @@ liveRouter.post(['/:roomId/diamonds/send', '/rooms/:roomId/diamonds/send'], opti
   }
 });
 
+// 🏛️ 🎙️ Authoritative Full Room State (Room, Host, Seats, Viewers, Admins, Lock Status)
+liveRouter.get(['/:roomId/state', '/rooms/:roomId/state'], async (req, res, next) => {
+  try {
+    const result = await LiveService.getRoomState(req.params.roomId as string);
+    res.status(200).json(result);
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
 // 🔍 📋 🎁 📢 💎 Get Complete Live Room View Info (ID, Members, Rewards, Announcement, Numeric Room Value)
 liveRouter.get(['/:roomId/info', '/rooms/:roomId/info'], async (req, res, next) => {
   try {

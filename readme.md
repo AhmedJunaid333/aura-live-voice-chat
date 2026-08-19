@@ -16,6 +16,12 @@ An enterprise-grade live broadcasting, multi-seat voice lounge (10, 15, 20 seats
 - **Detailed Audit Plan & Implementation Roadmap**: See [`plan.md`](file:///d:/Auralive/plan.md)
 
 ## 🎙️ 💎 Core Live Audio Production Features & Architecture
+-1. **⚡ 🎙️ Deep Real-Time Live Room Sync (Authoritative State & Seat Reconciliation)**:
+   - **Authoritative Endpoint (`GET /api/v1/rooms/:roomId/state`)**: Single source of truth for Room, Host, Seats, Viewers, Active Members, and Room Admins.
+   - **Guaranteed Seat Sync**: Full seat payload broadcasted on seat take, leave, mute, lock, and kick with automatic client state convergence.
+   - **Deterministic Comment Engine**: Unique backend `messageId` generation with strict client deduplication, eliminating dropped repeated comments.
+   - **Socket Lifecycle & Reconnection**: `ROOM_JOIN_CONFIRMED` handshake, background-to-foreground auto-resync, and comprehensive structured logging.
+
 0. **🫘 💸 Complete Beans & Withdrawal System (Reseller Withdraw & Official Withdraw)**:
    - **Prisma Database Models (`User`, `WithdrawalRequest`, `WithdrawalConfig`)**:
      - `User`: Integrates `beans` and `beansHeld` for atomic **Beans HOLD** and instant rollback on cancellation/rejection without altering diamonds/coins.

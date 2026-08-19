@@ -1,6 +1,6 @@
 import { prisma } from '../config/database.js';
 import { generateAgoraRtcToken, RtcRole } from '../utils/agoraToken.js';
-import { emitToRoom, broadcastGlobal, updateRoomMemberRole } from '../websocket/socketServer.js';
+import { emitToRoom, broadcastGlobal, updateRoomMemberRole, getRoomActiveMembers } from '../websocket/socketServer.js';
 import { FamilyService } from './family.service.js';
 
 export class LiveService {
@@ -1448,6 +1448,72 @@ export class LiveService {
   }
 
   /**
+   * 🏛️ Authoritative Full Room State (Room, Host, Seats, Viewers, Admins, Lock Status)
+   */
+  static async getRoomState(roomId: string) {
+    const room = await prisma.liveRoom.findFirst({
+      where: { OR: [{ id: roomId }, { roomId: roomId }] },
+      include: {
+        host: {
+          select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true, countryCode: true },
+        },
+        viewers: {
+          include: {
+            user: { select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true } },
+          },
+          take: 100,
+        },
+        seats: {
+          include: {
+            user: { select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true } },
+          },
+          orderBy: { seatNumber: 'asc' },
+        },
+        roomAdmins: {
+          select: { userId: true, role: true },
+        },
+      },
+    });
+
+    if (!room) {
+      const err = new Error('Room not found');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    await this.ensureRoomSeats(room.roomId, room.seatCount, room.hostId);
+
+    const seats = room.seats.length === room.seatCount ? room.seats : await prisma.liveRoomSeat.findMany({
+      where: { roomId: room.roomId },
+      include: {
+        user: { select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true } },
+      },
+      orderBy: { seatNumber: 'asc' },
+    });
+
+    const activeMembers = getRoomActiveMembers(room.roomId);
+
+    return {
+      roomId: room.roomId,
+      id: room.id,
+      title: room.title,
+      status: room.status,
+      seatCount: room.seatCount,
+      isLocked: room.isLocked,
+      announcement: room.announcement,
+      cover: room.cover,
+      totalViewers: Math.max(room.viewers.length, activeMembers.length),
+      totalDiamonds: room.totalDiamonds,
+      host: room.host,
+      seats,
+      viewers: room.viewers.map(v => v.user),
+      activeMembers,
+      roomAdmins: room.roomAdmins,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
    * Take a seat (Atomic Database Transaction)
    */
   static async takeSeat(roomId: string, seatNumber: number, userId: number) {
@@ -1565,16 +1631,39 @@ export class LiveService {
     });
 
     // Realtime broadcast single seat and full seats list to room
-    emitToRoom(roomId, 'room.seat.updated', {
+    const seatPayload = {
       roomId,
+      seatIndex: updatedSeat.seatNumber,
+      seatNumber: updatedSeat.seatNumber,
+      userId: updatedSeat.userId ? String(updatedSeat.userId) : null,
+      numericId: updatedSeat.user?.numericId || null,
+      username: updatedSeat.user?.username || null,
+      displayName: updatedSeat.user?.displayName || updatedSeat.user?.username || null,
+      avatar: updatedSeat.user?.avatar || null,
+      status: updatedSeat.status,
+      isLocked: updatedSeat.isLocked,
+      isMuted: updatedSeat.isMuted,
+      isHost: updatedSeat.isHost,
+      timestamp: new Date().toISOString(),
       seat: updatedSeat,
       action: 'TAKEN',
-    });
+    };
+    emitToRoom(roomId, 'room.seat.updated', seatPayload);
+    emitToRoom(roomId, 'ROOM_SEAT_UPDATED', seatPayload);
     emitToRoom(roomId, 'room.seats.updated', {
       roomId,
       seats: allSeats,
       seatCount: room.seatCount,
+      timestamp: new Date().toISOString(),
     });
+    emitToRoom(roomId, 'ROOM_SEATS_UPDATED', {
+      roomId,
+      seats: allSeats,
+      seatCount: room.seatCount,
+      timestamp: new Date().toISOString(),
+    });
+
+    console.log(`💺 [SEAT_TAKEN] Room: ${roomId} | Seat ${updatedSeat.seatNumber} taken by ${updatedSeat.user?.username} (UID: ${updatedSeat.user?.numericId})`);
 
     return {
       seat: updatedSeat,
@@ -1638,16 +1727,40 @@ export class LiveService {
         orderBy: { seatNumber: 'asc' },
       });
 
-      emitToRoom(roomId, 'room.seat.updated', {
+      const leaveSeatPayload = {
         roomId,
+        seatIndex: updatedSeat.seatNumber,
+        seatNumber: updatedSeat.seatNumber,
+        userId: null,
+        numericId: null,
+        username: null,
+        displayName: null,
+        avatar: null,
+        status: updatedSeat.status,
+        isLocked: updatedSeat.isLocked,
+        isMuted: updatedSeat.isMuted,
+        isHost: updatedSeat.isHost,
+        timestamp: new Date().toISOString(),
         seat: updatedSeat,
         action: 'LEFT',
-      });
+      };
+
+      emitToRoom(roomId, 'room.seat.updated', leaveSeatPayload);
+      emitToRoom(roomId, 'ROOM_SEAT_UPDATED', leaveSeatPayload);
       emitToRoom(roomId, 'room.seats.updated', {
         roomId,
         seats: allSeats,
         seatCount: targetSeat.room.seatCount,
+        timestamp: new Date().toISOString(),
       });
+      emitToRoom(roomId, 'ROOM_SEATS_UPDATED', {
+        roomId,
+        seats: allSeats,
+        seatCount: targetSeat.room.seatCount,
+        timestamp: new Date().toISOString(),
+      });
+
+      console.log(`💺 [SEAT_LEFT] Room: ${roomId} | Seat ${updatedSeat.seatNumber} vacated (was userId: ${targetSeat.userId})`);
 
       return { updatedSeat, allSeats, vacatedUserId: targetSeat.userId };
     }, { timeout: 25000, maxWait: 10000 });
