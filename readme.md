@@ -16,7 +16,25 @@ An enterprise-grade live broadcasting, multi-seat voice lounge (10, 15, 20 seats
 - **Detailed Audit Plan & Implementation Roadmap**: See [`plan.md`](file:///d:/Auralive/plan.md)
 
 ## 🎙️ 💎 Core Live Audio Production Features & Architecture
-0. **🎁 🎬 Complete Production Gift Hub Asset Management System**:
+0. **📋 💼 Profile Applications Module: Apply for Agency & Apply for Hosting (Production Ready & Live)**:
+   - **Prisma Database Model (`Application`)**: Universal model tracking application details, applicant information, status (`PENDING`, `UNDER_REVIEW`, `APPROVED`, `REJECTED`, `CANCELLED`), admin review notes, rejection reasons, and reviewer timestamps.
+   - **Backend API Suite (`/api/v1/applications`)**:
+     - `GET /my`: Fetch current user's submitted applications & eligibility flags.
+     - `POST /`: Submit new Agency or Hosting application with automated unique ID generation (`APP-AGY-XXXX` / `APP-HST-XXXX`) and duplicate application protection.
+     - `GET /:id`: Retrieve application details.
+     - `GET /admin/list`: Admin filtering by status/type, search, and pagination.
+     - `PATCH /admin/:id/status`: Admin status updates, automated user role promotion (`AGENCY_OWNER` or `HOST`), user notifications, and rejection reasoning.
+   - **Admin Next Portal (`ApplicationsModule.tsx`)**:
+     - Live on Firebase Hosting (`https://aura-live-voice-chat-app.web.app`).
+     - Status telemetry cards, filter tabs, live search, and review modal with Approve, Reject, and Under Review actions.
+   - **Mobile Flutter Application**:
+     - Profile screen "Applications" icon in function menu grid.
+     - `ApplicationsScreen` (`/applications`): Dual-card layout for Agency & Hosting with live status badges and application history.
+     - `ApplyAgencyScreen` (`/applications/agency`): Auto-prefilled profile data + validated form.
+     - `ApplyHostingScreen` (`/applications/hosting`): Auto-prefilled profile data + broadcasting preferences form.
+     - `ApplicationDetailScreen` (`/applications/detail/:id`): Detailed view with administrative feedback and action routing.
+
+0.1. **🎁 🎬 Complete Production Gift Hub Asset Management System**:
    - **Create New Gift Asset Modal (`media_1787144821230.png`)**: 2-column layout matching reference specifications. Left: Gift Name, Price (Joe Diamonds 💎), XP Reward, Category, Animation Level, Associated Emoji, Host Earning & Lucky Toggle. Right: Live Animation Preview (Active Preview, sound/play controls) + 4 dedicated upload dropzones (Upload SVGA, Lottie JSON, Static Image, Audio / Sound).
    - **Separate Asset Architecture**: `thumbnailUrl` for 4x2 Gift Panel display, and `animationUrl` (SVGA/Lottie/3D) + `soundUrl` for real-time live room broadcast playback.
    - **Full Asset Lifecycle & State Management**: `ACTIVE`, `DRAFT`, `DISABLED`, `SCHEDULED`, `ARCHIVED` with Instant `Duplicate Gift (📑)`, `Live Preview`, and `Category Manager`.
