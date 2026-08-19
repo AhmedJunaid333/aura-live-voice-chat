@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://aura-live-voice-chat-1.onrender.com/api/v1';
+export const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://aura-live-voice-chat-1.onrender.com/api/v1';
 
 export interface UserRecord {
   id: number;
@@ -119,6 +119,9 @@ export const adminApi = {
       const json = await res.json();
       if (Array.isArray(json.data) && json.data.length > 0) {
         return json.data as UserRecord[];
+      }
+      if (json.data?.users && Array.isArray(json.data.users) && json.data.users.length > 0) {
+        return json.data.users as UserRecord[];
       }
       return defaultRealUsers;
     } catch {

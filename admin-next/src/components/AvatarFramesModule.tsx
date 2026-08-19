@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { BASE_URL } from '@/lib/api';
 
 // Sample Avatars matching high-end live stream apps
 const SAMPLE_AVATARS = [
@@ -526,7 +527,7 @@ export default function AvatarFramesModule() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/v1/admin/users', { cache: 'no-store' });
+      const res = await fetch(`${BASE_URL}/admin/users`, { cache: 'no-store' });
       const json = await res.json();
       if (json?.data) {
         const userArr = Array.isArray(json.data) ? json.data : json.data.users;
@@ -539,7 +540,7 @@ export default function AvatarFramesModule() {
 
   const fetchCosmeticsData = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/v1/admin/cosmetics', { cache: 'no-store' });
+      const res = await fetch(`${BASE_URL}/admin/cosmetics`, { cache: 'no-store' });
       if (!res.ok) return;
       const json = await res.json();
       if (json?.data && json.data.avatarFrames) {
@@ -670,7 +671,7 @@ export default function AvatarFramesModule() {
     // Call backend API endpoint
     try {
       if (onlyGrant) {
-        await fetch(`http://localhost:3001/api/v1/admin/frames/${assignFrameItem.id}/grant`, {
+        await fetch(`${BASE_URL}/admin/frames/${assignFrameItem.id}/grant`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -680,7 +681,7 @@ export default function AvatarFramesModule() {
           }),
         });
       } else {
-        await fetch(`http://localhost:3001/api/v1/admin/users/${uid}/grant-and-equip`, {
+        await fetch(`${BASE_URL}/admin/users/${uid}/grant-and-equip`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -794,7 +795,7 @@ export default function AvatarFramesModule() {
     }
 
     try {
-      fetch('http://localhost:3001/api/v1/admin/cosmetics/create', {
+      fetch(`${BASE_URL}/admin/cosmetics/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -828,7 +829,7 @@ export default function AvatarFramesModule() {
   const handlePurchaseCosmetic = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:3001/api/v1/admin/cosmetics/purchase', {
+      const res = await fetch(`${BASE_URL}/admin/cosmetics/purchase`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

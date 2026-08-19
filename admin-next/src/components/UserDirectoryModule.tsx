@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { BASE_URL } from '@/lib/api';
 
 // Pre-configured Luxury Frames Catalog for Admin Grants & Equips
 const FRAME_CATALOG = [
@@ -380,7 +381,7 @@ export default function UserDirectoryModule() {
 
   const fetchUserData = async () => {
     try {
-      const res = await fetch('http://localhost:3001/api/v1/admin/users', { cache: 'no-store' });
+      const res = await fetch(`${BASE_URL}/admin/users`, { cache: 'no-store' });
       const json = await res.json();
       if (json?.data) {
         if (Array.isArray(json.data)) {
@@ -450,7 +451,7 @@ export default function UserDirectoryModule() {
     setPreviewFrame(curEquipped);
 
     // Also attempt remote backend fetch
-    fetch(`http://localhost:3001/api/v1/admin/users/${uid}`, { cache: 'no-store' })
+    fetch(`${BASE_URL}/admin/users/${uid}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(json => {
         if (json?.data?.inventory) {
@@ -502,7 +503,7 @@ export default function UserDirectoryModule() {
     saveUserInventory(uid, updated, frameItem.id);
 
     try {
-      await fetch(`http://localhost:3001/api/v1/admin/users/${uid}/equip`, {
+      await fetch(`${BASE_URL}/admin/users/${uid}/equip`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ frameId: frameItem.id, reason: 'Equipped by Admin' }),
@@ -530,7 +531,7 @@ export default function UserDirectoryModule() {
     saveUserInventory(uid, updated, null);
 
     try {
-      await fetch(`http://localhost:3001/api/v1/admin/users/${uid}/unequip`, {
+      await fetch(`${BASE_URL}/admin/users/${uid}/unequip`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: 'Unequipped by Admin' }),
@@ -616,7 +617,7 @@ export default function UserDirectoryModule() {
     saveUserInventory(uid, updated, frameObj.id);
 
     try {
-      await fetch(`http://localhost:3001/api/v1/admin/users/${uid}/grant-and-equip`, {
+      await fetch(`${BASE_URL}/admin/users/${uid}/grant-and-equip`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -654,7 +655,7 @@ export default function UserDirectoryModule() {
     saveUserInventory(uid, updated, newEquippedId);
 
     try {
-      await fetch(`http://localhost:3001/api/v1/admin/frames/admin/revoke`, {
+      await fetch(`${BASE_URL}/admin/frames/admin/revoke`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -672,7 +673,7 @@ export default function UserDirectoryModule() {
   const handleStatusUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:3001/api/v1/admin/users/update-status', {
+      const res = await fetch(`${BASE_URL}/admin/users/update-status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -698,7 +699,7 @@ export default function UserDirectoryModule() {
   const handleUnblock = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:3001/api/v1/admin/users/update-status', {
+      const res = await fetch(`${BASE_URL}/admin/users/update-status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -722,7 +723,7 @@ export default function UserDirectoryModule() {
   const handleRevokeSessions = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:3001/api/v1/admin/users/revoke-sessions', {
+      const res = await fetch(`${BASE_URL}/admin/users/revoke-sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: revokeUserId }),
@@ -742,7 +743,7 @@ export default function UserDirectoryModule() {
   const handleForceReset = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://localhost:3001/api/v1/admin/users/force-password-reset', {
+      const res = await fetch(`${BASE_URL}/admin/users/force-password-reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: resetUserId }),
