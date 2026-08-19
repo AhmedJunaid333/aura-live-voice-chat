@@ -5871,6 +5871,48 @@ adminRouter.delete('/gifts/:id', async (req, res, next) => {
 });
 
 /**
+ * POST /api/v1/admin/gifts/:id/duplicate
+ * Clones an existing gift asset with a new ID and "Copy of [name]" title.
+ */
+adminRouter.post('/gifts/:id/duplicate', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const source = await prisma.gift.findUnique({ where: { id } });
+    if (!source) {
+      res.status(404).json({ success: false, error: 'Source gift not found' });
+      return;
+    }
+
+    const newGift = await prisma.gift.create({
+      data: {
+        name: `${source.name} (Copy)`,
+        icon: source.icon,
+        costCoins: source.costCoins,
+        rewardDiamonds: source.rewardDiamonds,
+        category: source.category,
+        animationType: source.animationType,
+        svgaUrl: source.svgaUrl,
+        lottieUrl: source.lottieUrl,
+        imageUrl: source.imageUrl,
+        soundUrl: source.soundUrl,
+        xpReward: source.xpReward,
+        isLucky: source.isLucky,
+        multiplierMax: source.multiplierMax,
+        active: false, // Created as draft/inactive initially
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: newGift,
+      message: `Duplicated "${source.name}" as "${newGift.name}"!`,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/v1/admin/gift-transactions
  * Paginated gift transaction ledger with gift, sender & receiver info.
  */

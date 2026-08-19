@@ -16,7 +16,13 @@ An enterprise-grade live broadcasting, multi-seat voice lounge (10, 15, 20 seats
 - **Detailed Audit Plan & Implementation Roadmap**: See [`plan.md`](file:///d:/Auralive/plan.md)
 
 ## 🎙️ 💎 Core Live Audio Production Features & Architecture
-0. **💎 💳 Admin Portal Direct Diamond Credit & Mobile Wallet Realtime Sync**:
+0. **🎁 🎬 Complete Production Gift Hub Asset Management System**:
+   - **Create New Gift Asset Modal (`media_1787144821230.png`)**: 2-column layout matching reference specifications. Left: Gift Name, Price (Joe Diamonds 💎), XP Reward, Category, Animation Level, Associated Emoji, Host Earning & Lucky Toggle. Right: Live Animation Preview (Active Preview, sound/play controls) + 4 dedicated upload dropzones (Upload SVGA, Lottie JSON, Static Image, Audio / Sound).
+   - **Separate Asset Architecture**: `thumbnailUrl` for 4x2 Gift Panel display, and `animationUrl` (SVGA/Lottie/3D) + `soundUrl` for real-time live room broadcast playback.
+   - **Full Asset Lifecycle & State Management**: `ACTIVE`, `DRAFT`, `DISABLED`, `SCHEDULED`, `ARCHIVED` with Instant `Duplicate Gift (📑)`, `Live Preview`, and `Category Manager`.
+   - **Backend API & Firebase Hosting**: `POST /api/v1/admin/gifts/:id/duplicate` endpoint and full deployment at `https://aura-live-voice-chat-app.web.app`.
+
+0.1. **💎 💳 Admin Portal Direct Diamond Credit & Mobile Wallet Realtime Sync**:
    - Fixed `server/src/routes/admin.routes.ts` with `findAdminUser` prioritizing display `numericId` (e.g. UID `26`) over internal database ID.
    - Deployed Next.js Admin Panel to Firebase Hosting (`https://aura-live-voice-chat-app.web.app`) configured with live production Render API (`https://aura-live-voice-chat-1.onrender.com/api/v1`).
    - Pushes realtime `wallet.updated` and `diamond.received` events to user sockets.

@@ -758,6 +758,8 @@ export class GiftService {
       totalCostDiamonds,
       quantity: qty,
       comboCount: combo,
+      soundUrl: (gift as any).soundUrl || dbGiftRecord?.soundUrl || '',
+      audioUrl: (gift as any).soundUrl || dbGiftRecord?.soundUrl || '',
       animationType: resolvedAnimType,
       category: gift.category,
       sender: {
