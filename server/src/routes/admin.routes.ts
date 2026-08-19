@@ -165,18 +165,35 @@ adminRouter.get('/users', async (req, res, next) => {
   }
 });
 
-// 3. User Details
-adminRouter.get('/users/:id', async (req, res, next) => {
-  try {
-    const userId = parseInt(req.params.id as string, 10);
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
+// Helper to prioritize user lookup by display numericId (e.g. 26) before internal PK id
+async function findAdminUser(lookupId: number) {
+  let user = await prisma.user.findFirst({
+    where: { numericId: lookupId },
+    include: {
+      resellerAccount: true,
+      applications: { take: 5, orderBy: { submittedAt: 'desc' } },
+      walletTransactions: { take: 10, orderBy: { createdAt: 'desc' } },
+    },
+  });
+  if (!user) {
+    user = await prisma.user.findFirst({
+      where: { id: lookupId },
       include: {
         resellerAccount: true,
         applications: { take: 5, orderBy: { submittedAt: 'desc' } },
         walletTransactions: { take: 10, orderBy: { createdAt: 'desc' } },
       },
     });
+  }
+  return user;
+}
+
+// 3. User Details
+adminRouter.get('/users/:id', async (req, res, next) => {
+  try {
+    const lookupId = parseInt(req.params.id as string, 10);
+    if (isNaN(lookupId)) return res.status(400).json({ success: false, error: 'Invalid user ID/UID' });
+    const user = await findAdminUser(lookupId);
 
     if (!user) {
       res.status(404).json({ success: false, error: 'User not found' });
@@ -192,18 +209,19 @@ adminRouter.get('/users/:id', async (req, res, next) => {
 // 4. Update User Account Status (Block/Unblock/Suspend)
 adminRouter.put('/users/:id/status', async (req, res, next) => {
   try {
-    const userId = parseInt(req.params.id as string, 10);
+    const lookupId = parseInt(req.params.id as string, 10);
     const { status: newStatus, reason, duration, expiresAt } = req.body;
 
     if (!['SUSPENDED', 'BLOCKED', 'BANNED', 'ACTIVE'].includes(newStatus)) {
       return res.status(400).json({ success: false, error: 'Invalid status provided.' });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await findAdminUser(lookupId);
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
+    const userId = user.id;
     const previousStatus = user.status;
 
     await prisma.$transaction(async (tx) => {
@@ -268,11 +286,14 @@ adminRouter.put('/users/:id/status', async (req, res, next) => {
 // 5. Freeze / Unfreeze Wallet
 adminRouter.put('/users/:id/freeze-wallet', async (req, res, next) => {
   try {
-    const userId = parseInt(req.params.id as string, 10);
+    const lookupId = parseInt(req.params.id as string, 10);
     const { walletFrozen, reason } = req.body;
 
-    const user = await prisma.user.update({
-      where: { id: userId },
+    const user = await findAdminUser(lookupId);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+    const updated = await prisma.user.update({
+      where: { id: user.id },
       data: { walletFrozen: Boolean(walletFrozen) },
     });
 
@@ -286,13 +307,13 @@ adminRouter.put('/users/:id/freeze-wallet', async (req, res, next) => {
       },
     });
 
-    res.status(200).json({ success: true, data: user });
+    res.status(200).json({ success: true, data: updated });
   } catch (error) {
     next(error);
   }
 });
 
-// 6. Credit User Wallet (Coins or Diamonds) - supports both DB PK id and display numericId
+// 6. Credit User Wallet (Coins or Diamonds) - supports both display numericId and DB PK id
 adminRouter.post('/users/:id/credit', async (req, res, next) => {
   try {
     const rawId = req.params.id as string;
@@ -305,15 +326,7 @@ adminRouter.post('/users/:id/credit', async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Invalid user ID or numeric UID provided.' });
     }
 
-    // Lookup user by primary key id OR by numericId
-    const targetUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { id: lookupId },
-          { numericId: lookupId },
-        ],
-      },
-    });
+    const targetUser = await findAdminUser(lookupId);
 
     if (!targetUser) {
       return res.status(404).json({ success: false, error: `User with ID / UID "${lookupId}" not found in database.` });
@@ -339,36 +352,59 @@ adminRouter.post('/users/:id/credit', async (req, res, next) => {
       data: {
         actorId: 1,
         actorRole: 'ADMIN',
-        action: 'CREDIT_USER_WALLET',
-        resource: `User:${updatedUser.numericId}`,
-        details: `Credited ${numAmount} ${field} to @${updatedUser.username} (UID: ${updatedUser.numericId}). New Balance: ${updatedUser[field]}`,
+        action: 'ADMIN_CREDIT_WALLET',
+        resource: `User:${targetUser.numericId}`,
+        details: `Credited ${numAmount} ${field} to @${targetUser.username} (UID: ${targetUser.numericId}). Notes: ${notes || 'Manual admin credit'}`,
       },
     });
 
-    emitToUser(updatedUser.numericId, 'wallet.updated', {
-      coins: updatedUser.coins,
-      diamonds: updatedUser.diamonds,
+    // Real-time socket event broadcast
+    emitToUser(targetUser.numericId, 'wallet.updated', {
+      coins: Number(updatedUser.coins),
+      diamonds: Number(updatedUser.diamonds),
+      creditedAmount: numAmount,
+      currency: field,
+      balanceAfter: Number(updatedUser[field]),
     });
 
-    emitToUser(updatedUser.numericId, 'diamond.received', {
+    emitToUser(targetUser.numericId, 'diamond.received', {
       amount: numAmount,
       currency: field,
-      balance: updatedUser[field],
-      message: `🎉 You received +${numAmount.toLocaleString()} ${field === 'diamonds' ? 'Diamonds' : 'Coins'} from Admin!`,
+      sender: 'Admin System',
+      message: `🎉 You have received ${numAmount.toLocaleString()} ${field}!`,
+      newBalance: Number(updatedUser[field]),
     });
 
-    res.status(200).json({ success: true, data: updatedUser });
+    res.status(200).json({
+      success: true,
+      data: {
+        id: targetUser.id,
+        numericId: targetUser.numericId,
+        username: targetUser.username,
+        displayName: targetUser.displayName || targetUser.username,
+        coins: Number(updatedUser.coins),
+        diamonds: Number(updatedUser.diamonds),
+        creditedAmount: numAmount,
+        currency: field,
+        newBalance: Number(updatedUser[field]),
+      },
+    });
   } catch (error) {
     next(error);
   }
 });
 
-// 7. Audit Logs
-adminRouter.get('/audit-logs', async (req, res, next) => {
+// 7. View Audit Logs for User or Entire System
+adminRouter.get('/users/:id/audit-logs', async (req, res, next) => {
   try {
+    const lookupId = parseInt(req.params.id as string, 10);
+    const user = await findAdminUser(lookupId);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
     const logs = await prisma.auditLog.findMany({
-      take: 100,
+      where: { resource: `User:${user.numericId}` },
       orderBy: { createdAt: 'desc' },
+      take: 20,
     });
 
     res.status(200).json({ success: true, data: logs });
@@ -380,7 +416,10 @@ adminRouter.get('/audit-logs', async (req, res, next) => {
 // 8. Update Profile & Credentials
 adminRouter.put('/users/:id', async (req, res, next) => {
   try {
-    const userId = parseInt(req.params.id as string, 10);
+    const lookupId = parseInt(req.params.id as string, 10);
+    const user = await findAdminUser(lookupId);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
     const { username, password, bio, gender, country, role, level, vipTier } = req.body;
 
     const dataToUpdate: any = {};
@@ -398,7 +437,7 @@ adminRouter.put('/users/:id', async (req, res, next) => {
     }
 
     const updatedUser = await prisma.user.update({
-      where: { id: userId },
+      where: { id: user.id },
       data: dataToUpdate,
     });
 
@@ -421,14 +460,14 @@ adminRouter.put('/users/:id', async (req, res, next) => {
 // 9. Delete User Account
 adminRouter.delete('/users/:id', async (req, res, next) => {
   try {
-    const userId = parseInt(req.params.id as string, 10);
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const lookupId = parseInt(req.params.id as string, 10);
+    const user = await findAdminUser(lookupId);
     if (!user) {
       res.status(404).json({ success: false, error: 'User not found' });
       return;
     }
 
-    await prisma.user.delete({ where: { id: userId } });
+    await prisma.user.delete({ where: { id: user.id } });
 
     await prisma.auditLog.create({
       data: {
