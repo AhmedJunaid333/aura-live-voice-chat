@@ -198,6 +198,46 @@ export const adminApi = {
     }
   },
 
+  async getApplications(params?: { type?: string; status?: string; search?: string; page?: number; limit?: number }) {
+    try {
+      const q = new URLSearchParams();
+      if (params?.type) q.append('type', params.type);
+      if (params?.status) q.append('status', params.status);
+      if (params?.search) q.append('search', params.search);
+      if (params?.page) q.append('page', params.page.toString());
+      if (params?.limit) q.append('limit', params.limit.toString());
+
+      const res = await fetch(`${BASE_URL}/applications/admin/list?${q.toString()}`, { cache: 'no-store' });
+      const json = await res.json();
+      return json.data || { applications: [], stats: {}, pagination: {} };
+    } catch {
+      return { applications: [], stats: {}, pagination: {} };
+    }
+  },
+
+  async getApplicationDetail(id: string) {
+    try {
+      const res = await fetch(`${BASE_URL}/applications/${id}`, { cache: 'no-store' });
+      const json = await res.json();
+      return json.data || null;
+    } catch {
+      return null;
+    }
+  },
+
+  async updateApplicationStatus(id: string, data: { status: string; adminNotes?: string; rejectionReason?: string; adminId?: number }) {
+    try {
+      const res = await fetch(`${BASE_URL}/applications/admin/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return await res.json();
+    } catch {
+      return { success: false, error: 'Network error updating application status.' };
+    }
+  },
+
   async deleteUser(id: number) {
     try {
       const res = await fetch(`${BASE_URL}/admin/users/${id}`, {
@@ -209,3 +249,36 @@ export const adminApi = {
     }
   },
 };
+
+export interface ApplicationRecord {
+  id: string;
+  applicationId: string;
+  userId: number;
+  type: 'AGENCY' | 'HOSTING';
+  status: 'DRAFT' | 'PENDING' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  fullName: string;
+  username: string;
+  phone: string;
+  email?: string | null;
+  country: string;
+  city: string;
+  agencyName?: string | null;
+  agencyDescription?: string | null;
+  expectedHosts?: number | null;
+  category?: string | null;
+  dailyHours?: number | null;
+  schedule?: string | null;
+  experience?: string | null;
+  whyJoin: string;
+  socialLinks?: string | null;
+  documentsJson?: string | null;
+  additionalInfo?: string | null;
+  adminNotes?: string | null;
+  rejectionReason?: string | null;
+  reviewedBy?: number | null;
+  reviewedAt?: string | null;
+  submittedAt: string;
+  updatedAt: string;
+  user?: UserRecord;
+}
+

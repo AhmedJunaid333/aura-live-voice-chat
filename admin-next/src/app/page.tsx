@@ -38,6 +38,7 @@ import SecurityRolesModule from '@/components/SecurityRolesModule';
 import ComplianceLogsModule from '@/components/ComplianceLogsModule';
 import HostCenterModule from '@/components/HostCenterModule';
 import VipUserLevelsModule from '@/components/VipUserLevelsModule';
+import ApplicationsModule from '@/components/ApplicationsModule';
 
 type TabKey =
   | 'ceo_portal'
@@ -47,6 +48,7 @@ type TabKey =
   | 'security_roles'
   | 'compliance_logs'
   | 'users'
+  | 'applications'
   | 'host_center'
   | 'vip_user_levels'
   | 'wallet'
@@ -110,6 +112,7 @@ export default function AdminPage() {
       title: 'USER ECOSYSTEM',
       items: [
         { id: 'users', label: '👥 User Directory & Credentials', badge: telemetry.totalUsers || 4 },
+        { id: 'applications', label: '📋 Applications (Agency & Host)' },
         { id: 'host_center', label: '🏛️ Host Center' },
         { id: 'vip_user_levels', label: '📊 VIP & User Levels' },
         { id: 'cp', label: '💕 CP (Couple Pair) Center' },
@@ -284,6 +287,7 @@ export default function AdminPage() {
           {activeTab === 'security_roles' && <SecurityRolesModule />}
           {activeTab === 'compliance_logs' && <ComplianceLogsModule />}
           {activeTab === 'users' && <UserManagementModule />}
+          {activeTab === 'applications' && <ApplicationsModule />}
           {activeTab === 'host_center' && <HostCenterModule />}
           {activeTab === 'vip_user_levels' && <VipUserLevelsModule />}
           {activeTab === 'wallet' && <WalletModule />}

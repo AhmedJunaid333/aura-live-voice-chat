@@ -97,6 +97,7 @@ model User {
   membershipHistories   MembershipHistory[]
   membershipRewardClaims MembershipRewardClaim[]
   broadcastHistories    BroadcastHistory[]      @relation("UserBroadcastHistories")
+  profileApplications   Application[]           @relation("UserProfileApplications")
 
   @@index([numericId])
   @@index([username])
@@ -1253,6 +1254,59 @@ model MembershipAuditLog {
   @@index([adminId])
   @@index([targetUserId])
   @@index([createdAt])
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 📋 AURA LIVE APPLICATIONS ENGINE (AGENCY & HOSTING)
+// ════════════════════════════════════════════════════════════════════════════
+
+model Application {
+  id                String    @id @default(uuid())
+  applicationId     String    @unique // e.g. "APP-AGY-100001-XXXX" or "APP-HST-100001-XXXX"
+  userId            Int
+  type              String    // AGENCY, HOSTING
+  status            String    @default("PENDING") // DRAFT, PENDING, UNDER_REVIEW, APPROVED, REJECTED, CANCELLED
+  
+  // Personal Info
+  fullName          String
+  username          String
+  phone             String
+  email             String?
+  country           String    @default("Pakistan")
+  city              String
+
+  // Agency Specific
+  agencyName        String?
+  agencyDescription String?
+  expectedHosts     Int?
+  
+  // Hosting Specific
+  category          String?   // Singing, Gaming, Chatting, Dance, Talent, etc.
+  dailyHours        Float?
+  schedule          String?
+  
+  // Shared Details
+  experience        String?
+  whyJoin           String
+  socialLinks       String?
+  documentsJson     String?   @default("[]")
+  additionalInfo    String?
+  
+  // Admin Review & Status Notes
+  adminNotes        String?
+  rejectionReason   String?
+  reviewedBy        Int?
+  reviewedAt        DateTime?
+  
+  submittedAt       DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user              User      @relation("UserProfileApplications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([submittedAt])
 }
 
 

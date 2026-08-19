@@ -31,6 +31,7 @@ import { giftRouter } from './routes/gift.routes.js';
 import { membershipRouter } from './routes/membership.routes.js';
 import { uploadRouter } from './routes/upload.routes.js';
 import { UploadService } from './services/upload.service.js';
+import { applicationRouter } from './routes/application.routes.js';
 
 const app = express();
 const httpServer = http.createServer(app);
@@ -103,6 +104,8 @@ app.use('/api/membership', membershipRouter);
 app.use('/api/v1/membership', membershipRouter);
 app.use('/api/upload', uploadRouter);
 app.use('/api/v1/upload', uploadRouter);
+app.use('/api/applications', applicationRouter);
+app.use('/api/v1/applications', applicationRouter);
 
 
 // Global Error Handler
