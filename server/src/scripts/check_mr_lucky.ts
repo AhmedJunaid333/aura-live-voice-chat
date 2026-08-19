@@ -69,14 +69,24 @@ async function syncSvgGifts() {
     console.log(`✅ [${upserted.id}] ${upserted.name} -> svgaUrl: ${upserted.svgaUrl}`);
   }
 
-  const allSvgGifts = await prisma.gift.findMany({
-    where: { svgaUrl: { not: null } },
+  const validIds = svgaGifts.map(g => g.id);
+
+  // Delete all non-SVGA gifts from the database
+  const deleteResult = await prisma.gift.deleteMany({
+    where: {
+      id: { notIn: validIds },
+    },
+  });
+
+  console.log(`\n🗑️ Deleted ${deleteResult.count} non-SVGA gifts from database.`);
+
+  const allRemainingGifts = await prisma.gift.findMany({
     select: { id: true, name: true, category: true, costCoins: true, svgaUrl: true, active: true },
     orderBy: { costCoins: 'asc' },
   });
 
-  console.log('\n--- ALL ACTIVE SVGA GIFTS IN NEON DATABASE ---');
-  console.table(allSvgGifts);
+  console.log('\n--- ALL REMAINING GIFTS IN NEON DATABASE (ONLY PURE SVGA) ---');
+  console.table(allRemainingGifts);
 }
 
 syncSvgGifts().finally(() => prisma.$disconnect());
