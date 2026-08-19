@@ -17,10 +17,10 @@ An enterprise-grade live broadcasting, multi-seat voice lounge (10, 15, 20 seats
 
 ## 🎙️ 💎 Core Live Audio Production Features & Architecture
 0. **💎 💳 Admin Portal Direct Diamond Credit & Mobile Wallet Realtime Sync**:
-   - Fixed `server/src/routes/admin.routes.ts` `/users/:id/credit` to support target user lookup by both primary key `id` and display `numericId` (e.g. UID `26`).
-   - Fixed `DirectDiamondCreditModule.tsx` in `admin-next` to directly pass target Numeric UID to the backend API without mock array fallback misdirection.
+   - Fixed `server/src/routes/admin.routes.ts` with `findAdminUser` prioritizing display `numericId` (e.g. UID `26`) over internal database ID.
+   - Deployed Next.js Admin Panel to Firebase Hosting (`https://aura-live-voice-chat-app.web.app`) configured with live production Render API (`https://aura-live-voice-chat-1.onrender.com/api/v1`).
    - Pushes realtime `wallet.updated` and `diamond.received` events to user sockets.
-   - Fail-Safe Public NumericId Fallback in `user_session_service.dart` querying `GET /api/v1/users/:numericId` to hydrate diamonds immediately even if token refresh is pending.
+   - Fail-Safe Public NumericId Fallback in `user_session_service.dart` querying `GET /api/v1/users/:numericId` to hydrate diamonds immediately.
    - Updated mobile `wallet_screen.dart` to fetch latest balance on screen open and on refresh button tap.
    - Resolved mobile wallet header and payment methods row layout overflows.
 
