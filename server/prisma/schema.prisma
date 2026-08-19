@@ -27,6 +27,8 @@ model User {
   vipTier         Int               @default(0)
   coins           Int               @default(0)
   diamonds        Int               @default(0)
+  beans           Int               @default(0)
+  beansHeld       Int               @default(0)
   role            String            @default("USER")
   status          String            @default("ACTIVE")
   walletFrozen    Boolean           @default(false)
@@ -687,24 +689,60 @@ model CoinSellerAccount {
 }
 
 model WithdrawalRequest {
-  id                String            @id @default(uuid())
-  requestNumber     String            @unique
+  id                String             @id @default(uuid())
+  requestNumber     String             @unique
   userId            Int
-  sellerUserId      Int
-  amount            Int
-  currency          String            @default("DIAMOND")
-  payoutAmount      Float             @default(0.0)
+  channel           String             @default("RESELLER") // "RESELLER" | "OFFICIAL"
+  sellerUserId      Int?               // Optional if channel == "OFFICIAL"
+  officialProvider  String?            // e.g. "JazzCash", "Easypaisa", "Bank Transfer", "USDT"
+  beansAmount       Int                @default(0)
+  amount            Int                // Deprecated/Mirror amount
+  currency          String             @default("BEAN") // "BEAN" | "DIAMOND"
+  conversionRate    Float              @default(10000.0) // Beans per $1 USD
+  grossUsd          Float              @default(0.0)
+  feeUsd            Float              @default(0.0)
+  netUsd            Float              @default(0.0)
+  payoutAmount      Float              @default(0.0) // Final Net USD or payout
   paymentMethod     String
   accountTitle      String
   accountNumber     String
-  status            String            @default("PENDING")
-  transactionId     String            @unique
+  bankName          String?
+  iban              String?
+  status            String             @default("PENDING") // PENDING | PROCESSING | PAYMENT_SENT | COMPLETED | REJECTED | CANCELLED
+  transactionId     String             @unique
+  idempotencyKey    String?            @unique
+  paymentReference  String?
+  paymentProof      String?
+  processedBy       String?
+  processedAt       DateTime?
+  completedAt       DateTime?
+  rejectedAt        DateTime?
   rejectionReason   String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
-  user              User              @relation("UserWithdrawals", fields: [userId], references: [id], onDelete: Cascade)
-  sellerUser        CoinSellerAccount @relation("SellerWithdrawals", fields: [sellerUserId], references: [userId], onDelete: Cascade)
+  user              User               @relation("UserWithdrawals", fields: [userId], references: [id], onDelete: Cascade)
+  sellerUser        CoinSellerAccount? @relation("SellerWithdrawals", fields: [sellerUserId], references: [userId], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([sellerUserId])
+  @@index([status])
+  @@index([requestNumber])
+  @@index([createdAt])
+}
+
+model WithdrawalConfig {
+  id                        String   @id @default("default")
+  beansPerUsd               Int      @default(10000) // 10,000 Beans = $1 USD
+  minWithdrawalBeans        Int      @default(10000) // Min 10,000 Beans ($1 USD)
+  maxWithdrawalBeans        Int      @default(5000000) // Max 5,000,000 Beans ($500 USD)
+  resellerFeePercent        Float    @default(0.0)
+  officialFeePercent        Float    @default(2.0)
+  officialMethods           String   @default("JazzCash,Easypaisa,Bank Transfer,USDT")
+  isWithdrawalEnabled       Boolean  @default(true)
+  isResellerWithdrawEnabled Boolean  @default(true)
+  isOfficialWithdrawEnabled Boolean  @default(true)
+  updatedAt                 DateTime @updatedAt
 }
 
 model RechargePackage {

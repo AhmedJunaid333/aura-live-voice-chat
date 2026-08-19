@@ -31,7 +31,7 @@ const handleLegacyAdminRedirect = () => {
   const search = window.location.search.toLowerCase();
   const path = window.location.pathname.toLowerCase();
   if (hash.includes('admin') || search.includes('admin') || path.includes('admin')) {
-    window.location.href = 'https://aura-live-voice-chat-app.web.app';
+    window.location.href = 'https://aura-live-voice-chat.web.app';
   }
 };
 

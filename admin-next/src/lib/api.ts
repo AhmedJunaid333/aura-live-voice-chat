@@ -417,6 +417,84 @@ export const adminApi = {
     }
   },
 
+  // Withdrawal Management & Operations
+  async getWithdrawalConfig() {
+    try {
+      const res = await fetch(`${BASE_URL}/withdrawal/config`, { cache: 'no-store' });
+      const json = await res.json();
+      return json.data || null;
+    } catch {
+      return null;
+    }
+  },
+
+  async updateWithdrawalConfig(data: any) {
+    try {
+      const res = await fetch(`${BASE_URL}/withdrawal/admin/config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return await res.json();
+    } catch {
+      return { success: false, error: 'Network error updating withdrawal configuration.' };
+    }
+  },
+
+  async getAdminWithdrawals(params?: { channel?: string; status?: string; search?: string }) {
+    try {
+      const q = new URLSearchParams();
+      if (params?.channel) q.append('channel', params.channel);
+      if (params?.status) q.append('status', params.status);
+      if (params?.search) q.append('search', params.search);
+      const res = await fetch(`${BASE_URL}/withdrawal/admin/all?${q.toString()}`, { cache: 'no-store' });
+      const json = await res.json();
+      return json.data || { requests: [], total: 0, stats: {} };
+    } catch {
+      return { requests: [], total: 0, stats: {} };
+    }
+  },
+
+  async processWithdrawalAction(requestId: string, action: string, data?: { notes?: string; paymentReference?: string; rejectionReason?: string }) {
+    try {
+      const res = await fetch(`${BASE_URL}/withdrawal/admin/${requestId}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...data }),
+      });
+      return await res.json();
+    } catch {
+      return { success: false, error: 'Network error processing withdrawal action.' };
+    }
+  },
+
+  async getResellerWithdrawalQueue(token?: string) {
+    try {
+      const headers: any = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${BASE_URL}/withdrawal/reseller/queue`, { headers, cache: 'no-store' });
+      const json = await res.json();
+      return json.data || [];
+    } catch {
+      return [];
+    }
+  },
+
+  async processResellerWithdrawalAction(requestId: string, action: string, data?: { notes?: string; paymentReference?: string; rejectionReason?: string }, token?: string) {
+    try {
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${BASE_URL}/withdrawal/reseller/${requestId}/action`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action, ...data }),
+      });
+      return await res.json();
+    } catch {
+      return { success: false, error: 'Network error executing reseller action.' };
+    }
+  },
+
   async deleteUser(id: number) {
     try {
       const res = await fetch(`${BASE_URL}/admin/users/${id}`, {
@@ -511,5 +589,57 @@ export interface BDCommissionRecord {
   notes?: string | null;
   createdAt: string;
 }
+
+export interface WithdrawalRequestRecord {
+  id: string;
+  requestNumber: string;
+  userId: number;
+  channel: 'RESELLER' | 'OFFICIAL';
+  sellerUserId?: number | null;
+  officialProvider?: string | null;
+  beansAmount: number;
+  amount: number;
+  currency: string;
+  conversionRate: number;
+  grossUsd: number;
+  feeUsd: number;
+  netUsd: number;
+  payoutAmount: number;
+  paymentMethod: string;
+  accountTitle: string;
+  accountNumber: string;
+  bankName?: string | null;
+  iban?: string | null;
+  status: 'PENDING' | 'PROCESSING' | 'PAYMENT_SENT' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
+  transactionId: string;
+  paymentReference?: string | null;
+  paymentProof?: string | null;
+  processedBy?: string | null;
+  processedAt?: string | null;
+  completedAt?: string | null;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user?: UserRecord;
+  sellerUser?: {
+    user?: UserRecord;
+  };
+}
+
+export interface WithdrawalConfigRecord {
+  id: string;
+  beansPerUsd: number;
+  minWithdrawalBeans: number;
+  maxWithdrawalBeans: number;
+  resellerFeePercent: number;
+  officialFeePercent: number;
+  officialMethods: string;
+  isWithdrawalEnabled: boolean;
+  isResellerWithdrawEnabled: boolean;
+  isOfficialWithdrawEnabled: boolean;
+  updatedAt: string;
+}
+
 
 

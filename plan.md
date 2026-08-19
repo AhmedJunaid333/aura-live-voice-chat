@@ -1,5 +1,21 @@
 # Aura Live Voice Chat – Production Implementation Plan
 
+- **🫘 💸 Complete Beans + Withdrawal System: Reseller Withdraw & Official Withdraw (COMPLETED & 100% DEPLOYED ✅)**:
+  - **Prisma Database Architecture (`User`, `WithdrawalRequest`, `WithdrawalConfig`)**:
+    - `User`: Add `beans Int @default(0)` and `beansHeld Int @default(0)` to support atomic **Beans HOLD** without duplicating wallet structure.
+    - `WithdrawalRequest`: Add `channel` (`RESELLER` | `OFFICIAL`), `officialProvider`, `beansAmount`, `conversionRate`, `grossUsd`, `feeUsd`, `netUsd`, `bankName`, `iban`, `idempotencyKey`, `paymentReference`, `paymentProof`, `processedBy`, `processedAt`, `completedAt`, `rejectedAt`.
+    - `WithdrawalConfig`: Admin-controlled configuration for `beansPerUsd`, min/max beans, fees, and channel toggles.
+  - **Backend Services & API Suite (`withdrawal.service.ts` & `withdrawal.routes.ts`)**:
+    - Endpoints: `GET /config`, `GET /resellers`, `GET /official`, `POST /preview`, `POST /`, `GET /my`, `GET /:id`, `GET /reseller/queue`, `POST /reseller/:id/action`, `GET /admin/all`, `PATCH /admin/config`, `POST /admin/:id/action`.
+    - Atomic PostgreSQL Transaction: Hold beans on request submission, release on rejection, settle on completion.
+    - Real-time Socket.IO Events: `withdrawal.created`, `withdrawal.processing`, `withdrawal.payment_sent`, `withdrawal.completed`, `withdrawal.rejected`.
+  - **Admin & Reseller Portals (`admin-next/`)**:
+    - `WithdrawalManagementModule.tsx`: Complete Admin Withdrawal Dashboard with telemetry, request queue, and live configuration editor.
+    - `ResellerPortalModule.tsx`: Reseller-specific withdrawal processing queue.
+  - **Flutter Mobile UX (`apps/mobile/`)**:
+    - `BeansWithdrawScreen`: Dual channel selection (Reseller / Official), real database provider list, preset/custom Beans input with real-time USD calculation, auto-loaded user details, payment details form, review summary, and real-time request tracking.
+    - `wallet_screen.dart`: Enhanced with Beans balance and withdrawal trigger.
+
 - **🏢 💼 Business Development (BD) System: Admin Panel BD Form & Separate BD Portal Application (COMPLETED & 100% DEPLOYED ✅)**:
   - **Prisma Database Models (`BD`, `BDAgencyAssignment`, `BDCommission`)**:
     - `BD`: Linked 1:1 with `User` (`userId`), `bdCode` (e.g. `BD-PK-1001`), `name`, `phone`, `email`, `country`, `city`, `commissionRate`, `status` (`ACTIVE`, `PENDING`, `SUSPENDED`), `joiningDate`, `notes`. Database schema pushed and in sync with Neon PostgreSQL.

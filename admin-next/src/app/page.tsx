@@ -40,6 +40,7 @@ import HostCenterModule from '@/components/HostCenterModule';
 import VipUserLevelsModule from '@/components/VipUserLevelsModule';
 import ApplicationsModule from '@/components/ApplicationsModule';
 import BdManagementModule from '@/components/BdManagementModule';
+import WithdrawalManagementModule from '@/components/WithdrawalManagementModule';
 
 type TabKey =
   | 'ceo_portal'
@@ -302,7 +303,7 @@ export default function AdminPage() {
           {activeTab === 'country_head' && <CountryHeadModule />}
           {activeTab === 'recharge_hub' && <RechargeHubModule />}
           {activeTab === 'finance_hub' && <FinanceHubModule />}
-          {activeTab === 'wallet_payouts' && <WalletModule />}
+          {activeTab === 'wallet_payouts' && <WithdrawalManagementModule />}
           {activeTab === 'direct_credit' && <DirectDiamondCreditModule />}
           {activeTab === 'gifts_hub' && <GiftHubModule />}
           {activeTab === 'audio_rooms' && <AudioRoomsModule />}

@@ -1,409 +1,331 @@
-import { Router } from 'express';
-import { prisma } from '../config/database.js';
+import { Router, Response } from 'express';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
-import { emitToUser, broadcastGlobal } from '../websocket/socketServer.js';
-import { z } from 'zod';
+import { requireAdmin, requireReseller } from '../middleware/rbac.js';
+import { WithdrawalService } from '../services/withdrawal.service.js';
 
 export const withdrawalRouter = Router();
 
-const createWithdrawalSchema = z.object({
-  sellerUserId: z.number().int().positive(),
-  amount: z.number().int().positive(),
-  currency: z.enum(['DIAMOND', 'COIN', 'BEAN']).default('DIAMOND'),
-  paymentMethod: z.string().min(2),
-  accountTitle: z.string().min(2),
-  accountNumber: z.string().min(4),
-});
-
-const processWithdrawalSchema = z.object({
-  requestId: z.string().min(1),
-  action: z.enum(['APPROVE', 'COMPLETE', 'REJECT']),
-  reason: z.string().optional(),
-});
-
-// GET /api/v1/withdrawal/sellers — List active Coin Sellers
-withdrawalRouter.get('/sellers', async (req, res, next) => {
+/**
+ * 1. GET /api/v1/withdrawal/config
+ * Public/User: Get current withdrawal configuration & rates
+ */
+withdrawalRouter.get('/config', async (_req, res: Response): Promise<void> => {
   try {
-    let sellers = await prisma.coinSellerAccount.findMany({
-      where: { status: 'ACTIVE' },
-      include: {
-        user: {
-          select: {
-            numericId: true,
-            username: true,
-            avatar: true,
-            status: true,
-          },
-        },
-      },
-    });
-
-    // Seed default official seller if none exists in DB
-    if (sellers.length === 0) {
-      const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
-      if (adminUser) {
-        const seeded = await prisma.coinSellerAccount.create({
-          data: {
-            userId: adminUser.id,
-            sellerName: 'Aura Official Direct Exchange Agent',
-            status: 'ACTIVE',
-            paymentMethods: 'Easypaisa,JazzCash,Bank Transfer (HBL/UBL),USDT',
-          },
-          include: {
-            user: {
-              select: {
-                numericId: true,
-                username: true,
-                avatar: true,
-                status: true,
-              },
-            },
-          },
-        });
-        sellers = [seeded];
-      }
-    }
-
-    res.status(200).json({
-      success: true,
-      data: sellers.map((s) => ({
-        id: s.id,
-        sellerUserId: s.userId,
-        sellerNumericId: s.user.numericId,
-        sellerName: s.sellerName,
-        username: s.user.username,
-        avatar: s.user.avatar,
-        status: s.status,
-        paymentMethods: s.paymentMethods.split(','),
-        totalProcessed: s.totalProcessed,
-      })),
-    });
-  } catch (error) {
-    next(error);
+    const config = await WithdrawalService.getConfig();
+    res.status(200).json({ success: true, data: config });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Failed to fetch withdrawal configuration.' });
   }
 });
 
-// POST /api/v1/withdrawal/request — User submits cashout request with atomic balance reservation
-withdrawalRouter.post('/request', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+/**
+ * 2. GET /api/v1/withdrawal/resellers
+ * User: Get active & verified Resellers for withdrawal selection
+ */
+withdrawalRouter.get('/resellers', async (_req, res: Response): Promise<void> => {
   try {
-    const validated = createWithdrawalSchema.parse(req.body);
+    const resellers = await WithdrawalService.getActiveResellers();
+    res.status(200).json({ success: true, data: resellers, total: resellers.length });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Failed to fetch resellers.' });
+  }
+});
+
+// Backward compatibility alias for /sellers
+withdrawalRouter.get('/sellers', async (_req, res: Response): Promise<void> => {
+  try {
+    const resellers = await WithdrawalService.getActiveResellers();
+    res.status(200).json({ success: true, data: resellers, total: resellers.length });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Failed to fetch sellers.' });
+  }
+});
+
+/**
+ * 3. GET /api/v1/withdrawal/official
+ * User: Get enabled official withdrawal payment methods
+ */
+withdrawalRouter.get('/official', async (_req, res: Response): Promise<void> => {
+  try {
+    const providers = await WithdrawalService.getOfficialProviders();
+    res.status(200).json({ success: true, data: providers });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Failed to fetch official providers.' });
+  }
+});
+
+/**
+ * 4. POST /api/v1/withdrawal/preview
+ * User: Server-side preview calculation of Beans -> USD & Fees
+ */
+withdrawalRouter.post('/preview', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.userId;
+    const { beansAmount, channel, providerId } = req.body;
+
+    if (!beansAmount || !channel) {
+      res.status(400).json({ success: false, error: 'Beans amount and channel (RESELLER | OFFICIAL) are required.' });
+      return;
+    }
+
+    const preview = await WithdrawalService.previewWithdrawal({
+      userId,
+      beansAmount: Number(beansAmount),
+      channel: channel as 'RESELLER' | 'OFFICIAL',
+      providerId,
+    });
+
+    res.status(200).json({ success: true, data: preview });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Failed to preview withdrawal calculation.' });
+  }
+});
+
+/**
+ * 5. POST /api/v1/withdrawal / POST /api/v1/withdrawal/request
+ * User: Submit new withdrawal request with atomic balance reservation
+ */
+const handleCreateRequest = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.userId;
+    const {
+      channel = 'RESELLER',
+      sellerUserId,
+      officialProvider,
+      beansAmount,
+      amount,
+      paymentMethod,
+      accountTitle,
+      accountNumber,
+      bankName,
+      iban,
+      idempotencyKey,
+    } = req.body;
+
+    const finalBeans = beansAmount ? Number(beansAmount) : amount ? Number(amount) : 0;
+
+    if (!finalBeans || finalBeans <= 0) {
+      res.status(400).json({ success: false, error: 'Valid Beans amount is required.' });
+      return;
+    }
+
+    if (!paymentMethod || !accountTitle || !accountNumber) {
+      res.status(400).json({ success: false, error: 'Payment method, Account Title, and Account Number are required.' });
+      return;
+    }
+
+    const result = await WithdrawalService.createWithdrawalRequest({
+      userId,
+      channel: channel as 'RESELLER' | 'OFFICIAL',
+      sellerUserId: sellerUserId ? Number(sellerUserId) : undefined,
+      officialProvider,
+      beansAmount: finalBeans,
+      paymentMethod,
+      accountTitle,
+      accountNumber,
+      bankName,
+      iban,
+      idempotencyKey,
+    });
+
+    res.status(result.isExisting ? 200 : 201).json({
+      success: true,
+      message: result.isExisting
+        ? 'Existing withdrawal request returned (idempotency).'
+        : `Withdrawal request #${result.withdrawal.requestNumber} created successfully! Available Beans placed on HOLD.`,
+      data: result.withdrawal,
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Failed to create withdrawal request.' });
+  }
+};
+
+withdrawalRouter.post('/', authenticateToken, handleCreateRequest);
+withdrawalRouter.post('/request', authenticateToken, handleCreateRequest);
+
+/**
+ * 6. GET /api/v1/withdrawal/my
+ * User: Get my withdrawal request history
+ */
+withdrawalRouter.get('/my', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.userId;
+    const list = await WithdrawalService.getMyWithdrawals(userId);
+    res.status(200).json({ success: true, data: list });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Failed to fetch withdrawal history.' });
+  }
+});
+
+// Backward compatibility alias for /requests
+withdrawalRouter.get('/requests', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userRole = req.user?.role;
     const userId = req.user!.userId;
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      res.status(404).json({ success: false, error: 'User not found' });
-      return;
+    if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') {
+      const all = await WithdrawalService.getAdminWithdrawals();
+      res.status(200).json({ success: true, data: all.requests });
+    } else if (userRole === 'DIAMOND_RESELLER' || userRole === 'RESELLER' || userRole === 'MASTER_RESELLER') {
+      const queue = await WithdrawalService.getResellerWithdrawals(userId);
+      res.status(200).json({ success: true, data: queue });
+    } else {
+      const my = await WithdrawalService.getMyWithdrawals(userId);
+      res.status(200).json({ success: true, data: my });
     }
-
-    if (user.walletFrozen) {
-      res.status(403).json({ success: false, error: 'Your wallet is currently frozen by administration.' });
-      return;
-    }
-
-    if (user.diamonds < validated.amount) {
-      res.status(400).json({
-        success: false,
-        error: `Insufficient balance. Available: ${user.diamonds} 💎, Requested: ${validated.amount} 💎`,
-      });
-      return;
-    }
-
-    const sellerAccount = await prisma.coinSellerAccount.findFirst({
-      where: { userId: validated.sellerUserId, status: 'ACTIVE' },
-      include: { user: true },
-    });
-
-    if (!sellerAccount) {
-      res.status(400).json({ success: false, error: 'Selected Coin Seller is inactive or invalid.' });
-      return;
-    }
-
-    const transactionId = `WD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const requestNumber = `REQ-${Date.now().toString().slice(-6)}`;
-    const payoutAmount = (validated.amount / 45000).toFixed(2); // $1 USD per 45,000 Diamonds
-
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Deduct balance from User (Reserve)
-      const updatedUser = await tx.user.update({
-        where: { id: userId },
-        data: { diamonds: { decrement: validated.amount } },
-      });
-
-      // 2. Create Withdrawal Request
-      const withdrawalReq = await tx.withdrawalRequest.create({
-        data: {
-          requestNumber,
-          userId: user.id,
-          sellerUserId: sellerAccount.userId,
-          amount: validated.amount,
-          currency: validated.currency,
-          payoutAmount: parseFloat(payoutAmount),
-          paymentMethod: validated.paymentMethod,
-          accountTitle: validated.accountTitle,
-          accountNumber: validated.accountNumber,
-          status: 'PENDING',
-          transactionId,
-        },
-      });
-
-      // 3. Ledger Entry
-      await tx.walletTransaction.create({
-        data: {
-          userId: user.id,
-          type: 'WITHDRAWAL_RESERVE',
-          currency: validated.currency,
-          amount: -validated.amount,
-          balanceAfter: updatedUser.diamonds,
-          referenceId: transactionId,
-          notes: `Cashout request ${requestNumber} reserved for Coin Seller @${sellerAccount.user.username}`,
-        },
-      });
-
-      return { updatedUser, withdrawalReq };
-    });
-
-    // Realtime Socket.IO Events
-    emitToUser(user.numericId, 'wallet.updated', {
-      transactionId,
-      newBalance: Number(result.updatedUser.diamonds),
-      amountDeducted: validated.amount,
-      status: 'PENDING',
-    });
-
-    emitToUser(sellerAccount.user.numericId, 'withdrawal.created', {
-      requestNumber,
-      transactionId,
-      userNumericId: user.numericId,
-      username: user.username,
-      amount: validated.amount,
-      payoutAmount: parseFloat(payoutAmount),
-      paymentMethod: validated.paymentMethod,
-    });
-
-    broadcastGlobal('admin.activity', {
-      type: 'WITHDRAWAL_CREATED',
-      requestNumber,
-      userNumericId: user.numericId,
-      username: user.username,
-      sellerUsername: sellerAccount.user.username,
-      amount: validated.amount,
-      payoutAmount: parseFloat(payoutAmount),
-      timestamp: new Date().toISOString(),
-    });
-
-    res.status(201).json({
-      success: true,
-      message: 'Withdrawal request submitted successfully! Awaiting seller approval.',
-      data: {
-        id: result.withdrawalReq.id,
-        requestNumber,
-        transactionId,
-        amount: validated.amount,
-        payoutAmount: parseFloat(payoutAmount),
-        status: 'PENDING',
-        remainingBalance: Number(result.updatedUser.diamonds),
-      },
-    });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Failed to fetch requests.' });
   }
 });
 
-// GET /api/v1/withdrawal/requests — Fetch withdrawal requests queue
-withdrawalRouter.get('/requests', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+/**
+ * 7. GET /api/v1/withdrawal/reseller/queue
+ * Reseller: Get assigned incoming withdrawal requests
+ */
+withdrawalRouter.get('/reseller/queue', authenticateToken, requireReseller, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.user!.userId } });
-    if (!user) {
-      res.status(404).json({ success: false, error: 'User not found' });
+    const resellerUserId = req.user!.userId;
+    const { status } = req.query;
+    const queue = await WithdrawalService.getResellerWithdrawals(resellerUserId, status as string);
+    res.status(200).json({ success: true, data: queue });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Failed to fetch reseller withdrawal queue.' });
+  }
+});
+
+/**
+ * 8. POST /api/v1/withdrawal/reseller/:id/action
+ * Reseller: Process, mark payment sent, complete, or reject request
+ */
+withdrawalRouter.post('/reseller/:id/action', authenticateToken, requireReseller, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const resellerUserId = req.user!.userId;
+    const requestId = req.params.id as string;
+    const { action, notes, paymentReference, paymentProof, rejectionReason } = req.body;
+
+    if (!action || !['PROCESS', 'PAYMENT_SENT', 'COMPLETE', 'REJECT'].includes(action)) {
+      res.status(400).json({ success: false, error: 'Valid action (PROCESS, PAYMENT_SENT, COMPLETE, REJECT) is required.' });
       return;
     }
 
-    let whereClause: any = {};
-    if (user.role === 'ADMIN') {
-      whereClause = {}; // Admin sees all
-    } else {
-      const isSeller = await prisma.coinSellerAccount.findUnique({ where: { userId: user.id } });
-      if (isSeller) {
-        whereClause = { OR: [{ userId: user.id }, { sellerUserId: user.id }] };
-      } else {
-        whereClause = { userId: user.id }; // Regular user sees own
-      }
-    }
-
-    const requests = await prisma.withdrawalRequest.findMany({
-      where: whereClause,
-      include: {
-        user: { select: { numericId: true, username: true, avatar: true } },
-        sellerUser: { include: { user: { select: { numericId: true, username: true } } } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
+    const updated = await WithdrawalService.processResellerWithdrawal(
+      resellerUserId,
+      requestId,
+      action as any,
+      { notes, paymentReference, paymentProof, rejectionReason }
+    );
 
     res.status(200).json({
       success: true,
-      data: requests.map((r) => ({
-        id: r.id,
-        requestNumber: r.requestNumber,
-        transactionId: r.transactionId,
-        userNumericId: r.user.numericId,
-        username: r.user.username,
-        avatar: r.user.avatar,
-        sellerNumericId: r.sellerUser.user.numericId,
-        sellerUsername: r.sellerUser.user.username,
-        amount: r.amount,
-        currency: r.currency,
-        payoutAmount: r.payoutAmount,
-        paymentMethod: r.paymentMethod,
-        accountTitle: r.accountTitle,
-        accountNumber: r.accountNumber,
-        status: r.status,
-        rejectionReason: r.rejectionReason,
-        createdAt: r.createdAt.toISOString(),
-      })),
+      message: `Withdrawal request action '${action}' completed successfully!`,
+      data: updated,
     });
-  } catch (error) {
-    next(error);
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Failed to process reseller withdrawal action.' });
   }
 });
 
-// POST /api/v1/withdrawal/process — Coin Seller / Admin process request (Approve, Complete, Reject)
-withdrawalRouter.post('/process', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+/**
+ * 9. GET /api/v1/withdrawal/admin/all
+ * Admin: Get all withdrawal requests with filters & metrics
+ */
+withdrawalRouter.get('/admin/all', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const validated = processWithdrawalSchema.parse(req.body);
-    const actorId = req.user!.userId;
-
-    const actor = await prisma.user.findUnique({ where: { id: actorId } });
-    if (!actor) {
-      res.status(404).json({ success: false, error: 'User not found' });
-      return;
-    }
-
-    const request = await prisma.withdrawalRequest.findUnique({
-      where: { id: validated.requestId },
-      include: { user: true, sellerUser: { include: { user: true } } },
+    const { channel, status, search, limit, page } = req.query;
+    const result = await WithdrawalService.getAdminWithdrawals({
+      channel: channel as string,
+      status: status as string,
+      search: search as string,
+      limit: limit ? Number(limit) : 50,
+      page: page ? Number(page) : 1,
     });
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Failed to fetch admin withdrawals.' });
+  }
+});
 
-    if (!request) {
-      res.status(404).json({ success: false, error: 'Withdrawal request not found' });
+/**
+ * 10. PATCH /api/v1/withdrawal/admin/config
+ * Admin: Update withdrawal rates, limits, and channel settings
+ */
+withdrawalRouter.patch('/admin/config', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const updated = await WithdrawalService.updateConfig(req.body);
+    res.status(200).json({
+      success: true,
+      message: 'Withdrawal configuration updated successfully.',
+      data: updated,
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Failed to update withdrawal configuration.' });
+  }
+});
+
+/**
+ * 11. POST /api/v1/withdrawal/admin/:id/action
+ * Admin: Process Official or any withdrawal
+ */
+withdrawalRouter.post('/admin/:id/action', authenticateToken, requireAdmin, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const adminUserId = req.user!.userId;
+    const requestId = req.params.id as string;
+    const { action, notes, paymentReference, paymentProof, rejectionReason } = req.body;
+
+    if (!action || !['PROCESS', 'PAYMENT_SENT', 'COMPLETE', 'REJECT'].includes(action)) {
+      res.status(400).json({ success: false, error: 'Valid action (PROCESS, PAYMENT_SENT, COMPLETE, REJECT) is required.' });
       return;
     }
 
-    if (request.status === 'COMPLETED' || request.status === 'REJECTED') {
-      res.status(400).json({ success: false, error: `Request is already ${request.status}` });
-      return;
+    const updated = await WithdrawalService.processAdminWithdrawal(
+      adminUserId,
+      requestId,
+      action as any,
+      { notes, paymentReference, paymentProof, rejectionReason }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: `Admin action '${action}' applied to withdrawal request successfully!`,
+      data: updated,
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Failed to execute admin action.' });
+  }
+});
+
+// Backward compatibility alias for /process
+withdrawalRouter.post('/process', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.userId;
+    const userRole = req.user?.role;
+    const { requestId, action, reason, paymentReference } = req.body;
+
+    const standardAction = action === 'APPROVE' ? 'COMPLETE' : action;
+
+    if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') {
+      const updated = await WithdrawalService.processAdminWithdrawal(userId, requestId, standardAction, { rejectionReason: reason, paymentReference });
+      res.status(200).json({ success: true, message: `Processed as Admin: ${action}`, data: updated });
+    } else {
+      const updated = await WithdrawalService.processResellerWithdrawal(userId, requestId, standardAction, { rejectionReason: reason, paymentReference });
+      res.status(200).json({ success: true, message: `Processed as Reseller: ${action}`, data: updated });
     }
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Failed to process request.' });
+  }
+});
 
-    // Permission check: Must be Admin OR the assigned Coin Seller
-    const isAssignedSeller = request.sellerUserId === actor.id;
-    if (actor.role !== 'ADMIN' && !isAssignedSeller) {
-      res.status(403).json({ success: false, error: 'Unauthorized. You are not the assigned Coin Seller or Admin.' });
-      return;
-    }
-
-    if (validated.action === 'COMPLETE' || validated.action === 'APPROVE') {
-      const updatedReq = await prisma.$transaction(async (tx) => {
-        const completed = await tx.withdrawalRequest.update({
-          where: { id: request.id },
-          data: { status: 'COMPLETED' },
-        });
-
-        await tx.coinSellerAccount.update({
-          where: { userId: request.sellerUserId },
-          data: { totalProcessed: { increment: 1 } },
-        });
-
-        await tx.walletTransaction.create({
-          data: {
-            userId: request.userId,
-            type: 'WITHDRAWAL_COMPLETED',
-            currency: request.currency,
-            amount: 0,
-            balanceAfter: request.user.diamonds,
-            referenceId: request.transactionId,
-            notes: `Withdrawal ${request.requestNumber} completed by @${actor.username}`,
-          },
-        });
-
-        return completed;
-      });
-
-      emitToUser(request.user.numericId, 'withdrawal.completed', {
-        requestNumber: request.requestNumber,
-        transactionId: request.transactionId,
-        amount: request.amount,
-        status: 'COMPLETED',
-      });
-
-      broadcastGlobal('admin.activity', {
-        type: 'WITHDRAWAL_COMPLETED',
-        requestNumber: request.requestNumber,
-        userNumericId: request.user.numericId,
-        processedBy: actor.username,
-        timestamp: new Date().toISOString(),
-      });
-
-      res.status(200).json({
-        success: true,
-        message: `Withdrawal ${request.requestNumber} completed successfully!`,
-        data: updatedReq,
-      });
-    } else if (validated.action === 'REJECT') {
-      const result = await prisma.$transaction(async (tx) => {
-        // Refund reserved balance
-        const refundedUser = await tx.user.update({
-          where: { id: request.userId },
-          data: { diamonds: { increment: request.amount } },
-        });
-
-        const rejected = await tx.withdrawalRequest.update({
-          where: { id: request.id },
-          data: {
-            status: 'REJECTED',
-            rejectionReason: validated.reason || 'Rejected by Coin Seller / Admin',
-          },
-        });
-
-        await tx.walletTransaction.create({
-          data: {
-            userId: request.userId,
-            type: 'WITHDRAWAL_REFUND',
-            currency: request.currency,
-            amount: request.amount,
-            balanceAfter: refundedUser.diamonds,
-            referenceId: request.transactionId,
-            notes: `Withdrawal ${request.requestNumber} rejected. Refunded ${request.amount} 💎 to user balance.`,
-          },
-        });
-
-        return { refundedUser, rejected };
-      });
-
-      emitToUser(request.user.numericId, 'withdrawal.rejected', {
-        requestNumber: request.requestNumber,
-        transactionId: request.transactionId,
-        refundedAmount: request.amount,
-        newBalance: Number(result.refundedUser.diamonds),
-        reason: validated.reason,
-        status: 'REJECTED',
-      });
-
-      broadcastGlobal('admin.activity', {
-        type: 'WITHDRAWAL_REJECTED',
-        requestNumber: request.requestNumber,
-        userNumericId: request.user.numericId,
-        processedBy: actor.username,
-        reason: validated.reason,
-        timestamp: new Date().toISOString(),
-      });
-
-      res.status(200).json({
-        success: true,
-        message: `Withdrawal ${request.requestNumber} rejected and refunded to user.`,
-        data: result.rejected,
-      });
-    }
-  } catch (error) {
-    next(error);
+/**
+ * 12. GET /api/v1/withdrawal/:id
+ * Get single withdrawal details
+ */
+withdrawalRouter.get('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.userId;
+    const userRole = req.user?.role;
+    const details = await WithdrawalService.getWithdrawalById(req.params.id as string, userId, userRole);
+    res.status(200).json({ success: true, data: details });
+  } catch (error: any) {
+    res.status(403).json({ success: false, error: error.message || 'Failed to fetch withdrawal details.' });
   }
 });

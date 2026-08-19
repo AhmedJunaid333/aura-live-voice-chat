@@ -16,7 +16,22 @@ An enterprise-grade live broadcasting, multi-seat voice lounge (10, 15, 20 seats
 - **Detailed Audit Plan & Implementation Roadmap**: See [`plan.md`](file:///d:/Auralive/plan.md)
 
 ## 🎙️ 💎 Core Live Audio Production Features & Architecture
-0. **🏢 💼 Business Development (BD) System: Admin Management & Separate BD Portal (Production Ready & Live)**:
+0. **🫘 💸 Complete Beans & Withdrawal System (Reseller Withdraw & Official Withdraw)**:
+   - **Prisma Database Models (`User`, `WithdrawalRequest`, `WithdrawalConfig`)**:
+     - `User`: Integrates `beans` and `beansHeld` for atomic **Beans HOLD** and instant rollback on cancellation/rejection without altering diamonds/coins.
+     - `WithdrawalRequest`: Supports both `RESELLER` and `OFFICIAL` channels, tracking beans redeemed, server-calculated USD payout, processing fees, payment accounts (JazzCash, Easypaisa, Bank/IBAN, USDT), and idempotency.
+     - `WithdrawalConfig`: Server-side configurable conversion rates (e.g. 10,000 Beans = $1.00 USD), min/max limits, fees, and master channel toggles.
+   - **Backend API Suite (`/api/v1/withdrawal`)**:
+     - Public/User: `/config`, `/resellers`, `/official`, `/preview`, `/` (Create Request), `/my` (User History), `/:id`.
+     - Reseller Queue: `/reseller/queue`, `/reseller/:id/action` (`PROCESS`, `PAYMENT_SENT`, `COMPLETE`, `REJECT`).
+     - Admin Control: `/admin/all`, `/admin/config` (Patch rates/limits), `/admin/:id/action`.
+     - Realtime WebSockets: `withdrawal.created`, `withdrawal.processing`, `withdrawal.payment_sent`, `withdrawal.completed`, `withdrawal.rejected`.
+   - **Admin Next.js Portal (`WithdrawalManagementModule.tsx`)**:
+     - Live withdrawal telemetry, request table with action modals, and dynamic rate & limits editor.
+   - **Flutter Mobile UX (`BeansWithdrawScreen`)**:
+     - Dual channel selection, active database provider list, preset/custom amount with real-time USD calculation, auto-loaded user details, payment details form, review summary, and live status tracker.
+
+1. **🏢 💼 Business Development (BD) System: Admin Management & Separate BD Portal (Production Ready & Live)**:
    - **Prisma Database Architecture (`BD`, `BDAgencyAssignment`, `BDCommission`)**:
      - `BD` model mapped 1:1 with real `User` records (`userId`), tracking `bdCode` (e.g. `BD-PK-1001`), `commissionRate`, `status` (`ACTIVE`, `PENDING`, `SUSPENDED`), and personal details.
      - `BDAgencyAssignment`: Strict assignment of talent agencies to BD managers.
