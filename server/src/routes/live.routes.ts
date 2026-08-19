@@ -1,7 +1,7 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { LiveService } from '../services/live.service.js';
 import { createLiveRoomSchema } from '../utils/validators.js';
-import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
+import { authenticateToken, optionalAuthenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
 import { prisma } from '../config/database.js';
 import { generateAgoraRtcToken, RtcRole } from '../utils/agoraToken.js';
 
@@ -28,6 +28,16 @@ liveRouter.get(['/countries', '/rooms/countries'], async (req, res, next) => {
   try {
     const stats = await LiveService.getLiveCountriesStats();
     res.status(200).json({ success: true, data: stats });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 🔍 Check Active Room for Logged-In User (Duplicate Prevention & Re-entry)
+liveRouter.get(['/my-active-room', '/rooms/my-active-room'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const result = await LiveService.getMyActiveRoom(req.user!.userId);
+    res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
@@ -151,11 +161,17 @@ liveRouter.get(['/:roomId/summary', '/rooms/:roomId/summary'], async (req, res, 
 });
 
 // 📜 Get My Broadcast History
-liveRouter.get(['/history/me', '/rooms/history/me'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+liveRouter.get(['/history/me', '/rooms/history/me', '/history', '/rooms/history'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 20;
-    const history = await LiveService.getUserBroadcastHistory(req.user!.userId, page, limit);
+    const fallbackUserId = req.query.userId ? parseInt(req.query.userId as string, 10) : undefined;
+    const targetUserId = req.user?.userId || fallbackUserId;
+    if (!targetUserId) {
+      res.status(200).json({ success: true, data: { total: 0, page, limit, totalPages: 0, data: [] } });
+      return;
+    }
+    const history = await LiveService.getUserBroadcastHistory(targetUserId, page, limit);
     res.status(200).json({ success: true, data: history });
   } catch (error) {
     next(error);
@@ -170,6 +186,116 @@ liveRouter.get(['/history/user/:userId', '/rooms/history/user/:userId'], async (
     const userId = parseInt(req.params.userId as string, 10);
     const history = await LiveService.getUserBroadcastHistory(userId, page, limit);
     res.status(200).json({ success: true, data: history });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 👥 Get Complete Authoritative Active Room Members List (Host, Speakers, Viewers)
+liveRouter.get(['/:roomId/members', '/rooms/:roomId/members'], async (req, res, next) => {
+  try {
+    const result = await LiveService.getActiveRoomMembers(req.params.roomId as string);
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 🏆 Get Live Room Contribution Ranking (Day / Week / Monthly)
+liveRouter.get(['/:roomId/contributions', '/rooms/:roomId/contributions'], async (req, res, next) => {
+  try {
+    const period = (req.query.period as string) || 'day';
+    const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 50;
+
+    const { UserService } = await import('../services/user.service.js');
+    const result = await UserService.getContributionRanking({
+      roomId: req.params.roomId as string,
+      period: period as any,
+      limit,
+    });
+
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 💎 Direct Diamond Transfer in Live Room (Host <-> Guest or Peer)
+liveRouter.post(['/:roomId/diamonds/send', '/rooms/:roomId/diamonds/send'], optionalAuthenticateToken, async (req: Request, res, next) => {
+  try {
+    const { GiftService } = await import('../services/gift.service.js');
+    const authUserId = (req as any).user?.userId;
+    const rawSender = req.body.senderUserId || req.body.senderNumericId || authUserId || req.headers['x-user-id'];
+    const rawReceiver = req.body.receiverUserId || req.body.receiverNumericId || req.body.targetUserId || req.body.hostId;
+
+    if (!rawSender || !rawReceiver) {
+      res.status(400).json({ success: false, error: 'Sender and receiver user IDs are required.' });
+      return;
+    }
+
+    const senderIdentifier = parseInt(String(rawSender), 10);
+    const receiverIdentifier = parseInt(String(rawReceiver), 10);
+
+    if (isNaN(senderIdentifier) || isNaN(receiverIdentifier) || senderIdentifier <= 0 || receiverIdentifier <= 0) {
+      res.status(400).json({ success: false, error: 'Invalid sender or receiver user ID.' });
+      return;
+    }
+
+    const amount = parseInt(String(req.body.amount || req.body.diamonds || 10), 10);
+    const roomId = (req.params.roomId || req.body.roomId) as string;
+    const idempotencyKey = req.body.idempotencyKey as string | undefined;
+
+    const result = await GiftService.sendLiveDiamonds({
+      senderIdentifier,
+      receiverIdentifier,
+      roomId,
+      amount,
+      idempotencyKey,
+      notes: req.body.notes,
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    next(error);
+  }
+});
+
+// 🔍 📋 🎁 📢 💎 Get Complete Live Room View Info (ID, Members, Rewards, Announcement, Numeric Room Value)
+liveRouter.get(['/:roomId/info', '/rooms/:roomId/info'], async (req, res, next) => {
+  try {
+    const result = await LiveService.getRoomViewInfo(req.params.roomId as string);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// 📢 Update Live Room Announcement (Host/Admin permission-gated)
+liveRouter.put(['/:roomId/announcement', '/rooms/:roomId/announcement'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const announcement = req.body.announcement !== undefined ? String(req.body.announcement) : '';
+    const result = await LiveService.updateRoomAnnouncement(
+      req.params.roomId as string,
+      req.user!.userId,
+      announcement,
+    );
+
+    // Emit Socket.IO event to room if IO is available
+    try {
+      const { getIO } = await import('../websocket/socketServer.js');
+      const io = getIO();
+      if (io) {
+        io.to(`room_${result.roomId}`).emit('room.announcement.updated', {
+          roomId: result.roomId,
+          announcement: result.announcement,
+          updatedBy: result.updatedBy,
+        });
+      }
+    } catch {
+      // socket io broadcast graceful
+    }
+
+    res.status(200).json(result);
   } catch (error) {
     next(error);
   }
@@ -558,6 +684,86 @@ liveRouter.post(['/:roomId/seats/:seatNumber/kick', '/rooms/:roomId/seats/:seatN
       seatNumber,
       req.user!.userId
     );
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// 🎙️ Move Target User Directly to a Mic Seat (Host/Admin only)
+liveRouter.post(['/:roomId/seats/move-to-mic', '/rooms/:roomId/seats/move-to-mic'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { targetUserId, seatNumber } = req.body;
+    const result = await LiveService.moveUserToMic(
+      req.params.roomId as string,
+      req.user!.userId,
+      parseInt(targetUserId, 10),
+      seatNumber ? parseInt(seatNumber, 10) : undefined
+    );
+
+    // Broadcast Socket.IO events to room
+    try {
+      const { getIO } = await import('../websocket/socketServer.js');
+      const io = getIO();
+      if (io) {
+        io.to(`room_${result.roomId}`).emit('seat.updated', {
+          roomId: result.roomId,
+          seatNumber: result.seatNumber,
+          seat: result.seat,
+        });
+        io.to(`room_${result.roomId}`).emit('room.user.moved_to_mic', {
+          roomId: result.roomId,
+          seatNumber: result.seatNumber,
+          user: result.user,
+          assignedBy: result.assignedBy,
+        });
+      }
+    } catch {
+      // socket io graceful
+    }
+
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    if (error.statusCode) {
+      res.status(error.statusCode).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+// 📩 Invite Target User to Take a Mic Seat (Host/Admin only)
+liveRouter.post(['/:roomId/seats/invite-to-mic', '/rooms/:roomId/seats/invite-to-mic'], authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const { targetUserId, seatNumber } = req.body;
+    const result = await LiveService.inviteUserToMic(
+      req.params.roomId as string,
+      req.user!.userId,
+      parseInt(targetUserId, 10),
+      seatNumber ? parseInt(seatNumber, 10) : undefined
+    );
+
+    // Broadcast Socket.IO mic invitation to room/target user
+    try {
+      const { getIO } = await import('../websocket/socketServer.js');
+      const io = getIO();
+      if (io) {
+        io.to(`room_${result.roomId}`).emit('room.mic.invitation', {
+          roomId: result.roomId,
+          seatNumber: result.seatNumber,
+          targetUser: result.targetUser,
+          invitedBy: result.invitedBy,
+          timeoutSeconds: result.timeoutSeconds,
+        });
+      }
+    } catch {
+      // socket io graceful
+    }
+
     res.status(200).json({ success: true, data: result });
   } catch (error: any) {
     if (error.statusCode) {

@@ -11,9 +11,13 @@ export function errorHandler(
   console.error(`❌ [API Error] ${req.method} ${req.url}:`, err);
 
   if (err instanceof ZodError) {
+    const firstErr = err.errors[0];
+    const fieldName = firstErr?.path?.join('.') || 'input';
+    const cleanMsg = firstErr?.message ? `${fieldName}: ${firstErr.message}` : 'Validation failed';
     res.status(400).json({
       success: false,
-      error: 'Validation failed',
+      error: cleanMsg,
+      message: cleanMsg,
       details: err.errors.map((e) => ({
         field: e.path.join('.'),
         message: e.message,

@@ -16,6 +16,7 @@ export class ChatService {
                     id: true,
                     numericId: true,
                     username: true,
+                    displayName: true,
                     avatar: true,
                     level: true,
                     vipTier: true,
@@ -155,7 +156,7 @@ export class ChatService {
       take: limit,
       include: {
         sender: {
-          select: { id: true, numericId: true, username: true, avatar: true },
+          select: { id: true, numericId: true, username: true, displayName: true, avatar: true },
         },
       },
     });
@@ -246,6 +247,7 @@ export class ChatService {
         id: sender.id,
         numericId: sender.numericId,
         username: sender.username,
+        displayName: sender.displayName,
         avatar: sender.avatar,
       },
       type: message.type,

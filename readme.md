@@ -4,7 +4,7 @@ An enterprise-grade live broadcasting, multi-seat voice lounge (10, 15, 20 seats
 
 ### 🛡️ Multi-Platform Build & Quality Assurance Status
 - **Public Cloud Backend (`server/`)**: ✅ **LIVE on Render — `https://aura-live-voice-chat-1.onrender.com`**
-- **Native Android APK Package**: ✅ **Ready — [app-release.apk](file:///d:/Auralive/New-Live-App/apps/mobile/build/app/outputs/flutter-apk/app-release.apk) (465.4 MB • Fresh Production Build with Live Render Cloud URL, Server-Authoritative Identity, 1,2,3... ID Sequence, Zero Mocks & Neon PostgreSQL)**
+- **Native Android APK Package**: ✅ **Ready — [AuraLive-Release.apk](file:///d:/Auralive/AuraLive-Release.apk) / [app-release.apk](file:///d:/Auralive/New-Live-App/apps/mobile/build/app/outputs/flutter-apk/app-release.apk) (465.6 MB • Fresh Production Build with Live Render Cloud URL, Server-Authoritative Identity, Background Audio Services, Realtime Comments, Multi-Seat Engine & Neon PostgreSQL)**
 - **Backend TypeScript Compilation (`server/`)**: ✅ **0 Errors (`tsc --noEmit`)**
 - **Admin Portal Production Build (`admin-next/`)**: ✅ **0 Errors (`next build` Turbopack)**
 - **Mobile Application Analysis (`apps/mobile/`)**: ✅ **0 Compilation Errors (`flutter analyze`)**
@@ -12,8 +12,254 @@ An enterprise-grade live broadcasting, multi-seat voice lounge (10, 15, 20 seats
 - **Firebase Cloud Suite**: ✅ **100% Free Tier (Auth + Storage + Push Messaging)**
 - **3D Animated Gifts Engine**: ✅ **12 Luxury 3D Gifts + Combustion Combos + VIP Top Banner**
 - **Realtime Gateway**: Socket.IO WebSockets on Render (`https://aura-live-voice-chat-1.onrender.com`)
-- **Discovery Sync & Lifecycle Engine**: Real-time room addition, immediate termination card removal, host heartbeat (25s), and 30s stale room auto-reconciliation
+- **Real-Device Verification Report**: ✅ **16/16 Passed — [`docs/AURA_LIVE_REAL_DEVICE_VERIFICATION.md`](file:///d:/Auralive/docs/AURA_LIVE_REAL_DEVICE_VERIFICATION.md)**
 - **Detailed Audit Plan & Implementation Roadmap**: See [`plan.md`](file:///d:/Auralive/plan.md)
+
+## 🎙️ 💎 Core Live Audio Production Features & Architecture
+0. **💎 💳 Admin Portal Direct Diamond Credit & Mobile Wallet Realtime Sync**:
+   - Fixed `server/src/routes/admin.routes.ts` `/users/:id/credit` to support target user lookup by both primary key `id` and display `numericId` (e.g. UID `26`).
+   - Fixed `DirectDiamondCreditModule.tsx` in `admin-next` to directly pass target Numeric UID to the backend API without mock array fallback misdirection.
+   - Pushes realtime `wallet.updated` and `diamond.received` events to user sockets.
+   - Fail-Safe Public NumericId Fallback in `user_session_service.dart` querying `GET /api/v1/users/:numericId` to hydrate diamonds immediately even if token refresh is pending.
+   - Updated mobile `wallet_screen.dart` to fetch latest balance on screen open and on refresh button tap.
+   - Resolved mobile wallet header and payment methods row layout overflows.
+
+1. **🎁 🎨 Bigo 10th Anniversary / Aura Live Responsive Gift Panel UI**:
+   - Pixel-perfect and compact implementation of the Bigo 10th Anniversary Gift Panel UI in [`luxury_gift_panel_sheet.dart`](file:///d:/Auralive/New-Live-App/apps/mobile/lib/features/live_room/presentation/widgets/luxury_gift_panel_sheet.dart).
+   - Sleek responsive modal height (`(screenHeight * 0.48).clamp(360.0, 410.0)`), leaving ample space for live streams and eliminating Flutter screen overflows (`45px overflow` fixed).
+   - Compact 4x2 gift grid (`childAspectRatio: 0.88`) with zero empty vertical gaps.
+   - Top event banner (`BIGO 10th Anniversary` / `AURA Live Celebration`), gold `10` badge, dismiss `X`, and `Gift Box` inventory icon button.
+   - Smooth horizontal category tabs with hot pink neon underline indicator.
+   - Badges (`NEW`, `🎁 Event`, `📢` featured), glowing selection borders, 8 spotlight anniversary gifts + all 30+ DB gifts.
+   - Bottom deck: Live Diamond Wallet display + Recharge, Recipient selector (Host/Seat switcher), Quantity stepper, Total cost, Gradient Send button, and Quick Multipliers Bar (`💎 10`, `⚡ 99`, `💎 188`, `⚡ 999`, `その他`).
+   - Integrated directly with server-side authoritative diamond wallet, atomic `/v1/gifts/send` transactions, and live room broadcast animations.
+
+1. **🎬 💎 Gift Animation Engine + Diamond Wallet + Reseller + Broadcast Flow Integration**:
+   - Clean separation of static `thumbnailUrl` (small gift panel preview) and dynamic `animationUrl` (SVGA / WebP / GIF / Lottie asset for full-screen broadcast playback).
+   - Server-side atomic balance check and transaction ledger (`WalletTransaction`, `GiftTransaction`, `ResellerLedger`, `AuditLog`) with rollback on insufficient balance.
+   - Reseller $\to$ User Diamond transfer flow with instant realtime balance updates (`wallet.updated`, `diamond.received`).
+   - Atomic `sendLiveGift` broadcasts `GIFT_SENT` with `eventId`, `animationUrl`, `thumbnailUrl`, `animationType`, and recipient/sender metadata.
+   - Client-side event deduplication (`_processedGiftEventIds`) and sequential animation queue (`_giftQueue`).
+   - Rich player support: `SvgaGiftPlayer` for SVGA assets + glowing 3D artwork overlay for newly uploaded animated WebP/GIF/PNG gifts.
+
+1. **🎁 💎 Gift Send Response Map Parsing & Target Receiver Resolution**:
+   - Fixed `res.data` runtime `NoSuchMethodError` in [`luxury_gift_panel_sheet.dart`](file:///d:/Auralive/New-Live-App/apps/mobile/lib/features/live_room/presentation/widgets/luxury_gift_panel_sheet.dart).
+   - Resolved automatic target recipient ID from host/seat so backend atomic gift transactions process cleanly.
+   - Provides user-friendly Recharge snackbar on insufficient diamonds.
+
+1. **🔐 🛡️ Persistent Auth Session & Google Auto-Logout Prevention**:
+   - Dual-layer storage persistence (`FlutterSecureStorage` with `resetOnError: true` + `SharedPreferences` fail-safe).
+   - Removed aggressive `logout()` triggers on temporary network latency, Render cold start, or profile sync hiccups.
+   - Guaranteed automatic background session hydration on cold start without kicking the user to `/login`.
+
+1. **🎁 💎 Database Gift Catalog & Admin Hub Linking to Live Audio Gift Panel**:
+   - Linked all 30+ virtual gifts from the Database and Admin Gift Management Hub (`aura-live-voice-chat-app.web.app`) to the live audio gift panel (`luxury_gift_panel_sheet.dart`).
+   - Added all 10 categories (`All`, `Popular`, `Luxury`, `Special FX`, `Romantic`, `Lucky`, `Draw`, `Multi`, `Family Prestige`, `VIP`).
+   - Dynamic real-time sync with `/api/v1/gifts/catalog`, rendering image URLs, SVGA URLs, custom artwork, animations, and reliable combos via `_selectedGiftId`.
+
+1. **🎮 🕹️ Explore / Hot Home Screen Games Hub Card Button**:
+   - Replaced "Go Live Now" card next to Ranking List with **Games 🎮 (HOT)**.
+   - Launches interactive **Aura Games Arcade** with Lucky Wheel 🎡, Dice Roll 🎲, Teen Patti 🃏, Gift Rush 🎁, and Rocket Crash 🚀.
+
+1. **⚔️ 🎛️ Audio Broadcast PK Arena Button Shift & Live Host Comment Resolution**:
+   - Shifted PK Arena button from bottom bar into "Room Tools & Options" modal sheet (`_showRoomMoreMenuSheet`).
+   - Seamlessly deduplicated live room comments matching `clientMsgId`, `commentId`, and identical recent text to eliminate duplicate comments.
+   - Accurately mapped host role and display name (`[HOST] Ahmed: Hello` with Gold HOST badge).
+
+1. **🛠️ ⚡ Production Runtime Stability & Log Diagnostics Fixes**:
+   - Fixed `NoSuchMethodError: 'data'` on Gift catalog sync in `luxury_gift_panel_sheet.dart`.
+   - Enhanced Agora RTC engine initialization & channel joining to prevent `-3` and `-17` errors.
+   - Guarded room heartbeat timer against invalid `RM-0` room IDs.
+   - Debounced socket room lifecycle fetches in `LiveRoomDiscoveryService` to prevent 10x duplicate HTTP bursts.
+
+1. **💬 👤 Chat Screen — Real Sender Profile + Username + Timestamp + Grouping**:
+   - Every message displays the real sender's DP (`AuraAvatarImage`), username/display name, message bubble, and time (`11:28`, `14:03`).
+   - Grouping of consecutive messages from the same sender without avatar repetition.
+   - Clickable sender profile navigation (`/user/:id`).
+   - Realtime delivery via Socket.IO without refreshing the screen.
+
+1. **🛡️ 📱 Production Permission Architecture (Android + iOS + Agora)**:
+   - Just-In-Time (JIT) permissions for Microphone (Broadcaster/Speaker only), Camera (Video live only), Gallery (Avatar/Cover upload), Notifications, and Background Audio.
+   - Updated `AndroidManifest.xml` (Android 13+ / API 33+ & Bluetooth Connect) and iOS `Info.plist` (App Store compliant privacy descriptions + UIBackgroundModes audio).
+
+1. **👤 🔍 Other User Profile Clickability Everywhere**:
+   - Tapping any user's comment, avatar, or username in Live Room chat opens their full profile (`/user/:id`).
+   - Occupied seats, seat sheet header, host banner, and top contributors in room info are clickable to open user profiles.
+
+1. **🏠 🧼 My Live Rooms Hub Screen Cleanup**:
+   - Removed the top **"CONTINUE LISTENING"** banner and the bottom **"+ Create Room"** Floating Action Button from `my_rooms_hub_screen.dart`.
+
+1. **📋 🧼 Room Details Sheet ID Copy Enhancement**:
+   - Integrated a sleek copy icon directly next to `(ID: X)` in the modal header and removed the separate `Copy Room ID` container card in `room_info_options_sheet.dart`.
+
+1. **⌨️ 💬 Live Room Keyboard Input Bar Full-Width Mode**:
+   - When typing with the keyboard open, trailing action buttons (Gift, PK, Mic, More) and floating side buttons (Games, Music) are hidden automatically, providing a full-width typing box and direct send button.
+
+1. **💺 🧼 Seat Options Sheet Cleanup**:
+   - Removed redundant `Empty Seat #X` badge from `user_seat_options_sheet.dart` when opening empty seats.
+
+1. **👤 🧼 Profile Screen Cleanup**:
+   - Removed the **"YOU ARE CURRENTLY LIVE"** banner, **"🏆 Contribution"** badge/button, and bottom **"Live Broadcast History"** container from `profile_screen.dart` as requested.
+
+1. **💬 🛡️ Live Room Comment System Complete Architecture Fix**:
+   - **Elimination of 3x Duplicate Comments**:
+     - Standardized on one canonical `live.comment` socket event across client emissions and server broadcasts.
+     - Implemented bidirectional in-place deduplication matching on `clientMsgId` / `commentId` so optimistic client additions are updated with confirmed server data without appending duplicate items.
+     - Removed redundant multi-event listener forwarding (`room.comment`, `ROOM_COMMENT`) in `websocket_client.dart`.
+   - **Real Profile Resolution & DP Avatars**:
+     - Authoritative database resolution of sender profile (`avatar`, `displayName`, `username`) via `prisma.user.findUnique`.
+     - Live room comment rows display real sender avatar DP thumbnails alongside dynamic badges.
+   - **Dynamic Role Labels (`HOST` / `GUEST` / `USER`)**:
+     - Room Owner displays `[HOST]` (Gold Gradient).
+     - Seated Mic Speaker displays `[GUEST]` (Cyan Gradient).
+     - Audience Viewer displays `[USER]` (Purple Gradient).
+     - Display format: `[Real DP] [ROLE] Username: Comment Text` (e.g. `[Ahmed DP] HOST Ahmed: Hello everyone`, `[Ali DP] GUEST Ali: Hi`, `[Bilal DP] USER Bilal: Hello`).
+
+1. **🎙️ 💎 Agora RTC Full-Duplex Voice, Viewer ↔ Guest Lifecycle & Diamond Ledger System**:
+   - **Viewer ↔ Guest Role Gating & State Transitions (`live_room_controller.dart`, `agora_rtc_service.dart`)**:
+     - **Audience (Viewer)**: Enforced `ClientRoleType.clientRoleAudience` upon room entry. Viewers do not publish microphone audio tracks (`muteLocalAudioStream(true)`, `enableLocalAudio(false)`) and automatically subscribe to all remote broadcaster audio tracks (`autoSubscribeAudio: true`).
+     - **Broadcaster (Host / Guest)**: Promoted upon taking a mic seat or accepting mic invitation. Explicitly requests mic permission, enables local audio track (`enableLocalAudio(true)`), unmutes local mic stream (`muteLocalAudioStream(false)`), and renews Agora publisher token.
+     - **Demotion (Guest $\to$ Viewer)**: Upon leaving seat, kicking, or room exit, instantly demotes to `ClientRoleType.clientRoleAudience`, mutes and disables local mic track, vacating the seat.
+     - **Audio Routing & 3A Calibration**: Enforced loud speakerphone routing via `setDefaultAudioRouteToSpeakerphone(true)` & `setEnableSpeakerphone(true)` with 100% playback/recording volume and 200ms volume indication.
+   - **💎 Real-time Seat Diamond Badges (`seat_entity.dart`, `seat_grid.dart`, `live_room_screen.dart`)**:
+     - Added session `diamonds` counter to `SeatEntity` with JSON serialization.
+     - Added glowing `💎 [Host Diamonds]` badge below Host Stage (`Lv.X HostName`).
+     - Added glowing `💎 [Guest Diamonds]` badge below each occupied Guest seat (`Seat 1` to `Seat 10`).
+     - Integrated real-time socket updates: When gifts or diamonds are transferred, seat counters increment in real-time without requiring screen refresh.
+   - **💎 Atomic Bidirectional Diamond Transfers & Contribution Ledger (`gift.service.ts`, `gift.routes.ts`, `live.routes.ts`)**:
+     - Implemented `POST /api/v1/gifts/diamonds/send` and `POST /api/v1/live/rooms/:roomId/diamonds/send` executing within a single atomic PostgreSQL transaction (`prisma.$transaction`).
+     - Supports Host $\leftrightarrow$ Guest transfers and Guest $\leftrightarrow$ Guest peer gifting.
+     - Validates sender balance, decrements sender diamonds, credits receiver coins/diamonds, writes sender & receiver `WalletTransaction` entries with idempotency keys, and creates `GiftTransaction` records.
+     - Broadcasts `room.diamond.sent`, `gift.broadcast`, `wallet.updated`, and `room.contributions.updated` via Socket.IO.
+
+1. **🎁 📤 Upload Gifts to Gift Hub, 10 Personal SVGA Gifts & Panel Enhancements**:
+   - **SVGA Gift Catalog Upload & Seeding**:
+     - Successfully ingested and seeded all 10 SVGA gift animations from `D:\All Frames Application Personal Data\Gifts` into `server/uploads/svga/` and Neon PostgreSQL `Gift` table:
+       1. `Autumn Windmill` (1,200 💎, SVGA, `Popular`)
+       2. `Blue Enchantress` (600 💎, SVGA, `Draw`)
+       3. `Childhood Sweethearts` (1,500 💎, SVGA, `Popular`)
+       4. `Crowning Love` (3,500 💎, SVGA, `VIP`)
+       5. `Flower Boat` (800 💎, SVGA, `Popular`)
+       6. `Mermaid Girl` (2,200 💎, SVGA, `Multi`)
+       7. `Rabbit Heartbeat` (1,000 💎, SVGA, `Family Prestige`)
+       8. `Runaway Sweetheart` (1,800 💎, SVGA, `Popular`)
+       9. `Secret Cage` (900 💎, SVGA, `Draw`)
+       10. `Magic Lamp Dream` (750 💎, SVGA, `Special FX`)
+   - **Gift Panel "Send" Action & Long Press Multiplier**:
+     - Circular trigger button in `luxury_gift_panel_sheet.dart` updated from `"Combo"` to `"Send"`.
+     - Supports single tap dispatch, long press multi-sending, and dynamic combo badge multiplier (`x10`, `x20`, etc.).
+   - **All Gift Panel Buttons Fully Interactive**:
+     - **Recharge Button**: Opens Diamond top-up dialog with instant pack options (`100 💎 = $0.99`, `500 💎 = $4.99`, `1,200 💎 = $9.99`, `5,000 💎 = $39.99`) and navigation to `/wallet`.
+     - **Join VIP Button**: Opens VIP Membership modal detailing VIP tiers (`VIP 1 Knight` through `VIP 5 King`) and navigation to `/membership`.
+     - **Level & EXP Upgrade Header (`LV.1 + 500 EXP to upgrade >`)**: Interactive modal opening the *Level Progression Studio* with real-time level badge, progress bar, and active EXP-earning rules.
+     - **Backpack Icon (💼)**: Interactive modal opening *Gift Backpack & Inventory* with Lucky Spin keys, VIP discounts, and Crown passes.
+     - **Admin Web Portal Gift Hub (`admin-next/src/components/GiftHubModule.tsx`)**:
+        - Synchronized all 10 SVGA gifts + popular 8 gifts + luxury catalog into the Admin Panel's `STATIC_CATALOG` and dynamic API loader.
+        - Updated `getApiBase()` to connect to `https://aura-live-voice-chat-1.onrender.com/api/v1` in production or `localhost:3001` in local dev.
+        - Added all category tabs (`All`, `Popular`, `Luxury`, `Special FX`, `Romantic`, `Lucky`, `Draw`, `Multi`, `Family Prestige`, `VIP`) and animation badges (`AUTUMN_WINDMILL_SVGA`, `BLUE_ENCHANTRESS_SVGA`, etc.).
+        - Upgraded `GiftCard` to display WebP image preview if available, with smooth fallback to emoji icons.
+     - **Room Tools & Options Menu Clean-Up (`live_room_screen.dart`)**:
+      - Removed duplicate **Minimize** & **Share** icons from tools grid (both already live in the top app bar).
+      - Removed redundant **Red Packet** icon, unifying audience drops under **Lucky Bag 💰**.
+      - Cleaned up grid to 7 essential distinct tools: Settings (⚙️), Mute Sound (🔇), Lucky Bag (💰), Clear Chat (🧹), Lock/Unlock Room (🔒), Room Info (ℹ️), and Join Requests (📋).
+     - **Tabs (`Draw`, `Popular`, `Multi`, `Family Prestige`, `VIP`)**: Filtered grids dynamically displaying all 10 new SVGA gifts and standard catalog gifts.
+   - **Zero-Overflow Top App Bar (`live_room_screen.dart`)**:
+     - Dynamically bounded `titleBoxWidth` constraint using `math.min(115.0, math.max(60.0, availableHeaderWidth - 45.0))` and `TextOverflow.ellipsis` on room titles and durations to guarantee 0 overflow across all mobile screen widths.
+
+1. **Broadcast Lifecycle, Timer & Screen-Off**:
+   - Host broadcasts are immediately registered in PostgreSQL with `status: 'LIVE'` and monitored via Socket.IO heartbeats (`/rooms/:roomId/heartbeat`).
+   - Added live broadcast duration timer (`⏱️ HH:MM:SS`) in the top app bar next to the room ID.
+   - Flutter `WidgetsBindingObserver` sustains Agora background audio streaming and socket connections when the device screen turns off or goes into background.
+   - Broadcast end cleanly finalizes PostgreSQL status to `ENDED` with `BroadcastHistory` and purges the room from discovery feeds immediately.
+2. **Scoped Comments Realtime Sync & Moderation**:
+   - Real-time bidirectional chat synchronization over Socket.IO (`live.comment`, `room.comment`, `ROOM_COMMENT`) strictly scoped to `room_${roomId}` with zero cross-room leakage.
+   - Host $\to$ Viewers and Viewers $\to$ Host instant delivery with sender badges (`HOST`, `VIP`, `USER`) and avatars.
+   - Client-side length validation (1–500 chars) and `clientMsgId` deduplication preventing duplicated messages.
+   - Automatic room join welcome system banner (`"🌟 [username] joined the room"`).
+3. **Realtime Multi-Seat Engine, Single-Seat Shifting & Full Duplex Agora Audio**:
+   - **Seat 1 Open Accessibility**: Removed artificial "Seat 1 is reserved for the Room Host" check, allowing guests to occupy Seat 1 (Host resides on dedicated top stage).
+   - **Single-Seat Constraint & Realtime Shifting**: Enforced that a user only occupies one seat at a time. Tapping an open seat cleanly vacates the previous seat across PostgreSQL (`liveRoomSeat.updateMany`), state, and Socket.IO broadcasts (`room.seats.updated`).
+   - **Full Duplex Loudspeaker Voice Routing**: Configured Agora RTC with `setDefaultAudioRouteToSpeakerphone(true)`, `setEnableSpeakerphone(true)`, explicit `enableLocalAudio(true)` track capture, dynamic Broadcaster token renewal upon seat claim, and 100% volume calibration.
+   - **User Seat Options Workflow**: When host/admin taps a user seat:
+     - 🎙️ **Move to Mic**: Checks available mic seats, assigns the seat atomically in PostgreSQL, updates the user's role from Viewer $\to$ Speaker, and synchronizes RTC audio.
+     - 📩 **Invite to Mic**: Sends real-time invitation modal (`MicInvitationDialog`) to the target user with **Accept / Decline** buttons and an automatic 20-second circular countdown expiry.
+     - 🔒 **Lock Mic / 🔓 Unlock Mic**: Dynamically toggles seat lock state in PostgreSQL, updates the lock icon on the seat grid, and prevents unauthorized claims.
+     - 🔇 **Mute Mic / 🔊 Unmute Mic**: Toggles the speaker's microphone mute state in the database, updates the seat's muted indicator, and mutes/unmutes the Agora RTC audio stream.
+     - 👢 **Kick from Seat**: Removes speaker and returns them to the audience without disconnecting from the room.
+   - **Permission Gating**: Room Owner, Host, and authorized Room Admins have full seat control permissions. Normal users cannot control others' seats.
+4. **Global PostgreSQL User Directory Search & Discovery**:
+   - Full PostgreSQL `User` search (not restricted to active live rooms).
+   - Searches by exact `numericId`, case-insensitive `username`, and `displayName`.
+   - Returns both online and offline users with profile avatars, numeric ID badges, VIP/level tiers, and active `LIVE` indicator badges with direct navigation to their live room or profile.
+   - Debounced Flutter search interface with instant clear and graceful empty states.
+5. **Duplicate Go-Live Prevention & Session Re-entry**:
+   - Added `GET /api/v1/live/my-active-room` endpoint and Flutter check in `go_live_sheet.dart` to prevent duplicate broadcast creation and allow seamless session re-entry.
+6. **Follow / Unfollow & Profile Visitors Tracking**:
+   - Dual routing on `/api/users` and `/api/v1/users` for follows and visitors.
+   - Server-enforced self-follow prevention and 15-minute sliding window rate-limiting for profile visitor tracking.
+7. **Room Join Welcome Comment**:
+   - Server broadcasts `room.user.joined` and `live.viewer_joined` with user metadata upon room entry, triggering an animated `"🌟 [username] joined the room"` system chat banner.
+8. **Android Native NDK & Agora Iris Runtime Extraction**:
+   - Configured `android:extractNativeLibs="true"` in AndroidManifest to enforce OS-level extraction of all native shared libraries (`libc++_shared.so`, `libiris_method_channel.so`) on install, preventing runtime dlopen lookup failures on diverse Android OEM builds.
+   - Dual preloading in Kotlin `MainActivity.kt` and Dart FFI `AgoraRtcService._preloadNativeLibs()`.
+9. **Automatic Token Refresh & 401 Recovery Engine**:
+   - Backend endpoints `POST /api/auth/refresh` & `POST /api/auth/refresh-token` for background rotation of expired JWT access tokens.
+   - Client-side automatic retry on 401 in `UserSessionService.refreshProfileFromBackend`, eliminating unexpected token expirations during active app sessions.
+10. **Pure Online Real-Time Active Room Members Engine & Strict Scope Isolation**:
+   - Live Room Sub-Header featuring circular avatar preview stack and total member counter pill (e.g. `1` or `12`).
+   - Active Members bottom sheet displaying complete live room participant roster (Host, Speakers on seats, Viewers).
+   - Server-authoritative data directly from Neon Cloud PostgreSQL + Socket.IO with zero fake/local mock fallback.
+   - Real database user avatar (DP), `displayName`, `ID: numericId`, level badge, and distinct role badges (`👑 Host`, `🎙 Speaker • Seat X`, `👤 Viewer`).
+   - Real-time Socket.IO synchronization via `room.members.snapshot`, `room.user.joined`, `room.user.left`, and `room.member.updated`.
+   - Host moderation controls: View Profile, Invite to Seat, Remove from Seat, Kick from Room, Report User.
+   - 100% strict room scope isolation (`room_${roomId}`) with zero cross-room data or event leakage.
+11. **Contribution Ranking Engine (Day / Week / Monthly & Trophy 🏆 Workflow)**:
+   - Complete workflow: `Profile / Room → Trophy 🏆 → Contribution Ranking → Day / Week / Monthly → Contribution List`.
+   - Regal golden bottom sheet matching user design with top decorative diamond crest.
+   - 3 period filters: `Day` (last 24 hours), `Week` (last 7 days), `Monthly` (last 30 days).
+   - Top 3 Gold 👑, Silver 🥈, Bronze 🥉 podium with avatar glow, name, numeric ID, and diamond total + Rank 4+ scrollable list.
+   - Clean empty state displaying **“No more data”** when no records exist.
+12. **Premium Multi-Tab Gift Panel & Combo Action Engine**:
+   - Level/XP Progress Header: Level badge (`LV.5`), XP bar, and `+ 500 EXP to upgrade >` link.
+   - 5 Categorized Tabs: `Draw`, `Popular`, `Multi`, `Family Prestige`, `VIP`.
+   - 4-Column Gift Grid with real artwork & icons: `Star Goddess` (200 💎, NEW), `Leo` (1 💎), `Picking stars` (999 💎, NEW), `Super Leo` (2888 💎), `Bubble milk tea` (1 💎), `Glow Stick` (1 💎), `Record Player` (100 💎), `Trophy` (500 💎), plus high-roller luxury FX items.
+   - `NEW` badge on new items, radial glowing border on selected item.
+   - Bottom bar with `Recharge`, `Join VIP`, and circular `x10 Combo` action button.
+   - Atomic backend persistence (`POST /api/v1/gifts/send`), full-screen 3D animations (`LuxuryGift3DOverlay`), and real-time chat announcements.
+13. **Full End-to-End Connected Architecture (App ⇄ Backend ⇄ DB ⇄ Admin Panel)**:
+   - Dynamic Gift Management: Admin changes prices/gifts in Admin Panel $\to$ DB updates $\to$ Flutter app fetches `/api/v1/gifts/catalog` dynamically with 0 rebuilds.
+   - Server-Authoritative Wallet: Balance checks and deductions occur strictly on the server with double-spending protection.
+   - Live Contribution Rankings: Every gift transaction automatically recalculates Day/Week/Month rankings visible in Flutter and Admin Dashboard.
+   - Full Moderation & Control: Admin actions (banning users, closing rooms, muting speakers) broadcast via Socket.IO in real time.
+14. **Room DP / Room View Options Engine (5 Connected Real-Time Metrics)**:
+   - Workflow: `Room DP / Header Pill → Room Information Panel (RoomInfoOptionsSheet) → 5 Real-Time Connected Options`:
+     - 📋 **Copy Room ID**: Monospaced permanent Room ID + One-tap Copy button with clipboard confirmation.
+     - 👥 **Room Members**: Live active member count badge with one-tap access to `ActiveMembersSheet`.
+     - 🎁 **Room Rewards Dashboard**: Total Diamonds, Today's Rewards, Weekly Rewards, Host Earnings, and Top 3 Gifters podium from PostgreSQL.
+     - 📢 **Room Announcement**: Live announcement display with Host/Admin editing dialog (`PUT /api/v1/rooms/:roomId/announcement`) and instant Socket.IO real-time broadcast.
+     - 💎 **Room Value (Numerical)**: Glowing numerical metric card calculating total room score from gifts, diamonds, viewers, and engagement.
+15. **Responsive Layout & Zero-Overflow Architecture**:
+   - **Dynamic Seat Sizing (`seat_grid.dart`)**: Dynamic `LayoutBuilder` computes 5-column seat cell widths, aspect ratios, and node diameters (`math.min(46.0, math.max(34.0, itemWidth - 8))`) ensuring zero `RenderFlex` overflow across 320px–480px+ screen sizes.
+   - **Adaptive Popups & Sheets (`user_seat_options_sheet.dart` & `mic_invitation_dialog.dart`)**: Scrollable containers with `maxHeight` constraints, guaranteeing zero vertical clipping on small screens, high font scales, or landscape orientation.
+   - **Top Bar & Header Adaptation (`live_room_screen.dart`)**: Dynamically bounded room title pill with `maxLines: 1` and `TextOverflow.ellipsis`, preventing title wrapping and keeping action buttons on-screen.
+   - **Safe-Area Controls Dock**: Bottom controls enclosed in `SafeArea(top: false)` preventing overlap with device navigation bars and keyboard insets.
+16. **Direct File Upload & Automatic Thumbnail Generator Engine**:
+   - **Complete Workflow**: `Upload Box → Select File / Drag & Drop → Validate File (JPG/PNG/WebP, max 15MB) → Server Sharp Pipeline → Optimized Full WebP + 300px WebP Thumbnail → Metadata (width, height, size) → UI Preview [Replace / Remove] → Database (Separate imageUrl and thumbnailUrl; zero raw binary in DB)`.
+   - **Admin Web Portal Component (`ImageUploadDropzone.tsx`)**: Replaces manual URL text boxes with drag-and-drop file upload, instant thumbnail preview card with filename, file size (`Size: 245 KB`), dimensions (`512x512 px`), `[ 🔄 Replace ]`, and `[ 🗑️ Remove ]` action buttons across Gift Hub, Banners, Wallpapers, and Emojis.
+   - **Flutter Mobile Application Component (`AuraImageUploadBox`)**: Reusable interactive Flutter upload box with camera/gallery image picker, WebP thumbnail generation, file size badge, and Replace/Remove controls.
+   - **Cloud Server Endpoint (`POST /api/v1/upload/image`)**: Validates format, processes high-quality WebP, generates thumbnail WebP in `uploads/thumbnails/`, and returns structured metadata.
+
+## 🌐 ⚡ Pure Online / Real-Time Authoritative Server Architecture
+- **Single Source of Truth**: All business entities (Users, Profiles, Explore Directory, Live Rooms, Multi-Seats, Join Requests, Follows, Visitors, Leaderboards, Wallets) are strictly authoritative on PostgreSQL + REST API + Socket.IO.
+- **Zero Mock / Synthetic Fallbacks**: Removed all local offline dummy profiles, fake broadcasts, and stale business cache traps.
+- **Server-Authoritative Broadcast Timers**: Live room broadcast timers calculate elapsed time from server `createdAt` timestamps.
+- **Graceful Network Handling**: On server or network failure, clean connection error states with retry capabilities are presented to the user instead of displaying stale local data.
+
+## 👤 💾 Server-Authoritative Profile Save & PostgreSQL Persistence
+- **Single Source of Truth**: User profile attributes (`displayName`, `avatar`, `bio`, `gender`, `country`, `birthday`, `coins`, `diamonds`, `vipTier`) persist directly into Neon Cloud PostgreSQL (`User` table).
+- **Eliminated Local-Only Cache Traps**: `EditProfileScreen` and `UserSessionService.updateProfile()` make authoritative `PUT /api/users/profile/update` requests with JWT Bearer authentication. Local caches update strictly as replicas of verified server responses.
+- **Real Avatar Photo Upload Engine**: Integrated multipart media upload endpoint `POST /api/v1/users/avatar/upload` (`uploads/avatars/`) to store public image URLs directly in PostgreSQL.
+- **Server Identity Synchronization**: `/api/auth/me` queries Neon PostgreSQL on every app launch and resume, ensuring immediate multi-device profile consistency and zero data loss on logout/login.
 
 ## 🛡️ 🔐 Server-Only User Identity & Public Numeric ID System
 - **Single Source of Truth**: PostgreSQL Database + Backend Authentication (`/auth/register`, `/auth/login`, `/auth/google`).

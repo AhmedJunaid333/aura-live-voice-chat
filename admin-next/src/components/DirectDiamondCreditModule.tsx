@@ -13,24 +13,46 @@ export default function DirectDiamondCreditModule() {
     { id: 'TX-902', uid: '100003 (Dimple)', amount: '🪙 15,000 Coins', notes: 'Broadcaster Monthly Reward', date: '2026-08-10 18:00' },
   ]);
 
+  const [isLoading, setIsLoading] = useState(false);
+
   const handleDirectCredit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const numericId = parseInt(targetUid, 10);
+    const numericId = parseInt(targetUid.trim(), 10);
     const numAmount = parseInt(amount, 10) || 0;
     
-    // Find matching user or fallback to id 1
-    const user = defaultRealUsers.find(u => u.numericId === numericId) || defaultRealUsers[0];
-    await adminApi.creditWallet(user.id, numAmount, currency);
+    if (isNaN(numericId) || numericId <= 0) {
+      alert('Please enter a valid Numeric UID (e.g. 26 or 100001).');
+      return;
+    }
 
-    const newLog = {
-      id: `TX-${Math.floor(900 + Math.random() * 99)}`,
-      uid: `${targetUid} (${user.username})`,
-      amount: `${currency === 'diamonds' ? '💎' : '🪙'} ${numAmount.toLocaleString()} ${currency}`,
-      notes,
-      date: new Date().toLocaleString(),
-    };
-    setLogs([newLog, ...logs]);
-    alert(`Successfully credited ${numAmount.toLocaleString()} ${currency} to UID: ${targetUid}!`);
+    if (numAmount <= 0) {
+      alert('Please enter a positive amount to credit.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await adminApi.creditWallet(numericId, numAmount, currency, notes);
+
+      if (res && res.success) {
+        const username = res.data?.username || `User ${numericId}`;
+        const newLog = {
+          id: `TX-${Math.floor(900 + Math.random() * 99)}`,
+          uid: `${numericId} (${username})`,
+          amount: `${currency === 'diamonds' ? '💎' : '🪙'} ${numAmount.toLocaleString()} ${currency}`,
+          notes,
+          date: new Date().toLocaleString(),
+        };
+        setLogs([newLog, ...logs]);
+        alert(`✅ Successfully credited ${numAmount.toLocaleString()} ${currency} to UID ${numericId} (@${username})! New Balance: ${res.data?.[currency]?.toLocaleString() || 'Updated'}`);
+      } else {
+        alert(`❌ Failed to credit account: ${res?.error || 'User not found or server error'}`);
+      }
+    } catch (err: any) {
+      alert(`❌ Error executing credit: ${err?.message || 'Server error'}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -99,9 +121,10 @@ export default function DirectDiamondCreditModule() {
 
           <button
             type="submit"
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-black text-xs transition cursor-pointer shadow-lg shadow-pink-600/30"
+            disabled={isLoading}
+            className={`w-full py-3.5 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-black text-xs transition cursor-pointer shadow-lg shadow-pink-600/30 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            ⚡ Confirm & Credit Instantly
+            {isLoading ? '⏳ Processing Direct Credit...' : '⚡ Confirm & Credit Instantly'}
           </button>
         </form>
       </div>

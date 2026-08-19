@@ -3,8 +3,97 @@ import { prisma } from '../config/database.js';
 import { authenticateToken, optionalAuthenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
 import { profileUpdateSchema } from '../utils/validators.js';
 import { UserService } from '../services/user.service.js';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 export const usersRouter = Router();
+
+// Configure local uploads directory for user avatars
+const avatarUploadsDir = path.join(process.cwd(), 'uploads', 'avatars');
+if (!fs.existsSync(avatarUploadsDir)) {
+  fs.mkdirSync(avatarUploadsDir, { recursive: true });
+}
+
+const avatarStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, avatarUploadsDir);
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `avatar-${uniqueSuffix}${ext}`);
+  },
+});
+
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB limit
+});
+
+// Upload User Avatar Photo & Update DB
+usersRouter.post('/avatar/upload', authenticateToken, avatarUpload.single('avatar'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    if (req.file) {
+      const serverBase = `${req.protocol}://${req.get('host')}`;
+      const avatarUrl = `${serverBase}/uploads/avatars/${req.file.filename}`;
+      
+      const updated = await prisma.user.update({
+        where: { id: req.user!.userId },
+        data: { avatar: avatarUrl },
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          avatarUrl,
+          user: {
+            ...updated,
+            coins: Number(updated.coins),
+            diamonds: Number(updated.diamonds),
+          },
+        },
+        message: 'Avatar uploaded and saved successfully! 🎉',
+      });
+      return;
+    }
+
+    const { imageBase64 } = req.body || {};
+    if (imageBase64 && typeof imageBase64 === 'string') {
+      const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      const filename = `avatar-${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`;
+      const filePath = path.join(avatarUploadsDir, filename);
+      fs.writeFileSync(filePath, buffer);
+
+      const serverBase = `${req.protocol}://${req.get('host')}`;
+      const avatarUrl = `${serverBase}/uploads/avatars/${filename}`;
+
+      const updated = await prisma.user.update({
+        where: { id: req.user!.userId },
+        data: { avatar: avatarUrl },
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          avatarUrl,
+          user: {
+            ...updated,
+            coins: Number(updated.coins),
+            diamonds: Number(updated.diamonds),
+          },
+        },
+        message: 'Avatar uploaded and saved successfully! 🎉',
+      });
+      return;
+    }
+
+    res.status(400).json({ success: false, error: 'No image file or base64 data provided' });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Search Users
 usersRouter.get('/search', optionalAuthenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -128,6 +217,25 @@ usersRouter.post('/:numericId/report', authenticateToken, async (req: Authentica
   }
 });
 
+// 🏆 Get User Contribution Ranking (Day / Week / Monthly)
+usersRouter.get(['/:numericId/contributions', '/contributions/:numericId'], async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const numericId = parseInt(String(req.params.numericId), 10);
+    const period = (req.query.period as string) || 'day';
+    const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 50;
+
+    const result = await UserService.getContributionRanking({
+      targetIdentifier: numericId,
+      period: period as any,
+      limit,
+    });
+
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Backward compatible Get User Profile by Numeric ID
 usersRouter.get('/:numericId', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -138,11 +246,14 @@ usersRouter.get('/:numericId', async (req: Request, res: Response, next: NextFun
         id: true,
         numericId: true,
         username: true,
+        displayName: true,
         avatar: true,
         cover: true,
         bio: true,
         gender: true,
         country: true,
+        countryCode: true,
+        birthday: true,
         level: true,
         xp: true,
         vipTier: true,
@@ -163,6 +274,7 @@ usersRouter.get('/:numericId', async (req: Request, res: Response, next: NextFun
       success: true,
       data: {
         ...user,
+        displayName: user.displayName || user.username,
         coins: Number(user.coins),
         diamonds: Number(user.diamonds),
       },
@@ -172,7 +284,7 @@ usersRouter.get('/:numericId', async (req: Request, res: Response, next: NextFun
   }
 });
 
-// Update Authenticated User Profile
+// Update Authenticated User Profile in PostgreSQL
 usersRouter.put('/profile/update', authenticateToken, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
     const validated = profileUpdateSchema.parse(req.body);
@@ -194,12 +306,31 @@ usersRouter.put('/profile/update', authenticateToken, async (req: AuthenticatedR
     res.status(200).json({
       success: true,
       data: {
-        ...updated,
+        id: updated.id,
+        numericId: updated.numericId,
+        username: updated.username,
+        displayName: updated.displayName || updated.username,
+        email: updated.email,
+        phone: updated.phone,
+        avatar: updated.avatar,
+        cover: updated.cover,
+        bio: updated.bio,
+        gender: updated.gender,
+        country: updated.country,
+        countryCode: updated.countryCode,
+        birthday: updated.birthday,
+        level: updated.level,
+        xp: updated.xp,
+        vipTier: updated.vipTier,
+        role: updated.role,
+        status: updated.status,
         coins: Number(updated.coins),
         diamonds: Number(updated.diamonds),
       },
+      message: 'Profile saved successfully to PostgreSQL! 🎉',
     });
   } catch (error) {
     next(error);
   }
 });
+

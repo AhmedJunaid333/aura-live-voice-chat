@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { ImageUploadDropzone } from './ImageUploadDropzone';
 
 export default function BannersModule() {
   const [subTab, setSubTab] = useState<'BANNERS' | 'MEDIA' | 'PLACEMENTS' | 'ANALYTICS'>('BANNERS');
@@ -369,6 +370,15 @@ export default function BannersModule() {
                   onChange={e => setNewSubtitle(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-amber-500"
                   required
+                />
+              </div>
+
+              <div>
+                <ImageUploadDropzone
+                  label="Promotional Banner Graphic (Auto WebP + Thumbnail)"
+                  value={newImageUrl}
+                  onChange={(data) => setNewImageUrl(data.imageUrl)}
+                  onRemove={() => setNewImageUrl('')}
                 />
               </div>
 

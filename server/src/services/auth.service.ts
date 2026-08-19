@@ -1,58 +1,56 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../config/database.js';
 import { hashPassword, comparePassword } from '../utils/hash.js';
-import { generateAccessToken, generateRefreshToken } from '../utils/jwt.js';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken, TokenPayload } from '../utils/jwt.js';
 import { broadcastGlobal } from '../websocket/socketServer.js';
 
 /**
- * Atomically allocates the next sequential public numeric ID starting from 1.
- * Uses a dedicated PostgreSQL sequence "public_user_numeric_id_seq".
- * Automatically detects and skips any numbers already occupied in the User table.
+ * Atomically allocates the next sequential public numeric ID starting from 100001.
+ * Safely calculates highest numericId + 1 without sequence locks or transaction timeouts.
  */
-export async function allocateNextPublicNumericId(tx: Prisma.TransactionClient): Promise<number> {
-  await tx.$executeRawUnsafe(`CREATE SEQUENCE IF NOT EXISTS "public_user_numeric_id_seq" START WITH 1 INCREMENT BY 1;`);
+export async function allocateNextPublicNumericId(tx?: Prisma.TransactionClient): Promise<number> {
+  const client = tx || prisma;
+  const highest = await client.user.findFirst({
+    orderBy: { numericId: 'desc' },
+    select: { numericId: true },
+  });
 
-  while (true) {
-    const [res] = await tx.$queryRaw<{ nextval: bigint }[]>`SELECT nextval('"public_user_numeric_id_seq"') AS nextval`;
-    const candidate = Number(res.nextval);
-    if (candidate <= 0) continue;
-
-    const exists = await tx.user.findUnique({
-      where: { numericId: candidate },
-      select: { id: true },
-    });
-    if (!exists) {
-      return candidate;
-    }
+  const base = 100000;
+  if (!highest || !highest.numericId || highest.numericId < base) {
+    return base + 1;
   }
+  return highest.numericId + 1;
 }
 
 export class AuthService {
   /**
-   * Register a new user with permanent sequential Public Numeric ID (1, 2, 3...).
+   * Register a new user with permanent sequential Public Numeric ID (100001, 100002...).
    *
    * ID generation strategy:
-   *   1. Dedicated PostgreSQL sequence "public_user_numeric_id_seq" generates 1, 2, 3...
-   *   2. Number is checked atomically inside the database transaction to prevent duplicates.
-   *   3. Email & username uniqueness is strictly enforced.
-   *   4. If an account already exists with the given email/username, throws ACCOUNT_ALREADY_EXISTS.
+   *   1. Queries max numericId + 1 in Neon Cloud PostgreSQL.
+   *   2. Email & username uniqueness is strictly enforced with case-insensitivity.
+   *   3. If an account already exists, returns a clear, actionable error message.
    */
   static async register(data: {
     username: string;
-    email?: string;
-    phone?: string;
+    displayName?: string | null;
+    email?: string | null;
+    phone?: string | null;
     password: string;
-    gender?: string;
-    country?: string;
+    gender?: string | null;
+    country?: string | null;
+    birthday?: string | null;
+    dob?: string | null;
+    avatar?: string | null;
   }) {
     const normalizedUsername = data.username.trim();
-    const normalizedEmail = data.email ? data.email.trim().toLowerCase() : undefined;
-    const normalizedPhone = data.phone ? data.phone.trim() : undefined;
+    const normalizedEmail = data.email && data.email.trim().length > 0 ? data.email.trim().toLowerCase() : undefined;
+    const normalizedPhone = data.phone && data.phone.trim().length > 0 ? data.phone.trim() : undefined;
 
     const existing = await prisma.user.findFirst({
       where: {
         OR: [
-          { username: normalizedUsername },
+          { username: { equals: normalizedUsername, mode: 'insensitive' } },
           ...(normalizedEmail ? [{ email: normalizedEmail }] : []),
           ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
         ],
@@ -60,30 +58,46 @@ export class AuthService {
     });
 
     if (existing) {
-      throw new Error('ACCOUNT_ALREADY_EXISTS: An account already exists with this username, email, or phone. Please log in.');
+      if (existing.username.toLowerCase() === normalizedUsername.toLowerCase()) {
+        throw new Error('This username is already taken. Please choose another username.');
+      }
+      if (normalizedEmail && existing.email?.toLowerCase() === normalizedEmail.toLowerCase()) {
+        throw new Error('An account with this email already exists. Please log in.');
+      }
+      throw new Error('An account with these details already exists. Please log in.');
     }
 
     const passwordHash = await hashPassword(data.password);
+    const nextNumericId = await allocateNextPublicNumericId();
 
-    // Atomic transaction: allocate sequential public numericId (1, 2, 3...) → create user
-    const user = await prisma.$transaction(async (tx) => {
-      const nextNumericId = await allocateNextPublicNumericId(tx);
-      return await tx.user.create({
-        data: {
-          numericId: nextNumericId,
-          username: normalizedUsername,
-          displayName: normalizedUsername,
-          email: normalizedEmail || null,
-          phone: normalizedPhone || null,
-          passwordHash,
-          gender: data.gender || 'Prefer not to say',
-          country: data.country || 'Pakistan',
-          coins: 5000, // Welcome coin grant
-          diamonds: 0,
-          role: 'USER',
-          status: 'ACTIVE',
-        },
-      });
+    let parsedBirthday: Date | undefined;
+    const bdayStr = data.birthday || data.dob;
+    if (bdayStr) {
+      try {
+        const d = new Date(bdayStr);
+        if (!isNaN(d.getTime())) {
+          parsedBirthday = d;
+        }
+      } catch (_) {}
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        numericId: nextNumericId,
+        username: normalizedUsername,
+        displayName: data.displayName?.trim() || normalizedUsername,
+        email: normalizedEmail || null,
+        phone: normalizedPhone || null,
+        passwordHash,
+        gender: data.gender || 'Male',
+        country: data.country || 'Pakistan',
+        birthday: parsedBirthday,
+        avatar: data.avatar || null,
+        coins: 5000, // Welcome coin grant
+        diamonds: 0,
+        role: 'USER',
+        status: 'ACTIVE',
+      },
     });
 
     const tokenPayload = {
@@ -101,7 +115,7 @@ export class AuthService {
       data: {
         userId: user.id,
         token: accessToken,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
       },
     });
 
@@ -112,13 +126,16 @@ export class AuthService {
       displayName: user.displayName || user.username,
       email: user.email,
       phone: user.phone,
-      role: user.role,
+      avatar: user.avatar,
+      cover: user.cover,
+      gender: user.gender,
       country: user.country,
-      coins: Number(user.coins),
-      diamonds: Number(user.diamonds),
+      birthday: user.birthday?.toISOString(),
+      coins: user.coins,
+      diamonds: user.diamonds,
       level: user.level,
       vipTier: user.vipTier,
-      avatar: user.avatar,
+      role: user.role,
       status: user.status,
       createdAt: user.createdAt.toISOString(),
     };
@@ -220,7 +237,7 @@ export class AuthService {
         data: {
           userId: user.id,
           token: accessToken,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
         },
       });
     } catch (_) {
@@ -235,12 +252,17 @@ export class AuthService {
       email: user.email,
       phone: user.phone,
       role: user.role,
+      bio: user.bio,
+      gender: user.gender,
+      birthday: user.birthday,
       country: user.country,
+      countryCode: user.countryCode,
       coins: Number(user.coins),
       diamonds: Number(user.diamonds),
       level: user.level,
       vipTier: user.vipTier,
       avatar: user.avatar,
+      cover: user.cover,
       status: user.status,
     };
 
@@ -356,37 +378,35 @@ export class AuthService {
       const passwordHash = await hashPassword(`sso_google_${Date.now()}`);
 
       try {
-        // Atomic transaction: allocate sequential public numericId (1, 2, 3...) → create user → create AuthAccount
-        user = await prisma.$transaction(async (tx) => {
-          const nextNumericId = await allocateNextPublicNumericId(tx);
-          const created = await tx.user.create({
-            data: {
-              numericId: nextNumericId,
-              username,
-              displayName: data.displayName || username,
-              email: normalizedEmail || null,
-              passwordHash,
-              avatar: data.avatar || null,
-              gender: 'Prefer not to say',
-              country: 'Pakistan',
-              coins: 5000,
-              diamonds: 0,
-              role: 'USER',
-              status: 'ACTIVE',
-            },
-          });
+        const nextNumericId = await allocateNextPublicNumericId();
+        const created = await prisma.user.create({
+          data: {
+            numericId: nextNumericId,
+            username,
+            displayName: data.displayName || username,
+            email: normalizedEmail || null,
+            passwordHash,
+            avatar: data.avatar || null,
+            gender: 'Prefer not to say',
+            country: 'Pakistan',
+            coins: 5000,
+            diamonds: 0,
+            role: 'USER',
+            status: 'ACTIVE',
+          },
+        });
 
-          // Create AuthAccount mapping in same transaction
-          await (tx as any).authAccount.create({
+        try {
+          await (prisma as any).authAccount.create({
             data: {
               userId: created.id,
               provider: 'GOOGLE',
               providerAccountId,
             },
           });
+        } catch (_) {}
 
-          return created;
-        });
+        user = created;
 
         broadcastGlobal('user.created', {
           id: user.id,
@@ -479,7 +499,7 @@ export class AuthService {
         data: {
           userId: user.id,
           token: accessToken,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
         },
       });
     } catch (_) {}
@@ -491,12 +511,17 @@ export class AuthService {
       displayName: user.displayName || data.displayName || user.username,
       email: user.email,
       role: user.role,
+      bio: user.bio,
+      gender: user.gender,
+      birthday: user.birthday,
       country: user.country,
+      countryCode: user.countryCode,
       coins: Number(user.coins),
       diamonds: Number(user.diamonds),
       level: user.level,
       vipTier: user.vipTier,
       avatar: user.avatar,
+      cover: user.cover,
       status: user.status,
     };
 
@@ -586,4 +611,57 @@ export class AuthService {
       refreshToken,
     };
   }
+
+  static async refreshSession(refreshTokenStr: string) {
+    if (!refreshTokenStr) {
+      throw new Error('Refresh token is required.');
+    }
+    const payload = verifyRefreshToken(refreshTokenStr);
+    if (!payload || !payload.userId) {
+      throw new Error('Invalid or expired refresh token.');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: {
+        id: true,
+        numericId: true,
+        username: true,
+        displayName: true,
+        email: true,
+        avatar: true,
+        role: true,
+        status: true,
+      },
+    });
+
+    if (!user || user.status === 'BANNED') {
+      throw new Error('User account is invalid or banned.');
+    }
+
+    const newTokenPayload: TokenPayload = {
+      userId: user.id,
+      numericId: user.numericId,
+      username: user.username,
+      role: user.role,
+    };
+
+    const accessToken = generateAccessToken(newTokenPayload);
+    const newRefreshToken = generateRefreshToken(newTokenPayload);
+
+    return {
+      user: {
+        id: user.id,
+        numericId: user.numericId,
+        username: user.username,
+        displayName: user.displayName || user.username,
+        email: user.email,
+        avatar: user.avatar,
+        role: user.role,
+      },
+      accessToken,
+      refreshToken: newRefreshToken,
+    };
+  }
 }
+

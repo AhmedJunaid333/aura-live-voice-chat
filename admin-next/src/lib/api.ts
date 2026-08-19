@@ -162,16 +162,16 @@ export const adminApi = {
     }
   },
 
-  async creditWallet(id: number, amount: number, currency: 'coins' | 'diamonds') {
+  async creditWallet(id: number, amount: number, currency: 'coins' | 'diamonds', notes?: string) {
     try {
       const res = await fetch(`${BASE_URL}/admin/users/${id}/credit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, currency }),
+        body: JSON.stringify({ amount, currency, notes }),
       });
       return await res.json();
     } catch {
-      return { success: false };
+      return { success: false, error: 'Network error connecting to API' };
     }
   },
 

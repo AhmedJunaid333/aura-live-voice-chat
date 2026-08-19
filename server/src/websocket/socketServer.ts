@@ -1,9 +1,29 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { verifyAccessToken } from '../utils/jwt.js';
+import { prisma } from '../config/database.js';
 
 let ioInstance: SocketIOServer | null = null;
 const onlineUsers = new Map<number, Set<string>>(); // numericId -> Set<socketId>
+
+export interface ActiveMemberData {
+  userId: number;
+  numericId: number;
+  username: string;
+  displayName: string;
+  avatar: string | null;
+  vipTier: number;
+  level: number;
+  role: 'HOST' | 'SPEAKER' | 'VIEWER';
+  seatNumber?: number | null;
+  isMuted?: boolean;
+  joinedAt: string;
+}
+
+// In-memory real-time active room members: roomId -> Map<numericId, ActiveMemberData>
+const roomActiveMembers = new Map<string, Map<number, ActiveMemberData>>();
+// Map socketId -> Set<roomId> for cleanup on disconnect
+const socketToRooms = new Map<string, Set<string>>();
 
 export function initSocketServer(httpServer: HttpServer): SocketIOServer {
   const io = new SocketIOServer(httpServer, {
@@ -19,12 +39,15 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
 
   // Socket Authentication Middleware
   io.use((socket: Socket, next) => {
-    const token = socket.handshake.auth.token || socket.handshake.headers['authorization'];
-    if (!token) {
+    const token = socket.handshake.auth?.token 
+      || socket.handshake.headers?.['authorization']
+      || socket.handshake.query?.token;
+
+    if (!token || typeof token !== 'string') {
       return next(new Error('Authentication token required for WebSocket'));
     }
 
-    const cleanToken = token.startsWith('Bearer ') ? token.substring(7) : token;
+    const cleanToken = token.startsWith('Bearer ') ? token.substring(7).trim() : token.trim();
     const payload = verifyAccessToken(cleanToken);
     if (!payload) {
       return next(new Error('Invalid WebSocket authentication token'));
@@ -44,46 +67,194 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     }
     onlineUsers.get(numericId)!.add(socket.id);
 
+    // Track rooms for this socket
+    if (!socketToRooms.has(socket.id)) {
+      socketToRooms.set(socket.id, new Set());
+    }
+
     // Join personal user notification room
     socket.join(`user_${numericId}`);
     socket.broadcast.emit('user.online', { numericId, timestamp: new Date().toISOString() });
 
     console.log(`🔌 [Socket.IO] User Connected: ${user.username} (ID: ${numericId}) [Socket: ${socket.id}]`);
 
-    // 🎙️ Live Room Joining (Supports both live.join and join-room)
-    const handleRoomJoin = (data: { roomId: string; userId?: string }) => {
+    // 🎙️ Live Room Joining with Authoritative Active Members & Snapshot
+    const handleRoomJoin = async (data: { roomId: string; userId?: string; userName?: string; displayName?: string }) => {
       if (!data?.roomId) return;
-      socket.join(`room_${data.roomId}`);
-      io.to(`room_${data.roomId}`).emit('live.viewer_joined', {
-        roomId: data.roomId,
-        user: { numericId, username: user.username },
-        timestamp: new Date().toISOString(),
-      });
-      io.to(`room_${data.roomId}`).emit('room.user.joined', {
-        roomId: data.roomId,
-        userId: numericId,
-        user: { numericId, username: user.username },
-        timestamp: new Date().toISOString(),
-      });
+      const roomId = data.roomId;
+      const roomChannel = `room_${roomId}`;
+      socket.join(roomChannel);
+      socketToRooms.get(socket.id)?.add(roomId);
+
+      try {
+        // Query database for authoritative user and room status
+        const [dbUser, liveRoom] = await Promise.all([
+          prisma.user.findUnique({
+            where: { id: user.userId },
+            select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true },
+          }),
+          prisma.liveRoom.findUnique({
+            where: { roomId },
+            include: {
+              host: { select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true } },
+              seats: {
+                where: { userId: { not: null } },
+                include: { user: { select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true } } },
+              },
+            },
+          }),
+        ]);
+
+        if (!roomActiveMembers.has(roomId)) {
+          roomActiveMembers.set(roomId, new Map());
+          // Seed roomActiveMembers with Host if room exists
+          if (liveRoom?.host) {
+            roomActiveMembers.get(roomId)!.set(liveRoom.host.numericId, {
+              userId: liveRoom.host.id,
+              numericId: liveRoom.host.numericId,
+              username: liveRoom.host.username,
+              displayName: liveRoom.host.displayName || liveRoom.host.username,
+              avatar: liveRoom.host.avatar,
+              vipTier: liveRoom.host.vipTier,
+              level: liveRoom.host.level,
+              role: 'HOST',
+              seatNumber: 1,
+              isMuted: false,
+              joinedAt: liveRoom.createdAt.toISOString(),
+            });
+          }
+          // Seed seated speakers
+          if (liveRoom?.seats) {
+            for (const s of liveRoom.seats) {
+              if (s.user) {
+                roomActiveMembers.get(roomId)!.set(s.user.numericId, {
+                  userId: s.user.id,
+                  numericId: s.user.numericId,
+                  username: s.user.username,
+                  displayName: s.user.displayName || s.user.username,
+                  avatar: s.user.avatar,
+                  vipTier: s.user.vipTier,
+                  level: s.user.level,
+                  role: s.user.id === liveRoom.hostId ? 'HOST' : 'SPEAKER',
+                  seatNumber: s.seatNumber,
+                  isMuted: s.isMuted,
+                  joinedAt: s.createdAt.toISOString(),
+                });
+              }
+            }
+          }
+        }
+
+        // Determine user's role in this room
+        let role: 'HOST' | 'SPEAKER' | 'VIEWER' = 'VIEWER';
+        let seatNumber: number | null = null;
+
+        if (liveRoom && liveRoom.hostId === user.userId) {
+          role = 'HOST';
+          seatNumber = 1;
+        } else if (liveRoom?.seats) {
+          const occupiedSeat = liveRoom.seats.find((s) => s.userId === user.userId);
+          if (occupiedSeat) {
+            role = 'SPEAKER';
+            seatNumber = occupiedSeat.seatNumber;
+          }
+        }
+
+        // If viewer, record presence in database
+        if (role === 'VIEWER' && liveRoom) {
+          await prisma.liveRoomViewer.upsert({
+            where: { roomId_userId: { roomId, userId: user.userId } },
+            create: { roomId, userId: user.userId, socketId: socket.id, lastSeenAt: new Date() },
+            update: { socketId: socket.id, lastSeenAt: new Date() },
+          }).catch(() => {});
+        }
+
+        const memberData: ActiveMemberData = {
+          userId: dbUser?.id || user.userId,
+          numericId: dbUser?.numericId || numericId,
+          username: dbUser?.username || user.username,
+          displayName: dbUser?.displayName || data.displayName || data.userName || user.username,
+          avatar: dbUser?.avatar || null,
+          vipTier: dbUser?.vipTier || 0,
+          level: dbUser?.level || 1,
+          role,
+          seatNumber,
+          isMuted: false,
+          joinedAt: new Date().toISOString(),
+        };
+
+        roomActiveMembers.get(roomId)!.set(memberData.numericId, memberData);
+
+        const currentMembers = Array.from(roomActiveMembers.get(roomId)!.values());
+
+        // 1. Emit Authoritative Snapshot directly to joining socket
+        socket.emit('room.members.snapshot', {
+          roomId,
+          count: currentMembers.length,
+          totalMembers: currentMembers.length,
+          members: currentMembers,
+          timestamp: new Date().toISOString(),
+        });
+
+        // 2. Broadcast user joined event to all participants in this room only
+        const joinPayload = {
+          roomId,
+          userId: memberData.numericId,
+          userNumericId: memberData.numericId,
+          member: memberData,
+          totalMembers: currentMembers.length,
+          user: {
+            id: memberData.userId,
+            numericId: memberData.numericId,
+            username: memberData.username,
+            displayName: memberData.displayName,
+            avatar: memberData.avatar,
+            role: memberData.role,
+            vipTier: memberData.vipTier,
+            level: memberData.level,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        io.to(roomChannel).emit('live.viewer_joined', joinPayload);
+        io.to(roomChannel).emit('room.user.joined', joinPayload);
+        io.to(roomChannel).emit('ROOM_USER_JOINED', joinPayload);
+      } catch (err) {
+        console.error('❌ [handleRoomJoin Error]', err);
+      }
     };
     socket.on('live.join', handleRoomJoin);
     socket.on('join-room', handleRoomJoin);
     socket.on('join_room', handleRoomJoin);
 
-    // 🚪 Live Room Leaving (Supports both live.leave and leave-room)
-    const handleRoomLeave = (data: { roomId: string; userId?: string }) => {
+    // 🚪 Live Room Leaving with Realtime Member Removal
+    const handleRoomLeave = async (data: { roomId: string; userId?: string }) => {
       if (!data?.roomId) return;
-      socket.leave(`room_${data.roomId}`);
-      io.to(`room_${data.roomId}`).emit('live.viewer_left', {
-        roomId: data.roomId,
+      const roomId = data.roomId;
+      socketToRooms.get(socket.id)?.delete(roomId);
+      socket.leave(`room_${roomId}`);
+
+      if (roomActiveMembers.has(roomId)) {
+        roomActiveMembers.get(roomId)!.delete(numericId);
+      }
+
+      await prisma.liveRoomViewer.deleteMany({
+        where: { roomId, userId: user.userId },
+      }).catch(() => {});
+
+      const newCount = roomActiveMembers.get(roomId)?.size || 0;
+
+      const leavePayload = {
+        roomId,
         numericId,
-        timestamp: new Date().toISOString(),
-      });
-      io.to(`room_${data.roomId}`).emit('room.user.left', {
-        roomId: data.roomId,
         userId: numericId,
+        totalMembers: newCount,
         timestamp: new Date().toISOString(),
-      });
+      };
+
+      io.to(`room_${roomId}`).emit('live.viewer_left', leavePayload);
+      io.to(`room_${roomId}`).emit('room.user.left', leavePayload);
+      io.to(`room_${roomId}`).emit('ROOM_USER_LEFT', leavePayload);
     };
     socket.on('live.leave', handleRoomLeave);
     socket.on('leave-room', handleRoomLeave);
@@ -163,36 +334,53 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     socket.on('seat-request', handleJoinRequest);
 
     // 👑 Realtime Host Join Request Response (Accept/Reject)
-    socket.on('room.join.respond', (data: { roomId: string; targetNumericId: number; status: 'ACCEPTED' | 'REJECTED' }) => {
+    socket.on('room.join.respond', (data: { roomId: string; targetNumericId: number; status: 'ACCEPTED' | 'REJECTED'; seatIndex?: number }) => {
       const eventName = data.status === 'ACCEPTED' ? 'room.join.request.accepted' : 'room.join.request.rejected';
-      io.to(`user_${data.targetNumericId}`).emit(eventName, {
+      const payload = {
         roomId: data.roomId,
         targetNumericId: data.targetNumericId,
+        targetUserId: String(data.targetNumericId),
         status: data.status,
+        seatIndex: data.seatIndex || 2,
         timestamp: new Date().toISOString(),
-      });
-      io.to(`room_${data.roomId}`).emit(eventName, {
-        roomId: data.roomId,
-        targetNumericId: data.targetNumericId,
-        status: data.status,
-        timestamp: new Date().toISOString(),
-      });
+      };
+      io.to(`user_${data.targetNumericId}`).emit(eventName, payload);
+      io.to(`user_${data.targetNumericId}`).emit('ROOM_JOIN_REQUEST_ACCEPTED', payload);
+      io.to(`room_${data.roomId}`).emit(eventName, payload);
+      io.to(`room_${data.roomId}`).emit('ROOM_JOIN_REQUEST_ACCEPTED', payload);
     });
-    socket.on('room-join-accept', (data: { roomId: string; targetUserId: string }) => {
-      io.to(`room_${data.roomId}`).emit('room.join.request.accepted', {
+    socket.on('room-join-accept', (data: { roomId: string; targetUserId: string; targetNumericId?: number; seatIndex?: number }) => {
+      const targetNumeric = data.targetNumericId || Number(data.targetUserId);
+      const payload = {
         roomId: data.roomId,
         targetUserId: data.targetUserId,
+        targetNumericId: targetNumeric,
         status: 'ACCEPTED',
+        seatIndex: data.seatIndex || 2,
         timestamp: new Date().toISOString(),
-      });
+      };
+      if (targetNumeric) {
+        io.to(`user_${targetNumeric}`).emit('room.join.request.accepted', payload);
+        io.to(`user_${targetNumeric}`).emit('ROOM_JOIN_REQUEST_ACCEPTED', payload);
+      }
+      io.to(`room_${data.roomId}`).emit('room.join.request.accepted', payload);
+      io.to(`room_${data.roomId}`).emit('ROOM_JOIN_REQUEST_ACCEPTED', payload);
     });
-    socket.on('room-join-reject', (data: { roomId: string; targetUserId: string }) => {
-      io.to(`room_${data.roomId}`).emit('room.join.request.rejected', {
+    socket.on('room-join-reject', (data: { roomId: string; targetUserId: string; targetNumericId?: number }) => {
+      const targetNumeric = data.targetNumericId || Number(data.targetUserId);
+      const payload = {
         roomId: data.roomId,
         targetUserId: data.targetUserId,
+        targetNumericId: targetNumeric,
         status: 'REJECTED',
         timestamp: new Date().toISOString(),
-      });
+      };
+      if (targetNumeric) {
+        io.to(`user_${targetNumeric}`).emit('room.join.request.rejected', payload);
+        io.to(`user_${targetNumeric}`).emit('ROOM_JOIN_REQUEST_REJECTED', payload);
+      }
+      io.to(`room_${data.roomId}`).emit('room.join.request.rejected', payload);
+      io.to(`room_${data.roomId}`).emit('ROOM_JOIN_REQUEST_REJECTED', payload);
     });
 
     // 🚫 Realtime Kick User from Room
@@ -243,15 +431,118 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       });
     });
 
-    // Live Room Comment
-    socket.on('live.comment', (data: { roomId: string; comment: string }) => {
-      io.to(`room_${data.roomId}`).emit('live.comment', {
+    // 💬 Live Room Comment (Real Profile Resolution, Dynamic Role Mapping, Idempotency & Single Event Broadcast)
+    const recentCommentIds = new Set<string>();
+    const handleComment = async (data: { roomId: string; comment?: string; message?: string; text?: string; senderName?: string; senderBadge?: string; senderRole?: string; senderAvatar?: string; clientMsgId?: string }) => {
+      const rawContent = data.comment || data.message || data.text || '';
+      const content = rawContent.trim();
+      if (!content || !data?.roomId || content.length > 500) return;
+
+      // 🛡️ Idempotency check: Ignore duplicate submissions with same clientMsgId
+      if (data.clientMsgId) {
+        if (recentCommentIds.has(data.clientMsgId)) {
+          return;
+        }
+        recentCommentIds.add(data.clientMsgId);
+        if (recentCommentIds.size > 1000) {
+          const firstKey = recentCommentIds.values().next().value;
+          if (firstKey) recentCommentIds.delete(firstKey);
+        }
+      }
+
+      const commentId = data.clientMsgId || `cmt_${Date.now()}_${numericId}_${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // 1. Resolve sender's real database user profile
+      const parsedUserId = typeof user.userId === 'number' ? user.userId : (parseInt(String(user.userId).replace(/[^0-9]/g, '')) || 0);
+      let dbUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            ...(parsedUserId > 0 ? [{ id: parsedUserId }] : []),
+            { numericId: numericId },
+            { username: user.username },
+          ],
+        },
+        select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true },
+      }).catch(() => null);
+
+      // 2. Dynamically determine sender's current room role (HOST, GUEST, or USER)
+      let senderRole: 'HOST' | 'GUEST' | 'USER' = 'USER';
+      if (data.senderBadge === 'HOST' || data.senderRole === 'HOST') {
+        senderRole = 'HOST';
+      }
+
+      const activeMember = roomActiveMembers.get(data.roomId)?.get(numericId);
+      if (activeMember) {
+        if (activeMember.role === 'HOST') {
+          senderRole = 'HOST';
+        } else if (activeMember.role === 'SPEAKER' || (activeMember.seatNumber != null && activeMember.seatNumber > 0)) {
+          if (senderRole !== 'HOST') senderRole = 'GUEST';
+        }
+      }
+
+      if (senderRole === 'USER') {
+        const liveRoom = await prisma.liveRoom.findUnique({
+          where: { roomId: data.roomId },
+          include: { seats: true },
+        }).catch(() => null);
+
+        if (liveRoom) {
+          const isRoomHost = liveRoom.hostId === dbUser?.id ||
+            liveRoom.hostId === parsedUserId ||
+            data.roomId.includes(`RM-${numericId}-`) ||
+            data.roomId.startsWith(`RM-${numericId}-`);
+          if (isRoomHost) {
+            senderRole = 'HOST';
+          } else if (liveRoom.seats.some((s) => (s.userId === dbUser?.id || s.userId === parsedUserId) && s.status === 'OCCUPIED')) {
+            senderRole = 'GUEST';
+          }
+        } else if (data.roomId.includes(`RM-${numericId}-`) || data.roomId.startsWith(`RM-${numericId}-`)) {
+          senderRole = 'HOST';
+        }
+      }
+
+      const senderAvatar = dbUser?.avatar || data.senderAvatar || null;
+      const senderUsername = dbUser?.username || user.username;
+      const senderDisplayName = dbUser?.displayName || data.senderName || dbUser?.username || user.username;
+
+      const payload = {
+        id: commentId,
+        clientMsgId: data.clientMsgId || commentId,
         roomId: data.roomId,
-        sender: { numericId, username: user.username },
-        comment: data.comment,
+        sender: {
+          id: dbUser?.id || user.userId,
+          numericId: dbUser?.numericId || numericId,
+          username: senderUsername,
+          displayName: senderDisplayName,
+          avatar: senderAvatar,
+          role: senderRole,
+          badge: senderRole,
+          level: dbUser?.level || 1,
+          vipTier: dbUser?.vipTier || 0,
+        },
+        user: senderDisplayName,
+        username: senderUsername,
+        displayName: senderDisplayName,
+        avatar: senderAvatar,
+        role: senderRole,
+        badge: senderRole,
+        comment: content,
+        text: content,
         timestamp: new Date().toISOString(),
-      });
-    });
+      };
+
+      // 3. Increment total room comments count in database asynchronously
+      prisma.liveRoom.update({
+        where: { roomId: data.roomId },
+        data: { totalComments: { increment: 1 } },
+      }).catch(() => {});
+
+      // 4. Broadcast EXACTLY ONCE to participants in this room only
+      io.to(`room_${data.roomId}`).emit('live.comment', payload);
+    };
+
+    socket.on('live.comment', handleComment);
+    socket.on('send-comment', handleComment);
 
     // Direct Chat Messaging
     socket.on('chat.send', (data: { conversationId: string; targetNumericId: number; message: any }) => {
@@ -299,8 +590,8 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       io.to(`room_family_${data.familyId}`).emit('family.chat.message', data.message);
     });
 
-    // Disconnect Handler
-    socket.on('disconnect', () => {
+    // Disconnect Handler with Automatic Room Member Cleanup
+    socket.on('disconnect', async () => {
       const userSockets = onlineUsers.get(numericId);
       if (userSockets) {
         userSockets.delete(socket.id);
@@ -309,11 +600,71 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
           io.emit('user.offline', { numericId, timestamp: new Date().toISOString() });
         }
       }
+
+      // Clean up user from all rooms this socket joined
+      const rooms = socketToRooms.get(socket.id);
+      if (rooms && rooms.size > 0) {
+        for (const rId of rooms) {
+          if (roomActiveMembers.has(rId)) {
+            roomActiveMembers.get(rId)!.delete(numericId);
+            const remainingCount = roomActiveMembers.get(rId)!.size;
+            io.to(`room_${rId}`).emit('live.viewer_left', {
+              roomId: rId,
+              numericId,
+              userId: numericId,
+              totalMembers: remainingCount,
+              timestamp: new Date().toISOString(),
+            });
+            io.to(`room_${rId}`).emit('room.user.left', {
+              roomId: rId,
+              userId: numericId,
+              totalMembers: remainingCount,
+              timestamp: new Date().toISOString(),
+            });
+            io.to(`room_${rId}`).emit('ROOM_USER_LEFT', {
+              roomId: rId,
+              userId: numericId,
+              totalMembers: remainingCount,
+              timestamp: new Date().toISOString(),
+            });
+          }
+          // Remove from PostgreSQL LiveRoomViewer
+          prisma.liveRoomViewer.deleteMany({
+            where: { roomId: rId, userId: user.userId },
+          }).catch(() => {});
+        }
+      }
+      socketToRooms.delete(socket.id);
+
       console.log(`🔌 [Socket.IO] User Disconnected: ${user.username} (ID: ${numericId})`);
     });
   });
 
   return io;
+}
+
+export function updateRoomMemberRole(
+  roomId: string,
+  numericId: number,
+  role: 'HOST' | 'SPEAKER' | 'VIEWER',
+  seatNumber?: number | null,
+  isMuted?: boolean
+): void {
+  if (roomActiveMembers.has(roomId) && roomActiveMembers.get(roomId)!.has(numericId)) {
+    const member = roomActiveMembers.get(roomId)!.get(numericId)!;
+    member.role = role;
+    if (seatNumber !== undefined) member.seatNumber = seatNumber;
+    if (isMuted !== undefined) member.isMuted = isMuted;
+
+    if (ioInstance) {
+      ioInstance.to(`room_${roomId}`).emit('room.member.updated', {
+        roomId,
+        member,
+        totalMembers: roomActiveMembers.get(roomId)!.size,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
 }
 
 export function getIO(): SocketIOServer {
@@ -340,3 +691,4 @@ export function broadcastGlobal(event: string, payload: any): void {
     ioInstance.emit(event, payload);
   }
 }
+

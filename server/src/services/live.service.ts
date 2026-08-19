@@ -1,6 +1,6 @@
 import { prisma } from '../config/database.js';
 import { generateAgoraRtcToken, RtcRole } from '../utils/agoraToken.js';
-import { emitToRoom, broadcastGlobal } from '../websocket/socketServer.js';
+import { emitToRoom, broadcastGlobal, updateRoomMemberRole } from '../websocket/socketServer.js';
 import { FamilyService } from './family.service.js';
 
 export class LiveService {
@@ -14,14 +14,14 @@ export class LiveService {
     seatCount?: number;
     countryCode?: string;
   }) {
-    let hostUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { id: data.hostUserId },
-          { numericId: data.hostUserId },
-        ],
-      },
+    let hostUser = await prisma.user.findUnique({
+      where: { id: data.hostUserId },
     });
+    if (!hostUser) {
+      hostUser = await prisma.user.findFirst({
+        where: { numericId: data.hostUserId },
+      });
+    }
 
     if (!hostUser) {
       throw new Error('HOST_NOT_FOUND: Authenticated host user not found. Please log in and try again.');
@@ -44,53 +44,125 @@ export class LiveService {
       } catch (_) {}
     }
 
-    const roomId = `RM-${hostUser.numericId}-${Math.floor(1000 + Math.random() * 9000)}-${Date.now() % 10000}`;
+    const permanentRoomId = `RM-${hostUser.numericId}`;
     const totalSeats = data.seatCount === 20 ? 20 : (data.seatCount === 15 ? 15 : 10);
     const verifiedCountryCode = (data.countryCode || hostUser.countryCode || 'PK').toUpperCase();
     const initialRankingScore = (hostUser.level * 20) + 100;
 
-    const room = await prisma.liveRoom.create({
-      data: {
-        roomId,
-        title: data.title || `${hostUser.displayName || hostUser.username}'s Audio Lounge`,
-        category: data.category || 'Music',
-        countryCode: verifiedCountryCode,
-        hostId: hostUser.id,
-        seatCount: totalSeats,
-        status: 'LIVE',
-        isLocked: false,
-        allowsJoinRequest: true,
-        listenersCount: 1,
-        viewerCount: 0,
-        rankingScore: initialRankingScore,
-        seats: {
-          create: Array.from({ length: totalSeats }, (_, i) => {
-            const seatNumber = i + 1;
-            return {
-              seatNumber,
+    // 1. Check if user already has an existing room in DB
+    const existingRoom = await prisma.liveRoom.findFirst({
+      where: {
+        OR: [
+          { hostId: hostUser.id },
+          { roomId: permanentRoomId },
+        ],
+      },
+    });
+
+    let room;
+    if (existingRoom) {
+      // 🔄 Existing Room Found: Update room, reset seats, and activate Live Session
+      await prisma.liveRoomSeat.deleteMany({
+        where: {
+          OR: [
+            { roomId: existingRoom.roomId },
+            { roomId: permanentRoomId },
+          ],
+        },
+      });
+
+      room = await prisma.liveRoom.update({
+        where: { id: existingRoom.id },
+        data: {
+          roomId: permanentRoomId,
+          title: data.title || existingRoom.title || `${hostUser.displayName || hostUser.username}'s Audio Lounge`,
+          category: data.category || existingRoom.category || 'Music',
+          countryCode: verifiedCountryCode,
+          seatCount: totalSeats,
+          status: 'LIVE',
+          isLocked: false,
+          listenersCount: 1,
+          viewerCount: 0,
+          peakViewers: 0,
+          totalViewers: 0,
+          newFollowers: 0,
+          totalGifts: 0,
+          totalDiamonds: 0,
+          totalComments: 0,
+          guestsJoined: 0,
+          seatsUsed: 0,
+          durationSeconds: 0,
+          endedAt: null,
+          createdAt: new Date(), // Live session startedAt
+          updatedAt: new Date(),
+          rankingScore: initialRankingScore,
+          seats: {
+            create: Array.from({ length: totalSeats }, (_, i) => ({
+              seatNumber: i + 1,
               userId: null,
               isHost: false,
               status: 'EMPTY',
               isMuted: false,
               isLocked: false,
-            };
-          }),
-        },
-      },
-      include: {
-        host: {
-          select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true, countryCode: true },
-        },
-        seats: {
-          include: {
-            user: {
-              select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true },
-            },
+            })),
           },
-          orderBy: { seatNumber: 'asc' },
         },
-      },
-    });
+        include: {
+          host: {
+            select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true, countryCode: true },
+          },
+          seats: {
+            include: {
+              user: {
+                select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true },
+              },
+            },
+            orderBy: { seatNumber: 'asc' },
+          },
+        },
+      });
+    } else {
+      // 🆕 Create Permanent Room for the First Time
+      room = await prisma.liveRoom.create({
+        data: {
+          roomId: permanentRoomId,
+          title: data.title || `${hostUser.displayName || hostUser.username}'s Audio Lounge`,
+          category: data.category || 'Music',
+          countryCode: verifiedCountryCode,
+          hostId: hostUser.id,
+          seatCount: totalSeats,
+          status: 'LIVE',
+          isLocked: false,
+          allowsJoinRequest: true,
+          listenersCount: 1,
+          viewerCount: 0,
+          rankingScore: initialRankingScore,
+          seats: {
+            create: Array.from({ length: totalSeats }, (_, i) => ({
+              seatNumber: i + 1,
+              userId: null,
+              isHost: false,
+              status: 'EMPTY',
+              isMuted: false,
+              isLocked: false,
+            })),
+          },
+        },
+        include: {
+          host: {
+            select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true, countryCode: true },
+          },
+          seats: {
+            include: {
+              user: {
+                select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true },
+              },
+            },
+            orderBy: { seatNumber: 'asc' },
+          },
+        },
+      });
+    }
 
     // Generate Host Agora RTC Token
     const agoraConfig = generateAgoraRtcToken(room.roomId, hostUser.numericId, RtcRole.PUBLISHER);
@@ -160,10 +232,14 @@ export class LiveService {
 
     if (query.search && query.search.trim().length > 0) {
       const q = query.search.trim();
+      const numQ = parseInt(q, 10);
+      const isNum = !isNaN(numQ);
       where.OR = [
-        { title: { contains: q } },
-        { host: { username: { contains: q } } },
-        { host: { displayName: { contains: q } } },
+        { title: { contains: q, mode: 'insensitive' } },
+        { roomId: { contains: q, mode: 'insensitive' } },
+        { host: { username: { contains: q, mode: 'insensitive' } } },
+        { host: { displayName: { contains: q, mode: 'insensitive' } } },
+        ...(isNum ? [{ host: { numericId: numQ } }, { host: { id: numQ } }] : []),
       ];
     }
 
@@ -467,6 +543,135 @@ export class LiveService {
     } catch (_) {
       return { success: false };
     }
+  }
+
+  /**
+   * 👥 Get Complete Authoritative Active Room Members List
+   * Aggregates Host, Seated Speakers, and Active Viewers directly from PostgreSQL.
+   */
+  static async getActiveRoomMembers(roomId: string) {
+    const room = await prisma.liveRoom.findUnique({
+      where: { roomId },
+      include: {
+        host: {
+          select: {
+            id: true,
+            numericId: true,
+            username: true,
+            displayName: true,
+            avatar: true,
+            level: true,
+            vipTier: true,
+          },
+        },
+        seats: {
+          where: { userId: { not: null } },
+          include: {
+            user: {
+              select: {
+                id: true,
+                numericId: true,
+                username: true,
+                displayName: true,
+                avatar: true,
+                level: true,
+                vipTier: true,
+              },
+            },
+          },
+          orderBy: { seatNumber: 'asc' },
+        },
+        viewers: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                numericId: true,
+                username: true,
+                displayName: true,
+                avatar: true,
+                level: true,
+                vipTier: true,
+              },
+            },
+          },
+          orderBy: { joinedAt: 'desc' },
+        },
+      },
+    });
+
+    if (!room || room.status === 'ENDED') {
+      return {
+        roomId,
+        totalMembers: 0,
+        members: [],
+      };
+    }
+
+    const membersMap = new Map<number, any>();
+
+    // 1. Add Host (Always present in active room)
+    if (room.host) {
+      membersMap.set(room.host.numericId, {
+        userId: room.host.id,
+        numericId: room.host.numericId,
+        username: room.host.username,
+        displayName: room.host.displayName || room.host.username,
+        avatar: room.host.avatar,
+        level: room.host.level,
+        vipTier: room.host.vipTier,
+        role: 'HOST',
+        seatNumber: 1,
+        isMuted: false,
+        joinedAt: room.createdAt.toISOString(),
+      });
+    }
+
+    // 2. Add Seated Speakers
+    for (const seat of room.seats) {
+      if (seat.user) {
+        membersMap.set(seat.user.numericId, {
+          userId: seat.user.id,
+          numericId: seat.user.numericId,
+          username: seat.user.username,
+          displayName: seat.user.displayName || seat.user.username,
+          avatar: seat.user.avatar,
+          level: seat.user.level,
+          vipTier: seat.user.vipTier,
+          role: seat.user.id === room.hostId ? 'HOST' : 'SPEAKER',
+          seatNumber: seat.seatNumber,
+          isMuted: seat.isMuted,
+          joinedAt: seat.createdAt.toISOString(),
+        });
+      }
+    }
+
+    // 3. Add Viewers (excluding anyone already on a seat or host)
+    for (const viewer of room.viewers) {
+      if (viewer.user && !membersMap.has(viewer.user.numericId)) {
+        membersMap.set(viewer.user.numericId, {
+          userId: viewer.user.id,
+          numericId: viewer.user.numericId,
+          username: viewer.user.username,
+          displayName: viewer.user.displayName || viewer.user.username,
+          avatar: viewer.user.avatar,
+          level: viewer.user.level,
+          vipTier: viewer.user.vipTier,
+          role: 'VIEWER',
+          seatNumber: null,
+          isMuted: false,
+          joinedAt: viewer.joinedAt.toISOString(),
+        });
+      }
+    }
+
+    const members = Array.from(membersMap.values());
+
+    return {
+      roomId,
+      totalMembers: members.length,
+      members,
+    };
   }
 
   /**
@@ -1246,125 +1451,143 @@ export class LiveService {
    * Take a seat (Atomic Database Transaction)
    */
   static async takeSeat(roomId: string, seatNumber: number, userId: number) {
-    return await prisma.$transaction(async (tx) => {
-      const room = await tx.liveRoom.findUnique({
-        where: { roomId },
-        include: { host: true, roomAdmins: true },
-      });
+    const room = await prisma.liveRoom.findUnique({
+      where: { roomId },
+      include: { host: true, roomAdmins: true },
+    });
 
-      if (!room) {
-        const err = new Error('Live room not found.');
-        (err as any).statusCode = 404;
-        throw err;
-      }
+    if (!room) {
+      const err = new Error('Live room not found.');
+      (err as any).statusCode = 404;
+      throw err;
+    }
 
-      if (room.status === 'ENDED') {
-        const err = new Error('Live room has ended.');
-        (err as any).statusCode = 400;
-        throw err;
-      }
+    if (room.status === 'ENDED') {
+      const err = new Error('Live room has ended.');
+      (err as any).statusCode = 400;
+      throw err;
+    }
 
-      if (seatNumber < 1 || seatNumber > room.seatCount) {
-        const err = new Error(`Invalid seat number. Room has ${room.seatCount} seats.`);
-        (err as any).statusCode = 400;
-        throw err;
-      }
+    if (seatNumber < 1 || seatNumber > room.seatCount) {
+      const err = new Error(`Invalid seat number. Room has ${room.seatCount} seats.`);
+      (err as any).statusCode = 400;
+      throw err;
+    }
 
-      const user = await tx.user.findUnique({
-        where: { id: userId },
-      });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
 
-      if (!user) {
-        const err = new Error('User not found.');
-        (err as any).statusCode = 404;
-        throw err;
-      }
+    if (!user) {
+      const err = new Error('User not found.');
+      (err as any).statusCode = 404;
+      throw err;
+    }
 
-      // Check if target seat is locked
-      const targetSeat = await tx.liveRoomSeat.findUnique({
-        where: { roomId_seatNumber: { roomId, seatNumber } },
-      });
+    // Check if target seat is locked
+    const targetSeat = await prisma.liveRoomSeat.findUnique({
+      where: { roomId_seatNumber: { roomId, seatNumber } },
+    });
 
-      if (!targetSeat) {
-        const err = new Error('Seat record not found.');
-        (err as any).statusCode = 404;
-        throw err;
-      }
+    if (!targetSeat) {
+      const err = new Error('Seat record not found.');
+      (err as any).statusCode = 404;
+      throw err;
+    }
 
-      const isHost = room.hostId === userId;
-      const isAdmin = room.roomAdmins.some((a) => a.userId === userId);
+    const isHost = room.hostId === userId;
+    const isAdmin = room.roomAdmins.some((a) => a.userId === userId);
 
-      if (targetSeat.isLocked && !isHost && !isAdmin) {
-        const err = new Error('This seat is locked by the host.');
-        (err as any).statusCode = 403;
-        throw err;
-      }
+    if (targetSeat.isLocked && !isHost && !isAdmin) {
+      const err = new Error('This seat is locked by the host.');
+      (err as any).statusCode = 403;
+      throw err;
+    }
 
-      if (targetSeat.userId !== null && targetSeat.userId !== userId) {
-        const err = new Error('SEAT_ALREADY_OCCUPIED');
-        (err as any).statusCode = 409;
-        throw err;
-      }
+    if (targetSeat.userId !== null && targetSeat.userId !== userId) {
+      const err = new Error('SEAT_ALREADY_OCCUPIED');
+      (err as any).statusCode = 409;
+      throw err;
+    }
 
-      // Free any other seat currently held by this user in this room
-      await tx.liveRoomSeat.updateMany({
-        where: {
-          roomId,
-          userId,
-          seatNumber: { not: seatNumber },
-        },
-        data: {
-          userId: null,
-          status: 'EMPTY',
-          isMuted: false,
-        },
-      });
+    // Free any other seat currently held by this user in this room
+    await prisma.liveRoomSeat.updateMany({
+      where: {
+        roomId,
+        userId,
+        seatNumber: { not: seatNumber },
+      },
+      data: {
+        userId: null,
+        status: 'EMPTY',
+        isMuted: false,
+      },
+    });
 
-      // Claim target seat
-      const updatedSeat = await tx.liveRoomSeat.update({
-        where: { id: targetSeat.id },
-        data: {
-          userId,
-          status: 'SPEAKING',
-          isMuted: false,
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              numericId: true,
-              username: true,
-              displayName: true,
-              avatar: true,
-              level: true,
-              vipTier: true,
-            },
+    // Claim target seat
+    const updatedSeat = await prisma.liveRoomSeat.update({
+      where: { id: targetSeat.id },
+      data: {
+        userId,
+        status: 'SPEAKING',
+        isMuted: false,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            numericId: true,
+            username: true,
+            displayName: true,
+            avatar: true,
+            level: true,
+            vipTier: true,
           },
         },
-      });
+      },
+    });
 
-      // Generate Agora Broadcaster RTC Token
-      const agoraConfig = generateAgoraRtcToken(roomId, user.numericId, RtcRole.PUBLISHER);
+    // Generate Agora Broadcaster RTC Token
+    const agoraConfig = generateAgoraRtcToken(roomId, user.numericId, RtcRole.PUBLISHER);
 
-      // Realtime broadcast to room
-      emitToRoom(roomId, 'room.seat.updated', {
-        roomId,
-        seat: updatedSeat,
-        action: 'TAKEN',
-      });
+    // Update active member role to SPEAKER
+    updateRoomMemberRole(roomId, user.numericId, isHost ? 'HOST' : 'SPEAKER', seatNumber, false);
 
-      return {
-        seat: updatedSeat,
-        agora: agoraConfig,
-      };
-    }, { timeout: 25000, maxWait: 10000 });
+    // Fetch all current seats to broadcast authoritative full list
+    const allSeats = await prisma.liveRoomSeat.findMany({
+      where: { roomId },
+      include: {
+        user: {
+          select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true },
+        },
+      },
+      orderBy: { seatNumber: 'asc' },
+    });
+
+    // Realtime broadcast single seat and full seats list to room
+    emitToRoom(roomId, 'room.seat.updated', {
+      roomId,
+      seat: updatedSeat,
+      action: 'TAKEN',
+    });
+    emitToRoom(roomId, 'room.seats.updated', {
+      roomId,
+      seats: allSeats,
+      seatCount: room.seatCount,
+    });
+
+    return {
+      seat: updatedSeat,
+      seats: allSeats,
+      agora: agoraConfig,
+    };
   }
 
   /**
    * Leave a seat
    */
   static async leaveSeat(roomId: string, seatNumber: number, userId: number) {
-    return await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const targetSeat = await tx.liveRoomSeat.findUnique({
         where: { roomId_seatNumber: { roomId, seatNumber } },
         include: { room: true },
@@ -1405,20 +1628,49 @@ export class LiveService {
         },
       });
 
+      const allSeats = await tx.liveRoomSeat.findMany({
+        where: { roomId },
+        include: {
+          user: {
+            select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true },
+          },
+        },
+        orderBy: { seatNumber: 'asc' },
+      });
+
       emitToRoom(roomId, 'room.seat.updated', {
         roomId,
         seat: updatedSeat,
         action: 'LEFT',
       });
+      emitToRoom(roomId, 'room.seats.updated', {
+        roomId,
+        seats: allSeats,
+        seatCount: targetSeat.room.seatCount,
+      });
 
-      return updatedSeat;
+      return { updatedSeat, allSeats, vacatedUserId: targetSeat.userId };
     }, { timeout: 25000, maxWait: 10000 });
+
+    if (result.vacatedUserId) {
+      const u = await prisma.user.findUnique({ where: { id: result.vacatedUserId }, select: { numericId: true } });
+      if (u) {
+        updateRoomMemberRole(roomId, u.numericId, 'VIEWER', null, false);
+      }
+    }
+
+    return result.updatedSeat;
   }
 
   /**
    * Mute / Unmute Seat Mic
    */
   static async muteSeat(roomId: string, seatNumber: number, actorUserId: number, isMuted: boolean) {
+    const actor = await prisma.user.findFirst({
+      where: { OR: [{ id: actorUserId }, { numericId: actorUserId }] },
+    });
+    const effectiveActorId = actor ? actor.id : actorUserId;
+
     const seat = await prisma.liveRoomSeat.findUnique({
       where: { roomId_seatNumber: { roomId, seatNumber } },
       include: { room: { include: { roomAdmins: true } } },
@@ -1430,9 +1682,9 @@ export class LiveService {
       throw err;
     }
 
-    const isHost = seat.room.hostId === actorUserId;
-    const isAdmin = seat.room.roomAdmins.some((a) => a.userId === actorUserId);
-    const isOwner = seat.userId === actorUserId;
+    const isHost = seat.room.hostId === effectiveActorId;
+    const isAdmin = seat.room.roomAdmins.some((a) => a.userId === effectiveActorId);
+    const isOwner = seat.userId === effectiveActorId;
 
     if (!isHost && !isAdmin && !isOwner) {
       const err = new Error('Unauthorized to mute this seat.');
@@ -1466,6 +1718,11 @@ export class LiveService {
    * Lock / Unlock Seat
    */
   static async lockSeat(roomId: string, seatNumber: number, actorUserId: number, isLocked: boolean) {
+    const actor = await prisma.user.findFirst({
+      where: { OR: [{ id: actorUserId }, { numericId: actorUserId }] },
+    });
+    const effectiveActorId = actor ? actor.id : actorUserId;
+
     const seat = await prisma.liveRoomSeat.findUnique({
       where: { roomId_seatNumber: { roomId, seatNumber } },
       include: { room: { include: { roomAdmins: true } } },
@@ -1477,8 +1734,8 @@ export class LiveService {
       throw err;
     }
 
-    const isHost = seat.room.hostId === actorUserId;
-    const isAdmin = seat.room.roomAdmins.some((a) => a.userId === actorUserId);
+    const isHost = seat.room.hostId === effectiveActorId;
+    const isAdmin = seat.room.roomAdmins.some((a) => a.userId === effectiveActorId);
 
     if (!isHost && !isAdmin) {
       const err = new Error('Unauthorized. Only host or admins can lock seats.');
@@ -2162,7 +2419,7 @@ export class LiveService {
   }
 
   /**
-   * 📜 Get Broadcast History for a User
+   * 📜 Get Broadcast History for a User (with automatic LiveRoom backfill)
    */
   static async getUserBroadcastHistory(userId: number, page = 1, limit = 20) {
     const user = await prisma.user.findFirst({
@@ -2172,7 +2429,62 @@ export class LiveService {
     });
 
     if (!user) {
-      return { total: 0, page, limit, data: [] };
+      return { total: 0, page, limit, totalPages: 0, data: [] };
+    }
+
+    // 1. Backfill any completed LiveRooms that don't have a BroadcastHistory record yet
+    try {
+      const endedRoomsWithoutHistory = await prisma.liveRoom.findMany({
+        where: {
+          hostId: user.id,
+          status: { in: ['ENDED', 'TERMINATED'] },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 20,
+      });
+
+      for (const room of endedRoomsWithoutHistory) {
+        const startedAt = room.createdAt;
+        const endedAt = room.endedAt || room.updatedAt || new Date();
+        const durationSeconds = room.durationSeconds > 0
+          ? room.durationSeconds
+          : Math.max(0, Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000));
+        const formattedDuration = this.formatDuration(durationSeconds);
+
+        await prisma.broadcastHistory.upsert({
+          where: { broadcastId: room.roomId },
+          create: {
+            broadcastId: room.roomId,
+            roomId: room.roomId,
+            hostId: user.id,
+            title: room.title,
+            category: room.category,
+            seatCapacity: room.seatCount,
+            startedAt,
+            endedAt,
+            durationSeconds,
+            formattedDuration,
+            peakViewers: room.peakViewers || 0,
+            totalViewers: room.totalViewers || 0,
+            uniqueViewers: room.totalViewers || 0,
+            newFollowers: room.newFollowers || 0,
+            totalGifts: room.totalGifts || 0,
+            diamondsEarned: room.totalDiamonds || 0,
+            totalComments: room.totalComments || 0,
+            guestsJoined: room.guestsJoined || 0,
+            seatsUsed: room.seatsUsed || 0,
+            status: 'ENDED',
+          },
+          update: {
+            endedAt,
+            durationSeconds,
+            formattedDuration,
+            status: 'ENDED',
+          },
+        });
+      }
+    } catch (backfillErr) {
+      console.error('⚠️ [BroadcastHistory Backfill Error]:', backfillErr);
     }
 
     const [total, histories] = await Promise.all([
@@ -2440,6 +2752,457 @@ export class LiveService {
       return { success: true, deleted: removed };
     }
     return { success: false, message: 'Comment not found.' };
+  }
+
+  /**
+   * 🔍 Get Active Room for a given Host User (Prevents Duplicate Go-Live)
+   */
+  static async getMyActiveRoom(userId: number) {
+    let user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      user = await prisma.user.findFirst({
+        where: { numericId: userId },
+      });
+    }
+    if (!user) return { hasActiveRoom: false, room: null };
+
+    const activeRoom = await prisma.liveRoom.findFirst({
+      where: {
+        hostId: user.id,
+        status: { in: ['LIVE', 'LOCKED'] },
+        endedAt: null,
+      },
+      include: {
+        host: {
+          select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true, countryCode: true },
+        },
+        seats: {
+          include: {
+            user: {
+              select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true },
+            },
+          },
+          orderBy: { seatNumber: 'asc' },
+        },
+      },
+    });
+
+    if (!activeRoom) {
+      return { hasActiveRoom: false, room: null };
+    }
+
+    const agoraConfig = generateAgoraRtcToken(activeRoom.roomId, user.numericId, RtcRole.PUBLISHER);
+    return {
+      hasActiveRoom: true,
+      room: activeRoom,
+      agora: agoraConfig,
+    };
+  }
+
+  /**
+   * 🔍 Get Real-time Room View Info (5 Core Metrics: ID, Members, Rewards, Announcement, Numeric Room Value)
+   */
+  static async getRoomViewInfo(roomId: string) {
+    const room = await prisma.liveRoom.findFirst({
+      where: { OR: [{ id: roomId }, { roomId: roomId }] },
+      include: {
+        host: {
+          select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true, countryCode: true },
+        },
+        viewers: {
+          include: {
+            user: { select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true } },
+          },
+        },
+        seats: {
+          include: {
+            user: { select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true } },
+          },
+          orderBy: { seatNumber: 'asc' },
+        },
+        roomAdmins: {
+          select: { userId: true, role: true },
+        },
+      },
+    });
+
+    if (!room) {
+      const err = new Error('Room not found');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    const now = Date.now();
+    const dayAgo = new Date(now - 24 * 60 * 60 * 1000);
+    const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+
+    // 1. Total Diamonds from GiftTransactions for this room
+    const allGifts = await prisma.giftTransaction.findMany({
+      where: { OR: [{ roomId: room.id }, { roomId: room.roomId }] },
+      select: {
+        senderId: true,
+        totalDiamonds: true,
+        totalCoins: true,
+        createdAt: true,
+      },
+    });
+
+    let totalDiamonds = 0;
+    let todayDiamonds = 0;
+    let weeklyDiamonds = 0;
+    const gifterMap: Record<number, number> = {};
+
+    for (const g of allGifts) {
+      const diamonds = g.totalDiamonds || 0;
+      totalDiamonds += diamonds;
+      if (g.createdAt >= dayAgo) {
+        todayDiamonds += diamonds;
+      }
+      if (g.createdAt >= weekAgo) {
+        weeklyDiamonds += diamonds;
+      }
+      gifterMap[g.senderId] = (gifterMap[g.senderId] || 0) + diamonds;
+    }
+
+    // Top gifters list
+    const topGifterIds = Object.keys(gifterMap)
+      .map(Number)
+      .sort((a, b) => (gifterMap[b] || 0) - (gifterMap[a] || 0))
+      .slice(0, 5);
+
+    let topGifters: any[] = [];
+    if (topGifterIds.length > 0) {
+      const gifterUsers = await prisma.user.findMany({
+        where: { id: { in: topGifterIds } },
+        select: { id: true, numericId: true, username: true, displayName: true, avatar: true, level: true, vipTier: true },
+      });
+      topGifters = topGifterIds.map((id, index) => {
+        const u = gifterUsers.find(gu => gu.id === id);
+        return {
+          rank: index + 1,
+          userId: u?.id || id,
+          numericId: u?.numericId || id,
+          displayName: u?.displayName || u?.username || `User #${id}`,
+          avatar: u?.avatar || '',
+          level: u?.level || 1,
+          vipTier: u?.vipTier || 'FREE',
+          diamonds: gifterMap[id] || 0,
+        };
+      });
+    }
+
+    // 2. Active members count
+    const seatedCount = room.seats.filter(s => s.userId != null).length;
+    const viewerCount = room.viewers.length;
+    const activeMemberCount = Math.max(1, seatedCount + viewerCount);
+
+    // 3. Authoritative Numerical Room Value
+    // Formula: Total Diamonds * 1.5 + (Total Gifts * 10) + (Peak/Active Viewers * 25) + (Likes * 2) + rankingScore
+    const roomValue = Math.floor(
+      (totalDiamonds || room.totalDiamonds || 0) * 1.5 +
+      (room.totalGifts || 0) * 10 +
+      activeMemberCount * 25 +
+      (room.likesCount || 0) * 2 +
+      (room.rankingScore || 0)
+    );
+
+    return {
+      success: true,
+      data: {
+        roomId: room.roomId,
+        roomNumber: room.roomId,
+        title: room.title,
+        description: room.description || '',
+        announcement: room.announcement || 'Welcome to our Live Audio Suite! Respect all speakers and enjoy the vibe.',
+        cover: room.cover || room.host?.avatar || '',
+        category: room.category,
+        countryCode: room.countryCode,
+        isLocked: room.isLocked,
+        status: room.status,
+        createdAt: room.createdAt,
+        host: {
+          id: room.host.id,
+          numericId: room.host.numericId,
+          displayName: room.host.displayName,
+          username: room.host.username,
+          avatar: room.host.avatar,
+          level: room.host.level,
+          vipTier: room.host.vipTier,
+        },
+        membersCount: activeMemberCount,
+        roomValue,
+        rewards: {
+          totalDiamonds: totalDiamonds || room.totalDiamonds || 0,
+          todayDiamonds,
+          weeklyDiamonds,
+          hostEarnedCoins: Math.floor((totalDiamonds || room.totalDiamonds || 0) * 0.7),
+          topGifters,
+        },
+        adminUserIds: room.roomAdmins.map(a => a.userId),
+      },
+    };
+  }
+
+  /**
+   * 📢 Update Room Announcement (Host or Admin only)
+   */
+  static async updateRoomAnnouncement(roomId: string, userIdentifier: number, announcement: string) {
+    const user = await prisma.user.findFirst({
+      where: { OR: [{ id: userIdentifier }, { numericId: userIdentifier }] },
+    });
+
+    if (!user) {
+      const err = new Error('User not found');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    const room = await prisma.liveRoom.findFirst({
+      where: { OR: [{ id: roomId }, { roomId: roomId }] },
+      include: { roomAdmins: true },
+    });
+
+    if (!room) {
+      const err = new Error('Room not found');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    const isHost = room.hostId === user.id;
+    const isAdmin = room.roomAdmins.some(a => a.userId === user.id);
+
+    if (!isHost && !isAdmin && user.role !== 'ADMIN' && user.role !== 'SUPERADMIN') {
+      const err = new Error('Permission denied. Only Room Host or Admins can update the announcement.');
+      (err as any).statusCode = 403;
+      throw err;
+    }
+
+    const updated = await prisma.liveRoom.update({
+      where: { id: room.id },
+      data: { announcement },
+    });
+
+    return {
+      success: true,
+      roomId: room.roomId,
+      announcement: updated.announcement,
+      updatedBy: user.numericId,
+    };
+  }
+
+  /**
+   * 🎙️ Move Target User Directly to a Mic Seat (Host / Admin Only)
+   */
+  static async moveUserToMic(
+    roomId: string,
+    adminIdentifier: number,
+    targetIdentifier: number,
+    requestedSeatNumber?: number
+  ) {
+    const adminUser = await prisma.user.findFirst({
+      where: { OR: [{ id: adminIdentifier }, { numericId: adminIdentifier }] },
+    });
+    if (!adminUser) {
+      const err = new Error('Admin user not found');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    const targetUser = await prisma.user.findFirst({
+      where: { OR: [{ id: targetIdentifier }, { numericId: targetIdentifier }] },
+    });
+    if (!targetUser) {
+      const err = new Error('Target user not found');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    const room = await prisma.liveRoom.findFirst({
+      where: { OR: [{ id: roomId }, { roomId: roomId }] },
+      include: { roomAdmins: true },
+    });
+    if (!room) {
+      const err = new Error('Room not found');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    const isHost = room.hostId === adminUser.id;
+    const isAdmin = room.roomAdmins.some((a) => a.userId === adminUser.id);
+    if (!isHost && !isAdmin && adminUser.role !== 'ADMIN' && adminUser.role !== 'SUPERADMIN') {
+      const err = new Error('Permission denied. Only Room Host or Admins can move users to mic.');
+      (err as any).statusCode = 403;
+      throw err;
+    }
+
+    await this.ensureRoomSeats(room.roomId, room.seatCount, room.hostId);
+
+    // If target user already occupies a seat, find it
+    const existingSeat = await prisma.liveRoomSeat.findFirst({
+      where: { roomId: room.roomId, userId: targetUser.id },
+    });
+
+    let targetSeatNumber = requestedSeatNumber;
+
+    if (targetSeatNumber !== undefined && targetSeatNumber > 0) {
+      const seat = await prisma.liveRoomSeat.findUnique({
+        where: { roomId_seatNumber: { roomId: room.roomId, seatNumber: targetSeatNumber } },
+      });
+      if (!seat || seat.isLocked || (seat.userId != null && seat.userId !== targetUser.id)) {
+        targetSeatNumber = undefined; // fallback to next available
+      }
+    }
+
+    if (targetSeatNumber === undefined) {
+      // Find first free and unlocked seat (starting from seat 1)
+      const freeSeat = await prisma.liveRoomSeat.findFirst({
+        where: {
+          roomId: room.roomId,
+          userId: null,
+          isLocked: false,
+          seatNumber: { gt: 0 },
+        },
+        orderBy: { seatNumber: 'asc' },
+      });
+
+      if (!freeSeat) {
+        const err = new Error('No available mic seat.');
+        (err as any).statusCode = 400;
+        throw err;
+      }
+      targetSeatNumber = freeSeat.seatNumber;
+    }
+
+    // If target user was on another seat, vacate it
+    if (existingSeat && existingSeat.seatNumber !== targetSeatNumber) {
+      await prisma.liveRoomSeat.update({
+        where: { id: existingSeat.id },
+        data: { userId: null, isMuted: false },
+      });
+    }
+
+    // Assign to new seat
+    const updatedSeat = await prisma.liveRoomSeat.update({
+      where: { roomId_seatNumber: { roomId: room.roomId, seatNumber: targetSeatNumber } },
+      data: {
+        userId: targetUser.id,
+        isMuted: false,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            numericId: true,
+            username: true,
+            displayName: true,
+            avatar: true,
+            level: true,
+            vipTier: true,
+          },
+        },
+      },
+    });
+
+    return {
+      success: true,
+      roomId: room.roomId,
+      seatNumber: updatedSeat.seatNumber,
+      seat: updatedSeat,
+      user: {
+        id: targetUser.id,
+        numericId: targetUser.numericId,
+        displayName: targetUser.displayName,
+        username: targetUser.username,
+        avatar: targetUser.avatar,
+      },
+      assignedBy: adminUser.numericId,
+    };
+  }
+
+  /**
+   * 📩 Invite Target User to Take a Mic Seat (Host / Admin Only)
+   */
+  static async inviteUserToMic(
+    roomId: string,
+    adminIdentifier: number,
+    targetIdentifier: number,
+    requestedSeatNumber?: number
+  ) {
+    const adminUser = await prisma.user.findFirst({
+      where: { OR: [{ id: adminIdentifier }, { numericId: adminIdentifier }] },
+    });
+    if (!adminUser) {
+      const err = new Error('Admin user not found');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    const targetUser = await prisma.user.findFirst({
+      where: { OR: [{ id: targetIdentifier }, { numericId: targetIdentifier }] },
+    });
+    if (!targetUser) {
+      const err = new Error('Target user not found');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    const room = await prisma.liveRoom.findFirst({
+      where: { OR: [{ id: roomId }, { roomId: roomId }] },
+      include: { roomAdmins: true },
+    });
+    if (!room) {
+      const err = new Error('Room not found');
+      (err as any).statusCode = 404;
+      throw err;
+    }
+
+    const isHost = room.hostId === adminUser.id;
+    const isAdmin = room.roomAdmins.some((a) => a.userId === adminUser.id);
+    if (!isHost && !isAdmin && adminUser.role !== 'ADMIN' && adminUser.role !== 'SUPERADMIN') {
+      const err = new Error('Permission denied. Only Room Host or Admins can invite users to mic.');
+      (err as any).statusCode = 403;
+      throw err;
+    }
+
+    await this.ensureRoomSeats(room.roomId, room.seatCount, room.hostId);
+
+    // Check if there is at least 1 free unlocked seat
+    const freeSeat = await prisma.liveRoomSeat.findFirst({
+      where: {
+        roomId: room.roomId,
+        userId: null,
+        isLocked: false,
+        seatNumber: { gt: 0 },
+      },
+    });
+
+    if (!freeSeat) {
+      const err = new Error('No available mic seat.');
+      (err as any).statusCode = 400;
+      throw err;
+    }
+
+    return {
+      success: true,
+      roomId: room.roomId,
+      seatNumber: requestedSeatNumber || freeSeat.seatNumber,
+      targetUser: {
+        id: targetUser.id,
+        numericId: targetUser.numericId,
+        displayName: targetUser.displayName,
+        username: targetUser.username,
+      },
+      invitedBy: {
+        id: adminUser.id,
+        numericId: adminUser.numericId,
+        displayName: adminUser.displayName,
+        username: adminUser.username,
+        avatar: adminUser.avatar,
+      },
+      timeoutSeconds: 20,
+    };
   }
 }
 

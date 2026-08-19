@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { ImageUploadDropzone } from './ImageUploadDropzone';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Gift {
@@ -69,44 +70,96 @@ const BLANK_FORM: FormState = {
   active: true,
 };
 
-const CATEGORIES = ['All', 'Popular', 'Luxury', 'Special FX', 'Romantic', 'Lucky'];
+function getApiBase(): string {
+  if (typeof window !== 'undefined') {
+    if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return 'https://aura-live-voice-chat-1.onrender.com/api/v1';
+    }
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+}
+
+const CATEGORIES = ['All', 'Popular', 'Luxury', 'Special FX', 'Romantic', 'Lucky', 'Draw', 'Multi', 'Family Prestige', 'VIP'];
 const ANIMATION_TYPES = [
   'SMALL', 'SVG', 'SVGA', 'LOTTIE', '3D_OVERLAY', 'FULL_SCREEN',
-  'ROSE_BURST', 'HEART_FOUNTAIN', 'ROYAL_CROWN_3D', 'SUPERCAR_3D',
-  'GALAXY_ROCKET_3D', 'SUPER_YACHT_3D', 'DRAGON_FIRE_3D',
+  'AUTUMN_WINDMILL_SVGA', 'BLUE_ENCHANTRESS_SVGA', 'CHILDHOOD_SWEETHEARTS_SVGA',
+  'CROWNING_LOVE_SVGA', 'FLOWER_BOAT_SVGA', 'MERMAID_GIRL_SVGA',
+  'RABBIT_HEARTBEAT_SVGA', 'RUNAWAY_SWEETHEART_SVGA', 'SECRET_CAGE_SVGA',
+  'MAGIC_DEY_SVGA', 'STAR_GODDESS_3D', 'LEO_ROAR', 'STAR_FALL_3D',
+  'SUPER_LEO_FIRE_3D', 'BOBA_SPLASH', 'GLOW_STICK_FX', 'VINYL_SPIN_3D',
+  'GOLDEN_TROPHY_3D', 'ROSE_BURST', 'HEART_FOUNTAIN', 'ROYAL_CROWN_3D',
+  'SUPERCAR_3D', 'GALAXY_ROCKET_3D', 'SUPER_YACHT_3D', 'DRAGON_FIRE_3D',
   'COSMIC_PORTAL_3D', 'ROYAL_CASTLE_3D', 'LUCKY_CHEST_3D',
 ];
 
-// Hardcoded catalog mirroring gift.service.ts VIRTUAL_GIFTS_CATALOG
+// Comprehensive catalog matching server and mobile app
 const STATIC_CATALOG: Gift[] = [
-  { id: 'GIFT-101',   name: 'Red Rose',          icon: '🌹', costCoins: 10,    rewardDiamonds: 7,     category: 'Popular',    animationType: 'ROSE_BURST',      xpReward: 20,   isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
-  { id: 'GIFT-102',   name: 'Love Heart',        icon: '💖', costCoins: 50,    rewardDiamonds: 35,    category: 'Romantic',   animationType: 'HEART_FOUNTAIN',  xpReward: 50,   isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
-  { id: 'GIFT-103',   name: 'Diamond Ring',      icon: '💍', costCoins: 200,   rewardDiamonds: 140,   category: 'Popular',    animationType: 'DIAMOND_SHINE',   xpReward: 100,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
-  { id: 'GIFT-501',   name: 'Royal Golden Crown', icon: '👑', costCoins: 500,  rewardDiamonds: 350,   category: 'Luxury',     animationType: 'ROYAL_CROWN_3D',  xpReward: 250,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
-  { id: 'GIFT-1501',  name: 'Cyber Supercar',    icon: '🏎️', costCoins: 1500,  rewardDiamonds: 1050,  category: 'Luxury',     animationType: 'SUPERCAR_3D',     xpReward: 500,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
-  { id: 'GIFT-2001',  name: 'Galaxy Space Rocket',icon: '🚀', costCoins: 2000, rewardDiamonds: 1400,  category: 'Special FX', animationType: 'GALAXY_ROCKET_3D', xpReward: 750, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
-  { id: 'GIFT-5001',  name: 'Billionaire Yacht',  icon: '🛥️', costCoins: 5000, rewardDiamonds: 3500,  category: 'Luxury',     animationType: 'SUPER_YACHT_3D',  xpReward: 1000, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
-  { id: 'GIFT-8001',  name: 'Golden Dragon FX',  icon: '🐉', costCoins: 8000,  rewardDiamonds: 5600,  category: 'Special FX', animationType: 'DRAGON_FIRE_3D',  xpReward: 1500, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
-  { id: 'GIFT-10001', name: 'Luxury Private Jet', icon: '✈️', costCoins: 10000, rewardDiamonds: 7000, category: 'Luxury',     animationType: 'PRIVATE_JET_3D', xpReward: 2000, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
-  { id: 'GIFT-20001', name: 'Cosmic Galaxy Portal',icon: '🌌', costCoins: 20000,rewardDiamonds: 14000,category: 'Special FX', animationType: 'COSMIC_PORTAL_3D',xpReward: 3000,isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
-  { id: 'GIFT-25001', name: 'Imperial Royal Castle',icon: '🏰', costCoins: 25000,rewardDiamonds: 17500,category: 'Luxury',  animationType: 'ROYAL_CASTLE_3D', xpReward: 5000,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
-  { id: 'GIFT-LUCKY-1',name: 'Lucky Treasure Chest',icon: '🎰', costCoins: 100, rewardDiamonds: 70,  category: 'Lucky',      animationType: 'LUCKY_CHEST_3D',  xpReward: 200,  isLucky: true,  multiplierMax: 500, active: true, createdAt: '' },
+  // 10 Personal SVGA Gifts
+  { id: 'GIFT-AUTUMN-WINDMILL',      name: 'Autumn Windmill',       icon: '🍂', costCoins: 1200, rewardDiamonds: 840,  category: 'Popular',         animationType: 'AUTUMN_WINDMILL_SVGA',     svgaUrl: '/uploads/svga/Autumn_Windmill_.svga', xpReward: 600,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-BLUE-ENCHANTRESS',     name: 'Blue Enchantress',      icon: '💙', costCoins: 600,  rewardDiamonds: 420,  category: 'Draw',            animationType: 'BLUE_ENCHANTRESS_SVGA',    svgaUrl: '/uploads/svga/Blue_Enchantress.svga', xpReward: 300,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-CHILDHOOD-SWEETHEARTS',name: 'Childhood Sweethearts', icon: '👫', costCoins: 1500, rewardDiamonds: 1050, category: 'Popular',         animationType: 'CHILDHOOD_SWEETHEARTS_SVGA',svgaUrl: '/uploads/svga/Childhood_sweethearts_1.svga', xpReward: 750, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-CROWNING-LOVE',        name: 'Crowning Love',         icon: '👑', costCoins: 3500, rewardDiamonds: 2450, category: 'VIP',             animationType: 'CROWNING_LOVE_SVGA',       svgaUrl: '/uploads/svga/Crowning_Love_2.svga', xpReward: 1750, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-FLOWER-BOAT',          name: 'Flower Boat',           icon: '⛵', costCoins: 800,  rewardDiamonds: 560,  category: 'Popular',         animationType: 'FLOWER_BOAT_SVGA',         svgaUrl: '/uploads/svga/Flower_Boat_1.svga', xpReward: 400,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-MERMAID-GIRL',         name: 'Mermaid Girl',          icon: '🧜‍♀️', costCoins: 2200, rewardDiamonds: 1540, category: 'Multi',           animationType: 'MERMAID_GIRL_SVGA',        svgaUrl: '/uploads/svga/Mermaid_girl_1.svga', xpReward: 1100, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-RABBIT-HEARTBEAT',     name: 'Rabbit Heartbeat',      icon: '🐰', costCoins: 1000, rewardDiamonds: 700,  category: 'Family Prestige', animationType: 'RABBIT_HEARTBEAT_SVGA',    svgaUrl: '/uploads/svga/Rabbit_Heartbeat_1.svga', xpReward: 500, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-RUNAWAY-SWEETHEART',   name: 'Runaway Sweetheart',    icon: '💖', costCoins: 1800, rewardDiamonds: 1260, category: 'Popular',         animationType: 'RUNAWAY_SWEETHEART_SVGA',  svgaUrl: '/uploads/svga/Runaway_Sweetheart_1.svga', xpReward: 900, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-SECRET-CAGE',          name: 'Secret Cage',           icon: '🕊️', costCoins: 900,  rewardDiamonds: 630,  category: 'Draw',            animationType: 'SECRET_CAGE_SVGA',         svgaUrl: '/uploads/svga/Secret_Cage_1.svga', xpReward: 450,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-MAGIC-DEY',            name: 'Magic Lamp Dream',      icon: '🪔', costCoins: 750,  rewardDiamonds: 525,  category: 'Special FX',      animationType: 'MAGIC_DEY_SVGA',           svgaUrl: '/uploads/svga/dey_1.svga', xpReward: 375,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+
+  // Live broadcast popular 8 gifts
+  { id: 'GIFT-STAR-GODDESS',         name: 'Star Goddess',          icon: '✨', costCoins: 200,  rewardDiamonds: 140,  category: 'Popular',         animationType: 'STAR_GODDESS_3D',          xpReward: 100,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-LEO',                  name: 'Leo',                   icon: '🦁', costCoins: 1,    rewardDiamonds: 1,    category: 'Popular',         animationType: 'LEO_ROAR',                 xpReward: 5,    isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-PICKING-STARS',        name: 'Picking stars',         icon: '⭐', costCoins: 999,  rewardDiamonds: 700,  category: 'Multi',           animationType: 'STAR_FALL_3D',             xpReward: 500,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-SUPER-LEO',            name: 'Super Leo',             icon: '🔥', costCoins: 2888, rewardDiamonds: 2020, category: 'VIP',             animationType: 'SUPER_LEO_FIRE_3D',        xpReward: 1440, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-BUBBLE-MILK-TEA',      name: 'Bubble milk tea',       icon: '🧋', costCoins: 1,    rewardDiamonds: 1,    category: 'Popular',         animationType: 'BOBA_SPLASH',              xpReward: 5,    isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-GLOW-STICK',           name: 'Glow Stick',            icon: '🪄', costCoins: 1,    rewardDiamonds: 1,    category: 'Draw',            animationType: 'GLOW_STICK_FX',            xpReward: 5,    isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-RECORD-PLAYER',        name: 'Record Player',         icon: '📻', costCoins: 100,  rewardDiamonds: 70,   category: 'Family Prestige', animationType: 'VINYL_SPIN_3D',           xpReward: 50,   isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-TROPHY',               name: 'Trophy',                icon: '🏆', costCoins: 500,  rewardDiamonds: 350,  category: 'Popular',         animationType: 'GOLDEN_TROPHY_3D',         xpReward: 250,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+
+  // Standard luxury & romantic catalog
+  { id: 'GIFT-101',                  name: 'Red Rose',              icon: '🌹', costCoins: 10,   rewardDiamonds: 7,    category: 'Popular',         animationType: 'ROSE_BURST',               xpReward: 20,   isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-102',                  name: 'Love Heart',            icon: '💖', costCoins: 50,   rewardDiamonds: 35,   category: 'Romantic',        animationType: 'HEART_FOUNTAIN',           xpReward: 50,   isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-103',                  name: 'Diamond Ring',          icon: '💍', costCoins: 200,  rewardDiamonds: 140,  category: 'Popular',         animationType: 'DIAMOND_SHINE',            xpReward: 100,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-501',                  name: 'Royal Golden Crown',    icon: '👑', costCoins: 500,  rewardDiamonds: 350,  category: 'Luxury',          animationType: 'ROYAL_CROWN_3D',           xpReward: 250,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-1501',                 name: 'Cyber Supercar',        icon: '🏎️', costCoins: 1500, rewardDiamonds: 1050, category: 'Luxury',          animationType: 'SUPERCAR_3D',              xpReward: 500,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-2001',                 name: 'Galaxy Space Rocket',   icon: '🚀', costCoins: 2000, rewardDiamonds: 1400, category: 'Special FX',       animationType: 'GALAXY_ROCKET_3D',         xpReward: 750,  isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-5001',                 name: 'Billionaire Yacht',     icon: '🛥️', costCoins: 5000, rewardDiamonds: 3500, category: 'Luxury',          animationType: 'SUPER_YACHT_3D',           xpReward: 1000, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-8001',                 name: 'Golden Dragon FX',      icon: '🐉', costCoins: 8000, rewardDiamonds: 5600, category: 'Special FX',       animationType: 'DRAGON_FIRE_3D',           xpReward: 1500, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-10001',                name: 'Luxury Private Jet',    icon: '✈️', costCoins: 10000,rewardDiamonds: 7000, category: 'Luxury',          animationType: 'PRIVATE_JET_3D',           xpReward: 2000, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-20001',                name: 'Cosmic Galaxy Portal',  icon: '🌌', costCoins: 20000,rewardDiamonds: 14000,category: 'Special FX',      animationType: 'COSMIC_PORTAL_3D',         xpReward: 3000, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-25001',                name: 'Imperial Royal Castle', icon: '🏰', costCoins: 25000,rewardDiamonds: 17500,category: 'Luxury',         animationType: 'ROYAL_CASTLE_3D',          xpReward: 5000, isLucky: false, multiplierMax: 500, active: true, createdAt: '' },
+  { id: 'GIFT-LUCKY-1',              name: 'Lucky Treasure Chest',  icon: '🎰', costCoins: 100,  rewardDiamonds: 70,   category: 'Lucky',           animationType: 'LUCKY_CHEST_3D',           xpReward: 200,  isLucky: true,  multiplierMax: 500, active: true, createdAt: '' },
 ];
 
 // ─── Category tag colour map ───────────────────────────────────────────────────
 const CAT_STYLE: Record<string, string> = {
-  Popular:    'bg-pink-500/20    text-pink-300    border-pink-500/30',
-  Romantic:   'bg-rose-500/20    text-rose-300    border-rose-500/30',
-  Luxury:     'bg-amber-500/20   text-amber-300   border-amber-500/30',
-  'Special FX':'bg-cyan-500/20   text-cyan-300    border-cyan-500/30',
-  Lucky:      'bg-purple-500/20  text-purple-300  border-purple-500/30',
-  All:        'bg-slate-700      text-slate-300   border-slate-600',
+  Popular:          'bg-pink-500/20    text-pink-300    border-pink-500/30',
+  Romantic:         'bg-rose-500/20    text-rose-300    border-rose-500/30',
+  Luxury:           'bg-amber-500/20   text-amber-300   border-amber-500/30',
+  'Special FX':     'bg-cyan-500/20    text-cyan-300    border-cyan-500/30',
+  Lucky:            'bg-purple-500/20  text-purple-300  border-purple-500/30',
+  Draw:             'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  Multi:            'bg-indigo-500/20  text-indigo-300  border-indigo-500/30',
+  'Family Prestige':'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/30',
+  VIP:              'bg-yellow-500/20  text-yellow-300  border-yellow-500/30',
+  All:              'bg-slate-700      text-slate-300   border-slate-600',
 };
 
 const ANIM_STYLE: Record<string, string> = {
   SVGA: 'bg-cyan-800/50 text-cyan-300', LOTTIE: 'bg-fuchsia-800/50 text-fuchsia-300',
   '3D_OVERLAY': 'bg-indigo-800/50 text-indigo-300', FULL_SCREEN: 'bg-rose-800/50 text-rose-300',
   LUCKY_CHEST_3D: 'bg-amber-800/50 text-amber-300',
+  AUTUMN_WINDMILL_SVGA: 'bg-orange-800/50 text-orange-300',
+  BLUE_ENCHANTRESS_SVGA: 'bg-sky-800/50 text-sky-300',
+  CHILDHOOD_SWEETHEARTS_SVGA: 'bg-pink-800/50 text-pink-300',
+  CROWNING_LOVE_SVGA: 'bg-yellow-800/50 text-yellow-300',
+  FLOWER_BOAT_SVGA: 'bg-emerald-800/50 text-emerald-300',
+  MERMAID_GIRL_SVGA: 'bg-teal-800/50 text-teal-300',
+  RABBIT_HEARTBEAT_SVGA: 'bg-rose-800/50 text-rose-300',
+  RUNAWAY_SWEETHEART_SVGA: 'bg-pink-800/50 text-pink-300',
+  SECRET_CAGE_SVGA: 'bg-purple-800/50 text-purple-300',
+  MAGIC_DEY_SVGA: 'bg-amber-800/50 text-amber-300',
 };
 
 function getAnimStyle(t: string) {
@@ -150,8 +203,12 @@ function GiftCard({
           {gift.imageUrl && <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-blue-800/50 text-blue-300">IMG</span>}
           {gift.soundUrl && <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-green-800/50 text-green-300">AUDIO</span>}
         </div>
-        {/* Emoji Icon */}
-        <span className="text-5xl select-none drop-shadow-2xl filter">{gift.icon}</span>
+        {/* Emoji or Image Icon */}
+        {gift.imageUrl ? (
+          <img src={gift.imageUrl} alt={gift.name} className="w-16 h-16 object-contain drop-shadow-2xl rounded-lg" />
+        ) : (
+          <span className="text-5xl select-none drop-shadow-2xl filter">{gift.icon}</span>
+        )}
       </div>
 
       {/* Content */}
@@ -297,20 +354,20 @@ function GiftModal({
           <div className="space-y-3">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Media Assets (optional)</p>
             <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <ImageUploadDropzone
+                  label="Gift Icon / Artwork (Auto WebP + Thumbnail)"
+                  value={form.imageUrl}
+                  onChange={(data) => set('imageUrl', data.imageUrl)}
+                  onRemove={() => set('imageUrl', '')}
+                />
+              </div>
               <div>
-                <label className="text-[10px] font-bold text-cyan-400 block mb-1">SVGA URL</label>
+                <label className="text-[10px] font-bold text-cyan-400 block mb-1">SVGA URL (optional)</label>
                 <input value={form.svgaUrl} onChange={e => set('svgaUrl', e.target.value)} className={inp()} placeholder="https://.../.svga" />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-fuchsia-400 block mb-1">Lottie JSON URL</label>
-                <input value={form.lottieUrl} onChange={e => set('lottieUrl', e.target.value)} className={inp()} placeholder="https://.../.json" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-blue-400 block mb-1">Static Image URL</label>
-                <input value={form.imageUrl} onChange={e => set('imageUrl', e.target.value)} className={inp()} placeholder="https://.../.png" />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-green-400 block mb-1">Sound Effect URL</label>
+                <label className="text-[10px] font-bold text-green-400 block mb-1">Sound Effect URL (optional)</label>
                 <input value={form.soundUrl} onChange={e => set('soundUrl', e.target.value)} className={inp()} placeholder="https://.../.mp3" />
               </div>
             </div>
@@ -383,7 +440,7 @@ function SendGiftPanel({ gifts }: { gifts: Gift[] }) {
     setSending(true);
     setResult(null);
     try {
-      const res = await fetch('http://localhost:3001/api/v1/gifts/send', {
+      const res = await fetch(`${getApiBase()}/gifts/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ senderUserId: +senderId, receiverUserId: +receiverId, giftId, quantity: +qty, roomId: roomId || undefined }),
@@ -494,11 +551,12 @@ export default function GiftHubModule() {
   // Fetch gifts from DB via admin endpoint (fallback to static catalog)
   const loadGifts = useCallback(async () => {
     setLoading(true);
+    const apiBase = getApiBase();
     try {
       // Try admin endpoint first (returns full DB rows)
-      const res = await fetch('http://localhost:3001/api/v1/admin/gifts', { cache: 'no-store' });
+      const res = await fetch(`${apiBase}/admin/gifts`, { cache: 'no-store' });
       const json = await res.json();
-      if (json.data && Array.isArray(json.data)) {
+      if (json.data && Array.isArray(json.data) && json.data.length > 0) {
         const mapped: Gift[] = json.data.map((g: any) => ({
           id: g.id, name: g.name, icon: g.icon || '🎁',
           costCoins: g.costCoins || 0, rewardDiamonds: g.rewardDiamonds || 0,
@@ -517,9 +575,9 @@ export default function GiftHubModule() {
 
     // Fallback: public catalog endpoint
     try {
-      const res = await fetch('http://localhost:3001/api/v1/gifts/catalog', { cache: 'no-store' });
+      const res = await fetch(`${apiBase}/gifts/catalog`, { cache: 'no-store' });
       const json = await res.json();
-      if (json.gifts && Array.isArray(json.gifts)) {
+      if (json.gifts && Array.isArray(json.gifts) && json.gifts.length > 0) {
         const mapped: Gift[] = json.gifts.map((g: any) => ({
           id: g.id, name: g.name, icon: g.emoji || g.icon || '🎁',
           costCoins: g.costDiamonds || g.costCoins || 0,
@@ -543,8 +601,9 @@ export default function GiftHubModule() {
   // Seed DB from static catalog
   const handleSeedDB = useCallback(async () => {
     setSeeding(true);
+    const apiBase = getApiBase();
     try {
-      const res = await fetch('http://localhost:3001/api/v1/admin/gifts/seed', { method: 'POST' });
+      const res = await fetch(`${apiBase}/admin/gifts/seed`, { method: 'POST' });
       const json = await res.json();
       if (json.success) {
         showToast(`🌱 ${json.message}`, true);
@@ -561,8 +620,9 @@ export default function GiftHubModule() {
 
   const loadTxs = useCallback(async () => {
     setTxLoading(true);
+    const apiBase = getApiBase();
     try {
-      const res = await fetch('http://localhost:3001/api/v1/admin/gift-transactions', { cache: 'no-store' });
+      const res = await fetch(`${apiBase}/admin/gift-transactions`, { cache: 'no-store' });
       const json = await res.json();
       if (json.data) setTxs(json.data);
     } catch { /* offline */ }
@@ -587,6 +647,7 @@ export default function GiftHubModule() {
   // Save gift (create or update)
   const handleSave = async (form: FormState) => {
     setSaving(true);
+    const apiBase = getApiBase();
     try {
       const payload = {
         name: form.name, icon: form.icon, category: form.category,
@@ -599,8 +660,8 @@ export default function GiftHubModule() {
       };
       const isEdit = modalGift && modalGift !== 'new';
       const url = isEdit
-        ? `http://localhost:3001/api/v1/admin/gifts/${(modalGift as Gift).id}`
-        : 'http://localhost:3001/api/v1/admin/gifts';
+        ? `${apiBase}/admin/gifts/${(modalGift as Gift).id}`
+        : `${apiBase}/admin/gifts`;
       const method = isEdit ? 'PUT' : 'POST';
       const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const json = await res.json();
@@ -630,8 +691,9 @@ export default function GiftHubModule() {
   const handleToggle = async (id: string, active: boolean) => {
     setGifts(g => g.map(x => x.id === id ? { ...x, active } : x));
     showToast(active ? '✅ Gift activated' : '⏸ Gift deactivated', true);
+    const apiBase = getApiBase();
     try {
-      await fetch(`http://localhost:3001/api/v1/admin/gifts/${id}`, {
+      await fetch(`${apiBase}/admin/gifts/${id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active }),
       });
@@ -642,7 +704,8 @@ export default function GiftHubModule() {
     setGifts(g => g.filter(x => x.id !== id));
     setConfirmDelete(null);
     showToast('🗑 Gift removed', true);
-    try { await fetch(`http://localhost:3001/api/v1/admin/gifts/${id}`, { method: 'DELETE' }); }
+    const apiBase = getApiBase();
+    try { await fetch(`${apiBase}/admin/gifts/${id}`, { method: 'DELETE' }); }
     catch { /* offline */ }
   };
 

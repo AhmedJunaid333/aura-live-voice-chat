@@ -126,3 +126,45 @@ giftRouter.post('/rooms/:roomId/gifts', optionalAuthenticateToken, async (req: R
   }
 });
 
+/**
+ * POST /api/v1/gifts/diamonds/send & POST /api/v1/live/rooms/:roomId/diamonds/send
+ * Transfer raw diamonds from sender to receiver.
+ */
+giftRouter.post(['/diamonds/send', '/rooms/:roomId/diamonds/send'], optionalAuthenticateToken, async (req: Request, res: Response) => {
+  try {
+    const authUserId = (req as any).user?.userId;
+    const rawSender = req.body.senderUserId || req.body.senderNumericId || authUserId || req.headers['x-user-id'];
+    const rawReceiver = req.body.receiverUserId || req.body.receiverNumericId || req.body.targetUserId || req.body.hostId;
+
+    if (!rawSender || !rawReceiver) {
+      res.status(400).json({ success: false, error: 'Sender and receiver user IDs are required.' });
+      return;
+    }
+
+    const senderIdentifier = parseInt(String(rawSender), 10);
+    const receiverIdentifier = parseInt(String(rawReceiver), 10);
+
+    if (isNaN(senderIdentifier) || isNaN(receiverIdentifier) || senderIdentifier <= 0 || receiverIdentifier <= 0) {
+      res.status(400).json({ success: false, error: 'Invalid sender or receiver user ID.' });
+      return;
+    }
+
+    const amount = parseInt(String(req.body.amount || req.body.diamonds || 10), 10);
+    const roomId = (req.params.roomId || req.body.roomId) as string | undefined;
+    const idempotencyKey = req.body.idempotencyKey as string | undefined;
+
+    const result = await GiftService.sendLiveDiamonds({
+      senderIdentifier,
+      receiverIdentifier,
+      roomId,
+      amount,
+      idempotencyKey,
+      notes: req.body.notes,
+    });
+
+    res.status(200).json(result);
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { ImageUploadDropzone } from './ImageUploadDropzone';
 
 export default function RoomWallpapersModule() {
   const [subTab, setSubTab] = useState<'WALLPAPERS' | 'ANIMATED' | 'ASSIGNMENTS' | 'ANALYTICS'>('WALLPAPERS');
@@ -28,7 +29,7 @@ export default function RoomWallpapersModule() {
         slug: 'royal-palace-gold',
         wallpaperType: 'STATIC',
         rarity: 'LEGENDARY',
-        price: 4000,
+        price: 4500,
         currency: 'DIAMONDS',
         requiredVipLevel: 2,
         status: 'ACTIVE',
@@ -36,21 +37,16 @@ export default function RoomWallpapersModule() {
       },
       {
         id: 'WLP-103',
-        name: '🌸 Sakura Blossom Sunset Lounge',
-        slug: 'sakura-blossom-lounge',
-        wallpaperType: 'ANIMATED',
+        name: '🌺 Cherry Blossom Garden',
+        slug: 'cherry-blossom-garden',
+        wallpaperType: 'STATIC',
         rarity: 'EPIC',
-        price: 3000,
+        price: 2500,
         currency: 'DIAMONDS',
         requiredVipLevel: 1,
         status: 'ACTIVE',
         imageUrl: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44',
-        animationUrl: 'https://cdn.auralive.com/assets/wallpapers/sakura_falling.json',
       },
-    ],
-    activeAssignments: [
-      { id: 'ASG-501', roomNumericId: 9901, roomTitle: '👑 Ahmed Khokhar Royal VIP Lounge', wallpaperId: 'WLP-101', wallpaperName: '🌌 Cyber Neon Galaxy Lounge', hostUsername: 'Ahmed Khokhar', assignedAt: new Date().toISOString() },
-      { id: 'ASG-502', roomNumericId: 9902, roomTitle: '🎤 Ayesha Singer Acoustic Lounge', wallpaperId: 'WLP-103', wallpaperName: '🌸 Sakura Blossom Sunset Lounge', hostUsername: 'Ayesha_Singer', assignedAt: new Date(Date.now() - 43200000).toISOString() },
     ],
     userInventory: [
       { id: 'WOWN-901', numericUserId: 100001, username: 'Ahmed Khokhar', wallpaperId: 'WLP-101', wallpaperName: '🌌 Cyber Neon Galaxy Lounge', status: 'EQUIPPED', acquiredAt: new Date().toISOString() },
@@ -68,6 +64,7 @@ export default function RoomWallpapersModule() {
   const [newRarity, setNewRarity] = useState<string>('LEGENDARY');
   const [newPrice, setNewPrice] = useState<string>('5000');
   const [newVipLevel, setNewVipLevel] = useState<string>('3');
+  const [newImageUrl, setNewImageUrl] = useState<string>('https://images.unsplash.com/photo-1518709268805-4e9042af9f23');
 
   const [assignRoomId, setAssignRoomId] = useState<string>('9901');
   const [assignWallpaperId, setAssignWallpaperId] = useState<string>('WLP-101');
@@ -370,6 +367,15 @@ export default function RoomWallpapersModule() {
                   onChange={e => setNewName(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-teal-500 font-bold"
                   required
+                />
+              </div>
+
+              <div>
+                <ImageUploadDropzone
+                  label="Wallpaper Background Graphic (Auto WebP + Thumbnail)"
+                  value={newImageUrl}
+                  onChange={(data) => setNewImageUrl(data.imageUrl)}
+                  onRemove={() => setNewImageUrl('')}
                 />
               </div>
 

@@ -292,27 +292,46 @@ adminRouter.put('/users/:id/freeze-wallet', async (req, res, next) => {
   }
 });
 
-// 6. Credit User Wallet (Coins or Diamonds)
+// 6. Credit User Wallet (Coins or Diamonds) - supports both DB PK id and display numericId
 adminRouter.post('/users/:id/credit', async (req, res, next) => {
   try {
-    const userId = parseInt(req.params.id as string, 10);
-    const { amount, currency } = req.body;
+    const rawId = req.params.id as string;
+    const lookupId = parseInt(rawId, 10);
+    const { amount, currency, notes } = req.body;
     const numAmount = parseInt(amount, 10) || 0;
     const field = currency === 'diamonds' ? 'diamonds' : 'coins';
 
+    if (isNaN(lookupId) || lookupId <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid user ID or numeric UID provided.' });
+    }
+
+    // Lookup user by primary key id OR by numericId
+    const targetUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: lookupId },
+          { numericId: lookupId },
+        ],
+      },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ success: false, error: `User with ID / UID "${lookupId}" not found in database.` });
+    }
+
     const updatedUser = await prisma.user.update({
-      where: { id: userId },
+      where: { id: targetUser.id },
       data: { [field]: { increment: numAmount } },
     });
 
     await prisma.walletTransaction.create({
       data: {
-        userId,
+        userId: targetUser.id,
         type: numAmount > 0 ? 'ADMIN_CREDIT' : 'ADMIN_DEBIT',
         amount: Math.abs(numAmount),
         currency: field.toUpperCase(),
         balanceAfter: updatedUser[field],
-        notes: `Admin manual credit of ${numAmount} ${field}.`,
+        notes: notes || `Admin manual credit of ${numAmount} ${field}.`,
       },
     });
 
@@ -322,13 +341,20 @@ adminRouter.post('/users/:id/credit', async (req, res, next) => {
         actorRole: 'ADMIN',
         action: 'CREDIT_USER_WALLET',
         resource: `User:${updatedUser.numericId}`,
-        details: `Credited ${numAmount} ${field} to @${updatedUser.username}. New Balance: ${updatedUser[field]}`,
+        details: `Credited ${numAmount} ${field} to @${updatedUser.username} (UID: ${updatedUser.numericId}). New Balance: ${updatedUser[field]}`,
       },
     });
 
     emitToUser(updatedUser.numericId, 'wallet.updated', {
       coins: updatedUser.coins,
       diamonds: updatedUser.diamonds,
+    });
+
+    emitToUser(updatedUser.numericId, 'diamond.received', {
+      amount: numAmount,
+      currency: field,
+      balance: updatedUser[field],
+      message: `🎉 You received +${numAmount.toLocaleString()} ${field === 'diamonds' ? 'Diamonds' : 'Coins'} from Admin!`,
     });
 
     res.status(200).json({ success: true, data: updatedUser });

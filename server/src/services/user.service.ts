@@ -225,7 +225,8 @@ export class UserService {
     const whereClause: any = {
       status: 'ACTIVE',
       OR: [
-        { username: { contains: q } },
+        { username: { contains: q, mode: 'insensitive' } },
+        { displayName: { contains: q, mode: 'insensitive' } },
         ...(isNum ? [{ numericId: numericVal }] : []),
       ],
     };
@@ -248,7 +249,7 @@ export class UserService {
       }),
     ]);
 
-    // Check relationship for each user if current user is logged in
+    // Check relationship and live room status for each user
     const data = await Promise.all(
       users.map(async (u) => {
         let isFollowing = false;
@@ -264,21 +265,52 @@ export class UserService {
           isFollowing = follow?.status === 'ACCEPTED';
         }
 
+        const activeLiveRoom = await prisma.liveRoom.findFirst({
+          where: {
+            hostId: u.id,
+            status: { in: ['LIVE', 'LOCKED'] },
+            endedAt: null,
+          },
+          select: {
+            id: true,
+            roomId: true,
+            title: true,
+            category: true,
+            seatCount: true,
+          },
+        });
+
         return {
           id: u.id,
           numericId: u.numericId,
           username: u.username,
+          displayName: u.displayName || u.username,
           avatar: u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop',
-          bio: u.bio,
-          level: u.level,
-          vipTier: u.vipTier,
-          country: u.country,
-          countryCode: u.countryCode,
+          bio: u.bio || 'Welcome to my Aura Live profile! 🎤✨',
+          gender: u.gender || 'Prefer not to say',
+          level: u.level || 1,
+          vipTier: u.vipTier || 0,
+          role: u.role || 'USER',
+          country: u.country || 'Pakistan',
+          countryCode: u.countryCode || 'PK',
           family: u.familyMembership?.family || null,
           isFollowing,
+          isLive: !!activeLiveRoom,
+          liveRoomId: activeLiveRoom?.roomId || null,
+          activeLiveRoom: activeLiveRoom || null,
+          isOnline: !!activeLiveRoom || u.status === 'ACTIVE',
         };
       })
     );
+
+    // Prioritize exact numeric ID match if search query is a number
+    if (isNum) {
+      data.sort((a, b) => {
+        if (a.numericId === numericVal) return -1;
+        if (b.numericId === numericVal) return 1;
+        return 0;
+      });
+    }
 
     return {
       data,
@@ -624,6 +656,160 @@ export class UserService {
     return {
       isLive: !!activeRoom,
       liveRoom: activeRoom || null,
+    };
+  }
+
+  /**
+   * 🏆 Get Contribution Ranking for User / Room Profile
+   * Periods: 'day' (24h), 'week' (7d), 'month' / 'monthly' (30d)
+   */
+  static async getContributionRanking(options: {
+    targetIdentifier?: number | string;
+    roomId?: string;
+    period?: 'day' | 'week' | 'month' | 'monthly';
+    limit?: number;
+  }) {
+    const rawPeriod = (options.period || 'day').toLowerCase();
+    const period = (rawPeriod === 'monthly' ? 'month' : rawPeriod) as 'day' | 'week' | 'month';
+    const limit = Math.min(options.limit || 50, 100);
+
+    const now = Date.now();
+    let sinceDate: Date;
+    if (period === 'day') {
+      sinceDate = new Date(now - 24 * 60 * 60 * 1000);
+    } else if (period === 'week') {
+      sinceDate = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    } else {
+      sinceDate = new Date(now - 30 * 24 * 60 * 60 * 1000);
+    }
+
+    let targetUserId: number | undefined;
+    let targetUser: any = null;
+
+    if (options.targetIdentifier !== undefined && options.targetIdentifier !== null) {
+      const num = typeof options.targetIdentifier === 'number'
+        ? options.targetIdentifier
+        : parseInt(String(options.targetIdentifier), 10);
+
+      targetUser = await prisma.user.findFirst({
+        where: !isNaN(num)
+          ? { OR: [{ numericId: num }, { id: num }] }
+          : { username: String(options.targetIdentifier) },
+        select: {
+          id: true,
+          numericId: true,
+          username: true,
+          displayName: true,
+          avatar: true,
+          level: true,
+          vipTier: true,
+        },
+      });
+
+      if (targetUser) {
+        targetUserId = targetUser.id;
+      }
+    }
+
+    let roomRecord: any = null;
+    if (options.roomId) {
+      roomRecord = await prisma.liveRoom.findUnique({
+        where: { roomId: options.roomId },
+        select: { id: true, roomId: true, hostId: true },
+      });
+      if (!targetUserId && roomRecord) {
+        targetUserId = roomRecord.hostId;
+      }
+    }
+
+    // Build Prisma query where clause
+    const whereClause: any = {
+      createdAt: { gte: sinceDate },
+    };
+
+    if (options.roomId && roomRecord) {
+      whereClause.OR = [
+        { roomId: roomRecord.id },
+        ...(targetUserId ? [{ receiverId: targetUserId }] : []),
+      ];
+    } else if (targetUserId) {
+      whereClause.receiverId = targetUserId;
+    }
+
+    // Aggregate contribution by sender
+    const grouped = await prisma.giftTransaction.groupBy({
+      by: ['senderId'],
+      where: whereClause,
+      _sum: {
+        totalDiamonds: true,
+        totalCoins: true,
+      },
+      _count: {
+        id: true,
+      },
+      orderBy: {
+        _sum: {
+          totalDiamonds: 'desc',
+        },
+      },
+      take: limit,
+    });
+
+    if (grouped.length === 0) {
+      return {
+        success: true,
+        period,
+        targetUser: targetUser || null,
+        totalContribution: 0,
+        totalContributors: 0,
+        rankings: [],
+      };
+    }
+
+    const senderIds = grouped.map((g) => g.senderId);
+    const senders = await prisma.user.findMany({
+      where: { id: { in: senderIds } },
+      select: {
+        id: true,
+        numericId: true,
+        username: true,
+        displayName: true,
+        avatar: true,
+        level: true,
+        vipTier: true,
+      },
+    });
+
+    const sendersMap = new Map(senders.map((s) => [s.id, s]));
+
+    let totalContribution = 0;
+    const rankings = grouped.map((g, index) => {
+      const sender = sendersMap.get(g.senderId);
+      const diamonds = g._sum.totalDiamonds || 0;
+      totalContribution += diamonds;
+
+      return {
+        rank: index + 1,
+        userId: sender?.id || g.senderId,
+        numericId: sender?.numericId || 0,
+        username: sender?.username || 'Gifter',
+        displayName: sender?.displayName || sender?.username || 'Gifter',
+        avatar: sender?.avatar || null,
+        level: sender?.level || 1,
+        vipTier: sender?.vipTier || 0,
+        totalDiamonds: diamonds,
+        totalCoins: g._sum.totalCoins || 0,
+        giftCount: g._count.id,
+      };
+    });
+
+    return {
+      success: true,
+      period,
+      targetUser: targetUser || null,
+      totalContribution,
+      totalContributors: rankings.length,
+      rankings,
     };
   }
 }

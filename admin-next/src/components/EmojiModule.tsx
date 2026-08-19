@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { defaultRealUsers } from '@/lib/api';
+import { ImageUploadDropzone } from './ImageUploadDropzone';
 
 export default function EmojiModule() {
   const [subTab, setSubTab] = useState<'CATALOG' | 'PACKS' | 'TEST' | 'AUDIT'>('CATALOG');
@@ -30,6 +31,7 @@ export default function EmojiModule() {
   const [newCategoryType, setNewCategoryType] = useState<string>('ANIMATED_STICKER');
   const [newStickerPack, setNewStickerPack] = useState<string>('VIP Pack Vol 1');
   const [newVipLevel, setNewVipLevel] = useState<string>('1');
+  const [newImageUrl, setNewImageUrl] = useState<string>('');
 
   // Test Reaction broadcast state
   const [testUserId, setTestUserId] = useState<string>('100001');
@@ -372,6 +374,15 @@ export default function EmojiModule() {
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-purple-500 font-bold"
                   placeholder="e.g. 🚀 Rocket Blast"
                   required
+                />
+              </div>
+
+              <div>
+                <ImageUploadDropzone
+                  label="Emoji Sticker Asset (Auto WebP + Thumbnail)"
+                  value={newImageUrl}
+                  onChange={(data) => setNewImageUrl(data.imageUrl)}
+                  onRemove={() => setNewImageUrl('')}
                 />
               </div>
 

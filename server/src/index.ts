@@ -29,9 +29,14 @@ import { momentRouter } from './routes/moment.routes.js';
 import { frameRouter } from './routes/frame.routes.js';
 import { giftRouter } from './routes/gift.routes.js';
 import { membershipRouter } from './routes/membership.routes.js';
+import { uploadRouter } from './routes/upload.routes.js';
+import { UploadService } from './services/upload.service.js';
 
 const app = express();
 const httpServer = http.createServer(app);
+
+// Ensure upload directories exist
+UploadService.initDirectories();
 
 // Initialize Socket.IO Realtime Gateway
 const io = initSocketServer(httpServer);
@@ -74,7 +79,9 @@ app.use('/api/withdrawal', withdrawalRouter);
 app.use('/api/v1/withdrawal', withdrawalRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/v1/chat', chatRouter);
+app.use('/api/users', followRouter);
 app.use('/api/v1/users', followRouter);
+app.use('/api/users', visitorRouter);
 app.use('/api/v1/users', visitorRouter);
 app.use('/api/v1/notifications', notificationRouter);
 app.use('/api/v1/store', storeRouter);
@@ -94,6 +101,8 @@ app.use('/api/live', giftRouter);
 app.use('/api/v1/live', giftRouter);
 app.use('/api/membership', membershipRouter);
 app.use('/api/v1/membership', membershipRouter);
+app.use('/api/upload', uploadRouter);
+app.use('/api/v1/upload', uploadRouter);
 
 
 // Global Error Handler

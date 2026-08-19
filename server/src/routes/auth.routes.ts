@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { prisma } from '../config/database.js';
 import { AuthService } from '../services/auth.service.js';
 import { registerSchema, loginSchema, adminLoginSchema } from '../utils/validators.js';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth.js';
@@ -36,8 +37,52 @@ authRouter.post('/admin/login', authLimiter, async (req, res, next) => {
   }
 });
 
-authRouter.get('/me', authenticateToken, async (req: AuthenticatedRequest, res) => {
-  res.status(200).json({ success: true, data: req.user });
+authRouter.get('/me', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.userId },
+      select: {
+        id: true,
+        numericId: true,
+        username: true,
+        displayName: true,
+        email: true,
+        phone: true,
+        avatar: true,
+        cover: true,
+        bio: true,
+        gender: true,
+        country: true,
+        countryCode: true,
+        birthday: true,
+        level: true,
+        xp: true,
+        vipTier: true,
+        coins: true,
+        diamonds: true,
+        role: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      res.status(404).json({ success: false, error: 'User not found in database.' });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...user,
+        displayName: user.displayName || user.username,
+        coins: Number(user.coins),
+        diamonds: Number(user.diamonds),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 authRouter.post('/logout', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
@@ -54,6 +99,8 @@ authRouter.post('/logout', authenticateToken, async (req: AuthenticatedRequest, 
 authRouter.post('/google', authLimiter, async (req, res, next) => {
   try {
     const { googleSubjectId, email, displayName, avatar, idToken } = req.body;
+    const maskedEmail = email ? email.replace(/(.{2})(.*)(?=@)/, (_: string, a: string, b: string) => a + '*'.repeat(b.length)) : 'unspecified';
+    console.log(`🔑 [AUTH-SSO] Processing Google SSO for email: ${maskedEmail}, subjectId: ${Boolean(googleSubjectId)}, idToken: ${Boolean(idToken)}`);
     const result = await AuthService.googleLogin({
       googleSubjectId,
       email,
@@ -61,8 +108,10 @@ authRouter.post('/google', authLimiter, async (req, res, next) => {
       avatar,
       idToken,
     });
+    console.log(`✅ [AUTH-SSO] Google SSO success: User ID ${result.user.id} (numericId: ${result.user.numericId})`);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
+    console.error(`❌ [AUTH-SSO] Google SSO error:`, error);
     next(error);
   }
 });
@@ -80,3 +129,24 @@ authRouter.post('/link-google', authenticateToken, async (req: AuthenticatedRequ
     next(error);
   }
 });
+
+authRouter.post('/refresh', async (req, res, next) => {
+  try {
+    const refreshToken = req.body.refreshToken || req.body.token;
+    const result = await AuthService.refreshSession(refreshToken);
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    res.status(401).json({ success: false, error: (error as Error).message });
+  }
+});
+
+authRouter.post('/refresh-token', async (req, res, next) => {
+  try {
+    const refreshToken = req.body.refreshToken || req.body.token;
+    const result = await AuthService.refreshSession(refreshToken);
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    res.status(401).json({ success: false, error: (error as Error).message });
+  }
+});
+

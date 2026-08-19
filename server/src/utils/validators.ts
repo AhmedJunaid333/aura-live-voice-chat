@@ -1,18 +1,23 @@
 import { z } from 'zod';
 
 export const registerSchema = z.object({
-  username: z.string().min(3).max(30),
-  email: z.string().email().optional(),
-  phone: z.string().min(7).max(20).optional(),
-  password: z.string().min(6).max(100),
-  gender: z.string().optional(),
-  country: z.string().optional(),
+  username: z.preprocess((val) => (val == null ? '' : String(val).trim()), z.string().min(1, 'Username is required').max(100)),
+  displayName: z.preprocess((val) => (val == null || String(val).trim() === '' ? undefined : String(val).trim()), z.string().max(100).optional()),
+  email: z.preprocess((val) => (val == null || String(val).trim() === '' ? undefined : String(val).trim()), z.string().email('Invalid email address').optional()),
+  phone: z.preprocess((val) => (val == null || String(val).trim() === '' ? undefined : String(val).trim()), z.string().max(50).optional()),
+  password: z.preprocess((val) => (val == null ? '' : String(val)), z.string().min(1, 'Password is required').max(100)),
+  gender: z.preprocess((val) => (val == null || String(val).trim() === '' ? 'Male' : String(val).trim()), z.string().optional()),
+  country: z.preprocess((val) => (val == null || String(val).trim() === '' ? 'Pakistan' : String(val).trim()), z.string().optional()),
+  birthday: z.any().optional().nullable(),
+  dob: z.any().optional().nullable(),
+  avatar: z.any().optional().nullable(),
+  referralCode: z.any().optional().nullable(),
 });
 
 export const loginSchema = z.object({
-  username: z.string().min(1).optional(),
-  identifier: z.string().min(1).optional(),
-  password: z.string().min(1),
+  username: z.preprocess((val) => (val == null || String(val).trim() === '' ? undefined : String(val).trim()), z.string().optional()),
+  identifier: z.preprocess((val) => (val == null || String(val).trim() === '' ? undefined : String(val).trim()), z.string().optional()),
+  password: z.preprocess((val) => (val == null ? '' : String(val)), z.string().min(1, 'Password is required')),
 });
 
 export const adminLoginSchema = z.object({

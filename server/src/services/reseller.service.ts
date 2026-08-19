@@ -296,6 +296,36 @@ export class ResellerService {
         },
       });
 
+      // 4. Log User WalletTransaction
+      await tx.walletTransaction.create({
+        data: {
+          userId: targetUser.id,
+          type: 'RESELLER_TRANSFER',
+          currency: 'DIAMOND',
+          amount: amountInt,
+          balanceAfter: updatedTargetUser.diamonds,
+          referenceId: `RESELLER-TXN-${Date.now()}`,
+          notes: `Received +${amountInt} Diamonds from Official Reseller @${resellerAccount.user.username} (UID: ${resellerAccount.user.numericId})`,
+        },
+      });
+
+      // 5. Create AuditLog
+      await tx.auditLog.create({
+        data: {
+          actorId: resellerAccount.user.id,
+          actorRole: 'RESELLER',
+          action: 'RESELLER_DIAMOND_TRANSFER',
+          resource: `User:${targetUser.numericId}`,
+          details: JSON.stringify({
+            resellerNumericId: resellerAccount.user.numericId,
+            targetNumericId: targetUser.numericId,
+            amount: amountInt,
+            resellerBalanceAfter: updatedReseller.diamondBalance,
+            userBalanceAfter: updatedTargetUser.diamonds,
+          }),
+        },
+      });
+
       return { updatedReseller, updatedTargetUser, ledgerEntry };
     });
 
