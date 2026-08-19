@@ -310,6 +310,7 @@ function UploadBox({
   accept,
   uploadEndpoint,
   onUploaded,
+  onRemove,
 }: {
   title: string;
   sublabel: string;
@@ -317,10 +318,23 @@ function UploadBox({
   accept: string;
   uploadEndpoint: string;
   onUploaded: (url: string, name: string) => void;
+  onRemove?: () => void;
 }) {
   const [uploading, setUploading] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [manualUrl, setManualUrl] = useState(value || '');
   const [fileName, setFileName] = useState(value ? value.split('/').pop() || '' : '');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (value) {
+      setFileName(value.split('/').pop() || '');
+      setManualUrl(value);
+    } else {
+      setFileName('');
+      setManualUrl('');
+    }
+  }, [value]);
 
   const handleFile = async (file: File) => {
     setUploading(true);
@@ -330,32 +344,49 @@ function UploadBox({
       formData.append('file', file);
       formData.append('image', file);
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 40000);
+
       const res = await fetch(`${apiBase}${uploadEndpoint}`, {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       const json = await res.json();
       if (json.success && json.data) {
         const url = json.data.assetUrl || json.data.imageUrl || json.data.audioUrl || json.data.url;
         setFileName(file.name);
+        setManualUrl(url);
         onUploaded(url, file.name);
       } else {
-        alert(json.error || 'Upload failed');
+        alert(json.error || json.message || 'Upload failed');
       }
-    } catch {
+    } catch (err: any) {
+      console.warn('Upload fallback to local URL:', err);
       const localUrl = URL.createObjectURL(file);
       setFileName(file.name);
+      setManualUrl(localUrl);
       onUploaded(localUrl, file.name);
     } finally {
       setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleManualSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (manualUrl.trim()) {
+      const name = manualUrl.split('/').pop() || 'asset';
+      setFileName(name);
+      onUploaded(manualUrl.trim(), name);
+      setShowUrlInput(false);
     }
   };
 
   return (
-    <div
-      onClick={() => fileInputRef.current?.click()}
-      className="bg-[#1A1F2C] hover:bg-[#202738] border border-[#2B3448] hover:border-indigo-500/50 rounded-2xl p-3 flex flex-col items-center justify-center text-center cursor-pointer transition group relative min-h-[105px]"
-    >
+    <div className="bg-[#1A1F2C] hover:bg-[#202738] border border-[#2B3448] hover:border-indigo-500/50 rounded-2xl p-3 flex flex-col items-center justify-center text-center transition group relative min-h-[105px]">
       <input
         ref={fileInputRef}
         type="file"
@@ -367,21 +398,91 @@ function UploadBox({
           }
         }}
       />
-      <div className="w-8 h-8 rounded-xl bg-[#262E42] group-hover:bg-indigo-600/20 text-slate-300 group-hover:text-indigo-400 flex items-center justify-center mb-1.5 transition">
-        {uploading ? (
-          <span className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-          </svg>
-        )}
-      </div>
-      <p className="text-[11px] font-black text-slate-200">{title}</p>
-      <p className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[120px]">
-        {fileName || sublabel}
-      </p>
+
+      {showUrlInput ? (
+        <form onSubmit={handleManualSave} className="w-full space-y-1.5 z-20" onClick={e => e.stopPropagation()}>
+          <input
+            type="text"
+            value={manualUrl}
+            onChange={e => setManualUrl(e.target.value)}
+            placeholder="Paste URL (https://...)"
+            className="w-full bg-[#101420] border border-blue-500/60 rounded-lg px-2 py-1 text-[10px] text-white focus:outline-none"
+            autoFocus
+          />
+          <div className="flex gap-1 justify-center">
+            <button
+              type="submit"
+              className="px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-500 text-[9px] font-bold text-white cursor-pointer"
+            >
+              Set URL
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowUrlInput(false)}
+              className="px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600 text-[9px] font-bold text-slate-300 cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full flex flex-col items-center justify-center cursor-pointer"
+        >
+          <div className="w-8 h-8 rounded-xl bg-[#262E42] group-hover:bg-indigo-600/20 text-slate-300 group-hover:text-indigo-400 flex items-center justify-center mb-1.5 transition">
+            {uploading ? (
+              <span className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+            ) : value ? (
+              <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            )}
+          </div>
+          <p className="text-[11px] font-black text-slate-200">{title}</p>
+          <p className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[130px]" title={fileName || value || sublabel}>
+            {uploading ? 'Uploading…' : fileName || sublabel}
+          </p>
+        </div>
+      )}
+
+      {/* Action shortcuts: Direct URL button and Clear button */}
+      {!showUrlInput && (
+        <div className="absolute top-1.5 right-1.5 flex items-center gap-1 z-10">
+          <button
+            type="button"
+            title="Paste Direct URL"
+            onClick={e => {
+              e.stopPropagation();
+              setShowUrlInput(true);
+            }}
+            className="w-5 h-5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-[10px] cursor-pointer"
+          >
+            🔗
+          </button>
+          {value && (
+            <button
+              type="button"
+              title="Remove File"
+              onClick={e => {
+                e.stopPropagation();
+                if (onRemove) onRemove();
+                else onUploaded('', '');
+              }}
+              className="w-5 h-5 rounded bg-red-950/80 hover:bg-red-800 text-red-300 hover:text-white flex items-center justify-center text-[10px] cursor-pointer"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
+
       {value && (
-        <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" />
+        <span className="absolute top-1.5 left-1.5 w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" />
       )}
     </div>
   );
@@ -650,9 +751,10 @@ function GiftModal({
                 title="Upload SVGA"
                 sublabel="Dragon.svga"
                 value={form.svgaUrl}
-                accept=".svga"
+                accept=".svga,.svg,.zip"
                 uploadEndpoint="/upload/svga"
                 onUploaded={(url) => set('svgaUrl', url)}
+                onRemove={() => set('svgaUrl', '')}
               />
               <UploadBox
                 title="Lottie (JSON)"
@@ -661,6 +763,7 @@ function GiftModal({
                 accept=".json"
                 uploadEndpoint="/upload/svga"
                 onUploaded={(url) => set('lottieUrl', url)}
+                onRemove={() => set('lottieUrl', '')}
               />
               <UploadBox
                 title="Static Image"
@@ -669,14 +772,16 @@ function GiftModal({
                 accept="image/*"
                 uploadEndpoint="/upload/image"
                 onUploaded={(url) => set('imageUrl', url)}
+                onRemove={() => set('imageUrl', '')}
               />
               <UploadBox
                 title="Audio / Sound"
                 sublabel="Sound.mp3"
                 value={form.soundUrl}
-                accept="audio/*"
+                accept="audio/*,.mp3,.wav,.ogg"
                 uploadEndpoint="/upload/audio"
                 onUploaded={(url) => set('soundUrl', url)}
+                onRemove={() => set('soundUrl', '')}
               />
             </div>
           </div>

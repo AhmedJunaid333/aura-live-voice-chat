@@ -5783,7 +5783,7 @@ adminRouter.post('/gifts', async (req, res, next) => {
 
 /**
  * PUT /api/v1/admin/gifts/:id
- * Full update of a gift by its UUID.
+ * Full update / upsert of a gift by its ID.
  */
 adminRouter.put('/gifts/:id', async (req, res, next) => {
   try {
@@ -5795,9 +5795,9 @@ adminRouter.put('/gifts/:id', async (req, res, next) => {
       xpReward, isLucky, multiplierMax, active,
     } = req.body;
 
-    const gift = await prisma.gift.update({
+    const gift = await prisma.gift.upsert({
       where: { id },
-      data: {
+      update: {
         ...(name !== undefined && { name }),
         ...(icon !== undefined && { icon }),
         ...(costCoins !== undefined && { costCoins }),
@@ -5813,14 +5813,27 @@ adminRouter.put('/gifts/:id', async (req, res, next) => {
         ...(multiplierMax !== undefined && { multiplierMax }),
         ...(active !== undefined && { active }),
       },
+      create: {
+        id,
+        name: name || 'Gift Asset',
+        icon: icon || '🎁',
+        costCoins: costCoins || 10,
+        rewardDiamonds: rewardDiamonds || 7,
+        category: category || 'Popular',
+        animationType: animationType || 'SMALL',
+        svgaUrl: svgaUrl || null,
+        lottieUrl: lottieUrl || null,
+        imageUrl: imageUrl || null,
+        soundUrl: soundUrl || null,
+        xpReward: xpReward || 100,
+        isLucky: isLucky || false,
+        multiplierMax: multiplierMax || 500,
+        active: active !== undefined ? active : true,
+      },
     });
 
-    res.json({ success: true, data: gift, message: `Gift "${gift.name}" updated!` });
+    res.json({ success: true, data: gift, message: `Gift "${gift.name}" updated successfully!` });
   } catch (error: any) {
-    if (error.code === 'P2025') {
-      res.status(404).json({ success: false, error: 'Gift not found' });
-      return;
-    }
     next(error);
   }
 });
